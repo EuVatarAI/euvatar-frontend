@@ -209,7 +209,10 @@ export const Dashboard = ({ user, onLogout, onNavigate }: DashboardProps) => {
                 <div 
                   key={index}
                   className="flex items-center justify-between p-3 rounded-lg bg-muted/30 border border-border hover:bg-muted/50 transition-colors cursor-pointer"
-                  onClick={() => onNavigate('square')}
+                  onClick={() => {
+                    console.log('Clicou em conversa por totem');
+                    onNavigate('square');
+                  }}
                 >
                   <div>
                     <h4 className="font-medium text-sm">{totem.name}</h4>
@@ -266,7 +269,10 @@ export const Dashboard = ({ user, onLogout, onNavigate }: DashboardProps) => {
               <div 
                 key={totem.id}
                 className="p-4 rounded-lg bg-muted/30 border border-border hover:bg-muted/50 transition-all cursor-pointer hover:shadow-card"
-                onClick={() => onNavigate('square')}
+                onClick={() => {
+                  console.log('Clicou em totem');
+                  onNavigate('square');
+                }}
               >
                 <div className="flex items-start justify-between mb-3">
                   <div>
