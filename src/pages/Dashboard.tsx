@@ -1,6 +1,7 @@
 import { MetricCard } from "@/components/ui/metric-card";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { Header } from "@/components/layout/Header";
 import { 
   Monitor, 
@@ -11,7 +12,8 @@ import {
   Users, 
   Upload,
   Eye,
-  BarChart3
+  BarChart3,
+  Badge as BadgeIcon
 } from "lucide-react";
 import { 
   BarChart, 
@@ -34,9 +36,68 @@ const interactionData = [
   { name: 'Totem 5', interactions: 76 },
 ];
 
+const conversationData = [
+  { name: 'Totem Principal', conversations: 89, avgDuration: '3m 24s' },
+  { name: 'Totem Entrada', conversations: 76, avgDuration: '2m 18s' },
+  { name: 'Totem Info A', conversations: 65, avgDuration: '1m 45s' },
+  { name: 'Totem Info B', conversations: 52, avgDuration: '2m 01s' },
+  { name: 'Totem Saída', conversations: 34, avgDuration: '1m 12s' },
+];
+
+const topMediaData = [
+  { name: 'Promoção Black Friday', views: 1432, engagement: 85, duration: '30s' },
+  { name: 'Novo Produto Tech', views: 1218, engagement: 72, duration: '15s' },
+  { name: 'Campanha Sustentável', views: 967, engagement: 68, duration: '1m' },
+  { name: 'Ofertas Especiais', views: 845, engagement: 79, duration: '30s' },
+  { name: 'Tutorial Produto', views: 723, engagement: 91, duration: '1m' },
+];
+
 const visionData = [
   { name: 'Homens', value: 45, color: '#8b5cf6' },
   { name: 'Mulheres', value: 55, color: '#06b6d4' },
+];
+
+const allTotems = [
+  { 
+    id: '1', 
+    name: 'Totem Principal - Entrada', 
+    location: 'Aeroporto Brasília',
+    character: 'Ana Virtual',
+    status: 'active',
+    interactions: 145,
+    conversations: 89,
+    lastActive: '2 min atrás'
+  },
+  { 
+    id: '2', 
+    name: 'Totem Informativo - Portão A', 
+    location: 'Aeroporto Brasília',
+    character: 'Carlos Assistente',
+    status: 'active',
+    interactions: 123,
+    conversations: 76,
+    lastActive: '5 min atrás'
+  },
+  { 
+    id: '3', 
+    name: 'Totem Shopping - Praça Central', 
+    location: 'Shopping Center Norte',
+    character: 'Maria Recepcionista',
+    status: 'maintenance',
+    interactions: 98,
+    conversations: 65,
+    lastActive: '1h atrás'
+  },
+  { 
+    id: '4', 
+    name: 'Totem Parque - Entrada Principal', 
+    location: 'Parque Olímpico RJ',
+    character: 'Roberto Guia',
+    status: 'active',
+    interactions: 87,
+    conversations: 52,
+    lastActive: '3 min atrás'
+  },
 ];
 
 const squares = [
@@ -133,6 +194,113 @@ export const Dashboard = ({ user, onLogout, onNavigate }: DashboardProps) => {
                 <div className="text-sm text-muted-foreground">Carregar vídeos</div>
               </div>
             </Button>
+          </div>
+        </Card>
+
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* Conversations by Totem */}
+          <Card className="gradient-card shadow-card border-border p-6">
+            <h3 className="text-xl font-semibold mb-4 flex items-center gap-2">
+              <MessageCircle className="h-5 w-5 text-primary" />
+              Conversas por Totem
+            </h3>
+            <div className="space-y-3">
+              {conversationData.map((totem, index) => (
+                <div 
+                  key={index}
+                  className="flex items-center justify-between p-3 rounded-lg bg-muted/30 border border-border hover:bg-muted/50 transition-colors cursor-pointer"
+                  onClick={() => onNavigate('square')}
+                >
+                  <div>
+                    <h4 className="font-medium text-sm">{totem.name}</h4>
+                    <p className="text-xs text-muted-foreground">Duração média: {totem.avgDuration}</p>
+                  </div>
+                  <div className="text-right">
+                    <div className="font-bold text-primary">{totem.conversations}</div>
+                    <div className="text-xs text-muted-foreground">conversas</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </Card>
+
+          {/* Top Media by Views */}
+          <Card className="gradient-card shadow-card border-border p-6">
+            <h3 className="text-xl font-semibold mb-4 flex items-center gap-2">
+              <Eye className="h-5 w-5 text-primary" />
+              Mídias Mais Visualizadas
+            </h3>
+            <div className="space-y-3">
+              {topMediaData.slice(0, 5).map((media, index) => (
+                <div 
+                  key={index}
+                  className="flex items-center justify-between p-3 rounded-lg bg-muted/30 border border-border hover:bg-muted/50 transition-colors cursor-pointer"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded bg-primary/10 flex items-center justify-center">
+                      <Video className="h-4 w-4 text-primary" />
+                    </div>
+                    <div>
+                      <h4 className="font-medium text-sm">{media.name}</h4>
+                      <p className="text-xs text-muted-foreground">{media.duration} • {media.engagement}% engajamento</p>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <div className="font-bold text-primary">{media.views.toLocaleString()}</div>
+                    <div className="text-xs text-muted-foreground">visualizações</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </Card>
+        </div>
+
+        {/* All Totems Grid */}
+        <Card className="gradient-card shadow-card border-border p-6">
+          <h3 className="text-xl font-semibold mb-4 flex items-center gap-2">
+            <Monitor className="h-5 w-5 text-primary" />
+            Todos os Totens
+          </h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {allTotems.map((totem) => (
+              <div 
+                key={totem.id}
+                className="p-4 rounded-lg bg-muted/30 border border-border hover:bg-muted/50 transition-all cursor-pointer hover:shadow-card"
+                onClick={() => onNavigate('square')}
+              >
+                <div className="flex items-start justify-between mb-3">
+                  <div>
+                    <h4 className="font-medium text-sm">{totem.name}</h4>
+                    <p className="text-xs text-muted-foreground">{totem.location}</p>
+                  </div>
+                  <Badge 
+                    variant={totem.status === 'active' ? 'default' : 'secondary'}
+                    className={`text-xs ${totem.status === 'active' ? 'bg-success text-white' : 'bg-warning text-black'}`}
+                  >
+                    {totem.status === 'active' ? 'Ativo' : 'Manutenção'}
+                  </Badge>
+                </div>
+                
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-muted-foreground">Personagem:</span>
+                    <span className="font-medium text-primary">{totem.character}</span>
+                  </div>
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-muted-foreground">Interações:</span>
+                    <span className="font-medium">{totem.interactions}</span>
+                  </div>
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-muted-foreground">Conversas:</span>
+                    <span className="font-medium">{totem.conversations}</span>
+                  </div>
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-muted-foreground">Última atividade:</span>
+                    <span className="font-medium text-success">{totem.lastActive}</span>
+                  </div>
+                </div>
+              </div>
+            ))}
           </div>
         </Card>
 
