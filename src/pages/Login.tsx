@@ -56,6 +56,19 @@ export const Login = ({ onLogin }: LoginProps) => {
           </p>
         </div>
 
+        {/* Demo Credentials */}
+        <Card className="gradient-card shadow-card border-border p-4 mb-4">
+          <div className="text-center">
+            <p className="text-sm text-muted-foreground mb-2">
+              <strong>Demo - Use qualquer credencial para entrar:</strong>
+            </p>
+            <div className="flex flex-col gap-1 text-xs text-primary">
+              <span>Email: demo@euvatar.com</span>
+              <span>Senha: demo123</span>
+            </div>
+          </div>
+        </Card>
+
         {/* Login Form */}
         <Card className="gradient-card shadow-card border-border p-8">
           <form onSubmit={handleSubmit} className="space-y-6">
@@ -64,7 +77,7 @@ export const Login = ({ onLogin }: LoginProps) => {
               <Input
                 id="email"
                 type="email"
-                placeholder="empresa@exemplo.com"
+                placeholder="demo@euvatar.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
@@ -77,7 +90,7 @@ export const Login = ({ onLogin }: LoginProps) => {
               <Input
                 id="password"
                 type="password"
-                placeholder="••••••••"
+                placeholder="demo123"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
@@ -92,6 +105,12 @@ export const Login = ({ onLogin }: LoginProps) => {
             >
               {loading ? "Entrando..." : "Entrar na plataforma"}
             </Button>
+
+            <div className="text-center">
+              <p className="text-xs text-muted-foreground">
+                Este é um ambiente de demonstração. Qualquer email/senha funcionará.
+              </p>
+            </div>
           </form>
         </Card>
       </div>
