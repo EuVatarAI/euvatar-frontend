@@ -10,11 +10,15 @@ interface MetricCardProps {
     label: string;
   };
   className?: string;
+  onClick?: () => void;
 }
 
-export const MetricCard = ({ title, value, Icon, trend, className }: MetricCardProps) => {
+export const MetricCard = ({ title, value, Icon, trend, className, onClick }: MetricCardProps) => {
   return (
-    <Card className={`gradient-card shadow-card border-border p-6 animate-fade-in ${className || ""}`}>
+    <Card 
+      className={`gradient-card shadow-card border-border p-6 animate-fade-in ${onClick ? 'cursor-pointer hover:shadow-lg transition-all hover:scale-105' : ''} ${className || ""}`}
+      onClick={onClick}
+    >
       <div className="flex items-center justify-between">
         <div>
           <p className="text-sm font-medium text-muted-foreground">{title}</p>

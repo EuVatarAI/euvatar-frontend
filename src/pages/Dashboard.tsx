@@ -139,18 +139,30 @@ export const Dashboard = ({ user, onLogout, onNavigate }: DashboardProps) => {
             value="30"
             Icon={Monitor}
             trend={{ value: 12, label: "este mês" }}
+            onClick={() => {
+              console.log('Clicou em Total de Totens');
+              onNavigate('square');
+            }}
           />
           <MetricCard
             title="Conversas Hoje"
             value="1,247"
             Icon={MessageCircle}
             trend={{ value: 8, label: "vs ontem" }}
+            onClick={() => {
+              console.log('Clicou em Conversas Hoje');
+              onNavigate('square');
+            }}
           />
           <MetricCard
             title="Mídias Cadastradas"
             value="156"
             Icon={Video}
             trend={{ value: 5, label: "esta semana" }}
+            onClick={() => {
+              console.log('Clicou em Mídias Cadastradas');
+              onNavigate('upload');
+            }}
           />
         </div>
 
