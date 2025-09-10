@@ -4,7 +4,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
-import euvatar from "/euvatar-original-logo.png";
+import euvatar from "/lovable-uploads/71410e48-d9ab-4136-86ab-f30f24385139.png";
 import { removeBackground, loadImage } from "@/utils/backgroundRemoval";
 
 interface LoginProps {
