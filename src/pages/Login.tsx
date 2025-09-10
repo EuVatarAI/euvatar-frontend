@@ -4,7 +4,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
-import euvatar from "@/assets/euvatar-logo.png";
+import euvatar from "@/assets/euvatar-ai-logo.png";
 
 interface LoginProps {
   onLogin: (credentials: { email: string; password: string }) => void;
