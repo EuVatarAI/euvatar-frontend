@@ -25,7 +25,26 @@ export const Login = ({ onLogin }: LoginProps) => {
   const [buttonText, setButtonText] = useState("Entrar na plataforma");
   const [disclaimerText, setDisclaimerText] = useState("Este é um ambiente de demonstração. Qualquer email/senha funcionará.");
   const [editMode, setEditMode] = useState(false);
+  
+  // Position states for draggable elements
+  const [positions, setPositions] = useState(() => {
+    const saved = localStorage.getItem('login-page-positions');
+    return saved ? JSON.parse(saved) : {
+      logo: { x: 0, y: 0 },
+      tagline: { x: 0, y: 0 },
+      demo: { x: 0, y: 0 },
+      form: { x: 0, y: 0 }
+    };
+  });
+  
   const { toast } = useToast();
+
+  // Save positions to localStorage
+  const savePosition = (elementId: string, position: { x: number; y: number }) => {
+    const newPositions = { ...positions, [elementId]: position };
+    setPositions(newPositions);
+    localStorage.setItem('login-page-positions', JSON.stringify(newPositions));
+  };
 
   useEffect(() => {
     // Use the original logo directly without processing
@@ -54,7 +73,24 @@ export const Login = ({ onLogin }: LoginProps) => {
   return (
     <div className="min-h-screen bg-gradient-subtle p-4">
       {/* Mode Toggle Button */}
-      <div className="fixed top-4 right-4 z-50">
+      <div className="fixed top-4 right-4 z-50 flex gap-2">
+        <Button
+          onClick={() => {
+            const resetPositions = {
+              logo: { x: 0, y: 0 },
+              tagline: { x: 0, y: 0 },
+              demo: { x: 0, y: 0 },
+              form: { x: 0, y: 0 }
+            };
+            setPositions(resetPositions);
+            localStorage.setItem('login-page-positions', JSON.stringify(resetPositions));
+          }}
+          variant="outline"
+          size="sm"
+          className="shadow-lg"
+        >
+          🔄 Reset
+        </Button>
         <Button
           onClick={() => setEditMode(!editMode)}
           variant={editMode ? "default" : "secondary"}
@@ -67,7 +103,11 @@ export const Login = ({ onLogin }: LoginProps) => {
       
       <div className="w-full max-w-md mx-auto animate-fade-in">
         {/* Logo and Branding */}
-        <Draggable disabled={editMode}>
+        <Draggable 
+          disabled={editMode}
+          position={positions.logo}
+          onStop={(e, data) => savePosition('logo', { x: data.x, y: data.y })}
+        >
           <div className={`text-center mb-4 ${editMode ? 'cursor-text' : 'cursor-move'}`}>
             <div className="flex justify-center">
               <img 
@@ -79,7 +119,11 @@ export const Login = ({ onLogin }: LoginProps) => {
           </div>
         </Draggable>
 
-        <Draggable disabled={editMode}>
+        <Draggable 
+          disabled={editMode}
+          position={positions.tagline}
+          onStop={(e, data) => savePosition('tagline', { x: data.x, y: data.y })}
+        >
           <div className={`text-center mb-4 ${editMode ? 'cursor-text' : 'cursor-move'}`}>
             <p className="text-lg text-center text-muted-foreground leading-tight">
               <span 
@@ -103,7 +147,11 @@ export const Login = ({ onLogin }: LoginProps) => {
         </Draggable>
 
         {/* Demo Credentials */}
-        <Draggable disabled={editMode}>
+        <Draggable 
+          disabled={editMode}
+          position={positions.demo}
+          onStop={(e, data) => savePosition('demo', { x: data.x, y: data.y })}
+        >
           <Card className={`gradient-card shadow-card border-border p-4 mb-2 mt-12 ${editMode ? 'cursor-text' : 'cursor-move'}`}>
             <div className="text-center">
               <p className="text-sm text-muted-foreground mb-2">
@@ -125,7 +173,11 @@ export const Login = ({ onLogin }: LoginProps) => {
         </Draggable>
 
         {/* Login Form */}
-        <Draggable disabled={editMode}>
+        <Draggable 
+          disabled={editMode}
+          position={positions.form}
+          onStop={(e, data) => savePosition('form', { x: data.x, y: data.y })}
+        >
           <Card className={`gradient-card shadow-card border-border p-8 ${editMode ? 'cursor-text' : 'cursor-move'}`}>
             <form onSubmit={handleSubmit} className="space-y-6">
               <div className="space-y-2">
