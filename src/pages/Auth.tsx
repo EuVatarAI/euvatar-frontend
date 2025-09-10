@@ -152,7 +152,7 @@ export const Auth = ({ onAuthSuccess }: AuthProps) => {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="email">E-mail</Label>
+              <Label htmlFor="email">E-mail da empresa</Label>
               <Input
                 id="email"
                 type="email"
