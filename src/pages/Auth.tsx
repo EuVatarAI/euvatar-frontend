@@ -6,6 +6,7 @@ import { Card } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { Eye, EyeOff } from "lucide-react";
+import { createDemoUser } from "@/utils/createDemoUser";
 import euvatar from "/lovable-uploads/71410e48-d9ab-4136-86ab-f30f24385139.png";
 import Draggable from 'react-draggable';
 
@@ -23,6 +24,14 @@ export const Auth = ({ onAuthSuccess }: AuthProps) => {
   const [editableSubtext, setEditableSubtext] = useState("a evolução da comunicação humano-marca");
   const [editMode, setEditMode] = useState(false);
   const { toast } = useToast();
+
+  useEffect(() => {
+    // Criar usuário demo ao carregar a página
+    const initializeDemoUser = async () => {
+      await createDemoUser();
+    };
+    initializeDemoUser();
+  }, []);
 
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -134,6 +143,51 @@ export const Auth = ({ onAuthSuccess }: AuthProps) => {
             </div>
 
             <form onSubmit={handleAuth} className="space-y-6">
+              {/* Demo Credentials */}
+              <div className="p-4 bg-muted/50 rounded-lg border border-border">
+                <h3 className="text-sm font-semibold text-muted-foreground mb-2">🔧 Credenciais Demo</h3>
+                <div className="text-xs space-y-1 text-muted-foreground">
+                  <p><strong>Email:</strong> demo@euvatar.ai</p>
+                  <p><strong>Senha:</strong> demo123</p>
+                </div>
+                <div className="flex gap-2 mt-3">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      setEmail('demo@euvatar.ai');
+                      setPassword('demo123');
+                    }}
+                    className="text-xs"
+                  >
+                    Preencher Demo
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={async () => {
+                      const result = await createDemoUser();
+                      if (result.success) {
+                        toast({
+                          title: "Conta demo criada!",
+                          description: "Use as credenciais acima para fazer login.",
+                        });
+                      } else {
+                        toast({
+                          title: "Conta demo já existe",
+                          description: "Use as credenciais acima para fazer login.",
+                        });
+                      }
+                    }}
+                    className="text-xs"
+                  >
+                    Criar Demo
+                  </Button>
+                </div>
+              </div>
+
               <div className="space-y-2">
                 <Label htmlFor="email">E-mail</Label>
                 <Input
