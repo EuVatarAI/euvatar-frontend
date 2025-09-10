@@ -46,7 +46,7 @@ export const Login = ({ onLogin }: LoginProps) => {
     <div className="min-h-screen bg-gradient-subtle p-4">
       <div className="w-full max-w-md mx-auto animate-fade-in">
         {/* Logo and Branding */}
-        <div className="text-center">
+        <div className="text-center relative">
           <div className="flex justify-center">
             <img 
               src={processedLogo || euvatar} 
@@ -54,7 +54,7 @@ export const Login = ({ onLogin }: LoginProps) => {
               className="max-w-xs h-auto block" 
             />
           </div>
-          <p className="-mt-6 text-lg text-center text-muted-foreground leading-tight mb-4">
+          <p className="absolute -bottom-8 left-0 right-0 text-lg text-center text-muted-foreground leading-tight mb-4">
             não fale para o seu público, converse com ele no mundo real.{" "}
             <span className="text-primary font-semibold">
               a evolução da comunicação humano-marca
@@ -63,7 +63,7 @@ export const Login = ({ onLogin }: LoginProps) => {
         </div>
 
         {/* Demo Credentials */}
-        <Card className="gradient-card shadow-card border-border p-4 mb-2">
+        <Card className="gradient-card shadow-card border-border p-4 mb-2 mt-12">
           <div className="text-center">
             <p className="text-sm text-muted-foreground mb-2">
               <strong>Demo - Use qualquer credencial para entrar:</strong>
