@@ -4,7 +4,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
-import euvatar from "@/assets/euvatar-ai-logo.png";
+import euvatar from "/euvatar-original-logo.png";
 import { removeBackground, loadImage } from "@/utils/backgroundRemoval";
 
 interface LoginProps {
@@ -19,25 +19,8 @@ export const Login = ({ onLogin }: LoginProps) => {
   const { toast } = useToast();
 
   useEffect(() => {
-    const processLogo = async () => {
-      try {
-        // Load the original image
-        const response = await fetch(euvatar);
-        const blob = await response.blob();
-        const img = await loadImage(blob);
-        
-        // Remove background
-        const processedBlob = await removeBackground(img);
-        const processedUrl = URL.createObjectURL(processedBlob);
-        setProcessedLogo(processedUrl);
-      } catch (error) {
-        console.error('Error processing logo:', error);
-        // Fallback to original logo
-        setProcessedLogo(euvatar);
-      }
-    };
-
-    processLogo();
+    // Use the original logo directly without processing
+    setProcessedLogo(euvatar);
   }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
