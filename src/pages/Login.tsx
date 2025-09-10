@@ -6,6 +6,7 @@ import { Card } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import euvatar from "/lovable-uploads/71410e48-d9ab-4136-86ab-f30f24385139.png";
 import { removeBackground, loadImage } from "@/utils/backgroundRemoval";
+import Draggable from 'react-draggable';
 
 interface LoginProps {
   onLogin: (credentials: { email: string; password: string }) => void;
@@ -46,79 +47,85 @@ export const Login = ({ onLogin }: LoginProps) => {
     <div className="min-h-screen bg-gradient-subtle p-4">
       <div className="w-full max-w-md mx-auto animate-fade-in">
         {/* Logo and Branding */}
-        <div className="text-center relative">
-          <div className="flex justify-center">
-            <img 
-              src={processedLogo || euvatar} 
-              alt="Euvatar" 
-              className="max-w-xs h-auto block" 
-            />
+        <Draggable>
+          <div className="text-center relative cursor-move">
+            <div className="flex justify-center">
+              <img 
+                src={processedLogo || euvatar} 
+                alt="Euvatar" 
+                className="max-w-xs h-auto block" 
+              />
+            </div>
+            <p className="absolute -bottom-8 left-0 right-0 text-lg text-center text-muted-foreground leading-tight mb-4">
+              não fale para o seu público, converse com ele no mundo real.{" "}
+              <span className="text-primary font-semibold">
+                a evolução da comunicação humano-marca
+              </span>
+            </p>
           </div>
-          <p className="absolute -bottom-8 left-0 right-0 text-lg text-center text-muted-foreground leading-tight mb-4">
-            não fale para o seu público, converse com ele no mundo real.{" "}
-            <span className="text-primary font-semibold">
-              a evolução da comunicação humano-marca
-            </span>
-          </p>
-        </div>
+        </Draggable>
 
         {/* Demo Credentials */}
-        <Card className="gradient-card shadow-card border-border p-4 mb-2 mt-12">
-          <div className="text-center">
-            <p className="text-sm text-muted-foreground mb-2">
-              <strong>Demo - Use qualquer credencial para entrar:</strong>
-            </p>
-            <div className="flex flex-col gap-1 text-xs text-primary">
-              <span>Email: demo@euvatar.com</span>
-              <span>Senha: demo123</span>
+        <Draggable>
+          <Card className="gradient-card shadow-card border-border p-4 mb-2 mt-12 cursor-move">
+            <div className="text-center">
+              <p className="text-sm text-muted-foreground mb-2">
+                <strong>Demo - Use qualquer credencial para entrar:</strong>
+              </p>
+              <div className="flex flex-col gap-1 text-xs text-primary">
+                <span>Email: demo@euvatar.com</span>
+                <span>Senha: demo123</span>
+              </div>
             </div>
-          </div>
-        </Card>
+          </Card>
+        </Draggable>
 
         {/* Login Form */}
-        <Card className="gradient-card shadow-card border-border p-8">
-          <form onSubmit={handleSubmit} className="space-y-6">
-            <div className="space-y-2">
-              <Label htmlFor="email">E-mail da empresa</Label>
-              <Input
-                id="email"
-                type="email"
-                placeholder="demo@euvatar.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-                className="bg-muted border-border"
-              />
-            </div>
+        <Draggable>
+          <Card className="gradient-card shadow-card border-border p-8 cursor-move">
+            <form onSubmit={handleSubmit} className="space-y-6">
+              <div className="space-y-2">
+                <Label htmlFor="email">E-mail da empresa</Label>
+                <Input
+                  id="email"
+                  type="email"
+                  placeholder="demo@euvatar.com"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  required
+                  className="bg-muted border-border"
+                />
+              </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="password">Senha</Label>
-              <Input
-                id="password"
-                type="password"
-                placeholder="demo123"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-                className="bg-muted border-border"
-              />
-            </div>
+              <div className="space-y-2">
+                <Label htmlFor="password">Senha</Label>
+                <Input
+                  id="password"
+                  type="password"
+                  placeholder="demo123"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                  className="bg-muted border-border"
+                />
+              </div>
 
-            <Button
-              type="submit"
-              className="w-full bg-gradient-primary hover:shadow-glow transition-all duration-300"
-              disabled={loading}
-            >
-              {loading ? "Entrando..." : "Entrar na plataforma"}
-            </Button>
+              <Button
+                type="submit"
+                className="w-full bg-gradient-primary hover:shadow-glow transition-all duration-300"
+                disabled={loading}
+              >
+                {loading ? "Entrando..." : "Entrar na plataforma"}
+              </Button>
 
-            <div className="text-center">
-              <p className="text-xs text-muted-foreground">
-                Este é um ambiente de demonstração. Qualquer email/senha funcionará.
-              </p>
-            </div>
-          </form>
-        </Card>
+              <div className="text-center">
+                <p className="text-xs text-muted-foreground">
+                  Este é um ambiente de demonstração. Qualquer email/senha funcionará.
+                </p>
+              </div>
+            </form>
+          </Card>
+        </Draggable>
       </div>
     </div>
   );
