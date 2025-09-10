@@ -6,7 +6,6 @@ import { Card } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import euvatar from "/lovable-uploads/71410e48-d9ab-4136-86ab-f30f24385139.png";
 import { removeBackground, loadImage } from "@/utils/backgroundRemoval";
-import Draggable from 'react-draggable';
 
 interface LoginProps {
   onLogin: (credentials: { email: string; password: string }) => void;
@@ -26,25 +25,7 @@ export const Login = ({ onLogin }: LoginProps) => {
   const [disclaimerText, setDisclaimerText] = useState("Este é um ambiente de demonstração. Qualquer email/senha funcionará.");
   const [editMode, setEditMode] = useState(false);
   
-  // Position states for draggable elements
-  const [positions, setPositions] = useState(() => {
-    const saved = localStorage.getItem('login-page-positions');
-    return saved ? JSON.parse(saved) : {
-      logo: { x: 0, y: 0 },
-      tagline: { x: 0, y: 0 },
-      demo: { x: 0, y: 0 },
-      form: { x: 0, y: 0 }
-    };
-  });
-  
   const { toast } = useToast();
-
-  // Save positions to localStorage
-  const savePosition = (elementId: string, position: { x: number; y: number }) => {
-    const newPositions = { ...positions, [elementId]: position };
-    setPositions(newPositions);
-    localStorage.setItem('login-page-positions', JSON.stringify(newPositions));
-  };
 
   useEffect(() => {
     // Use the original logo directly without processing
@@ -86,10 +67,7 @@ export const Login = ({ onLogin }: LoginProps) => {
       
       <div className="w-full max-w-md mx-auto animate-fade-in">
         {/* Logo and Branding */}
-        <div 
-          className="text-center mb-4"
-          style={{ transform: `translate(${positions.logo.x}px, ${positions.logo.y}px)` }}
-        >
+        <div className="text-center mb-4">
           <div className="flex justify-center">
             <img 
               src={processedLogo || euvatar} 
@@ -99,10 +77,7 @@ export const Login = ({ onLogin }: LoginProps) => {
           </div>
         </div>
 
-        <div 
-          className="text-center mb-4"
-          style={{ transform: `translate(${positions.tagline.x}px, ${positions.tagline.y}px)` }}
-        >
+        <div className="text-center mb-4">
           <p className="text-lg text-center text-muted-foreground leading-tight">
             <span 
               contentEditable={editMode}
@@ -124,10 +99,7 @@ export const Login = ({ onLogin }: LoginProps) => {
         </div>
 
         {/* Demo Credentials */}
-        <Card 
-          className="gradient-card shadow-card border-border p-4 mb-2 mt-12"
-          style={{ transform: `translate(${positions.demo.x}px, ${positions.demo.y}px)` }}
-        >
+        <Card className="gradient-card shadow-card border-border p-4 mb-2 mt-12">
           <div className="text-center">
             <p className="text-sm text-muted-foreground mb-2">
               <strong 
@@ -147,10 +119,7 @@ export const Login = ({ onLogin }: LoginProps) => {
         </Card>
 
         {/* Login Form */}
-        <Card 
-          className="gradient-card shadow-card border-border p-8"
-          style={{ transform: `translate(${positions.form.x}px, ${positions.form.y}px)` }}
-        >
+        <Card className="gradient-card shadow-card border-border p-8">
           <form onSubmit={handleSubmit} className="space-y-6">
             <div className="space-y-2">
               <Label 
