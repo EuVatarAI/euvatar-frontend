@@ -46,7 +46,7 @@ export const Login = ({ onLogin }: LoginProps) => {
     <div className="min-h-screen bg-gradient-subtle p-4">
       <div className="w-full max-w-md mx-auto space-y-2 animate-fade-in">
         {/* Logo and Branding */}
-        <div className="text-center">
+        <div className="text-center space-y-0">
           <div className="flex justify-center">
             <img 
               src={processedLogo || euvatar} 
@@ -54,7 +54,7 @@ export const Login = ({ onLogin }: LoginProps) => {
               className="max-w-xs h-auto" 
             />
           </div>
-          <p className="-mt-2 text-lg text-center text-muted-foreground leading-relaxed">
+          <p className="-mt-4 text-lg text-center text-muted-foreground leading-tight">
             não fale para o seu público, converse com ele no mundo real.{" "}
             <span className="text-primary font-semibold">
               a evolução da comunicação humano-marca
