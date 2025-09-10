@@ -47,14 +47,14 @@ export const Login = ({ onLogin }: LoginProps) => {
       <div className="w-full max-w-md space-y-6 animate-fade-in">
         {/* Logo and Branding */}
         <div className="text-center">
-          <div className="flex justify-center mb-4">
+          <div className="flex justify-center mb-2">
             <img 
               src={processedLogo || euvatar} 
               alt="Euvatar" 
               className="max-w-xs h-auto" 
             />
           </div>
-          <p className="mt-2 text-lg text-center text-muted-foreground leading-relaxed">
+          <p className="mt-1 text-lg text-center text-muted-foreground leading-relaxed">
             não fale para o seu público, converse com ele no mundo real.{" "}
             <span className="text-primary font-semibold">
               a evolução da comunicação humano-marca
