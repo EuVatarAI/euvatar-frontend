@@ -73,183 +73,154 @@ export const Login = ({ onLogin }: LoginProps) => {
   return (
     <div className="min-h-screen bg-gradient-subtle p-4">
       {/* Mode Toggle Button */}
-      <div className="fixed top-4 right-4 z-50 flex gap-2">
-        <Button
-          onClick={() => {
-            const resetPositions = {
-              logo: { x: 0, y: 0 },
-              tagline: { x: 0, y: 0 },
-              demo: { x: 0, y: 0 },
-              form: { x: 0, y: 0 }
-            };
-            setPositions(resetPositions);
-            localStorage.setItem('login-page-positions', JSON.stringify(resetPositions));
-          }}
-          variant="outline"
-          size="sm"
-          className="shadow-lg"
-        >
-          🔄 Reset
-        </Button>
+      <div className="fixed top-4 right-4 z-50">
         <Button
           onClick={() => setEditMode(!editMode)}
           variant={editMode ? "default" : "secondary"}
           size="sm"
           className="shadow-lg"
         >
-          {editMode ? "✏️ Editar" : "🔄 Mover"}
+          {editMode ? "✏️ Salvar" : "✏️ Editar"}
         </Button>
       </div>
       
       <div className="w-full max-w-md mx-auto animate-fade-in">
         {/* Logo and Branding */}
-        <Draggable 
-          disabled={editMode}
-          position={positions.logo}
-          onStop={(e, data) => savePosition('logo', { x: data.x, y: data.y })}
+        <div 
+          className="text-center mb-4"
+          style={{ transform: `translate(${positions.logo.x}px, ${positions.logo.y}px)` }}
         >
-          <div className={`text-center mb-4 ${editMode ? 'cursor-text' : 'cursor-move'}`}>
-            <div className="flex justify-center">
-              <img 
-                src={processedLogo || euvatar} 
-                alt="Euvatar" 
-                className="max-w-xs h-auto block" 
-              />
-            </div>
+          <div className="flex justify-center">
+            <img 
+              src={processedLogo || euvatar} 
+              alt="Euvatar" 
+              className="max-w-xs h-auto block" 
+            />
           </div>
-        </Draggable>
+        </div>
 
-        <Draggable 
-          disabled={editMode}
-          position={positions.tagline}
-          onStop={(e, data) => savePosition('tagline', { x: data.x, y: data.y })}
+        <div 
+          className="text-center mb-4"
+          style={{ transform: `translate(${positions.tagline.x}px, ${positions.tagline.y}px)` }}
         >
-          <div className={`text-center mb-4 ${editMode ? 'cursor-text' : 'cursor-move'}`}>
-            <p className="text-lg text-center text-muted-foreground leading-tight">
-              <span 
-                contentEditable={editMode}
-                suppressContentEditableWarning={true}
-                onBlur={(e) => setEditableText(e.currentTarget.textContent || "")}
-                className={`outline-none ${editMode ? 'focus:bg-muted/20 px-1 rounded' : ''}`}
-              >
-                {editableText}
-              </span>{" "}
-              <span 
-                contentEditable={editMode}
-                suppressContentEditableWarning={true}
-                onBlur={(e) => setEditableSubtext(e.currentTarget.textContent || "")}
-                className={`text-primary font-semibold outline-none ${editMode ? 'focus:bg-muted/20 px-1 rounded' : ''}`}
-              >
-                {editableSubtext}
-              </span>
-            </p>
-          </div>
-        </Draggable>
+          <p className="text-lg text-center text-muted-foreground leading-tight">
+            <span 
+              contentEditable={editMode}
+              suppressContentEditableWarning={true}
+              onBlur={(e) => setEditableText(e.currentTarget.textContent || "")}
+              className={`outline-none ${editMode ? 'focus:bg-muted/20 px-1 rounded' : ''}`}
+            >
+              {editableText}
+            </span>{" "}
+            <span 
+              contentEditable={editMode}
+              suppressContentEditableWarning={true}
+              onBlur={(e) => setEditableSubtext(e.currentTarget.textContent || "")}
+              className={`text-primary font-semibold outline-none ${editMode ? 'focus:bg-muted/20 px-1 rounded' : ''}`}
+            >
+              {editableSubtext}
+            </span>
+          </p>
+        </div>
 
         {/* Demo Credentials */}
-        <Draggable 
-          disabled={editMode}
-          position={positions.demo}
-          onStop={(e, data) => savePosition('demo', { x: data.x, y: data.y })}
+        <Card 
+          className="gradient-card shadow-card border-border p-4 mb-2 mt-12"
+          style={{ transform: `translate(${positions.demo.x}px, ${positions.demo.y}px)` }}
         >
-          <Card className={`gradient-card shadow-card border-border p-4 mb-2 mt-12 ${editMode ? 'cursor-text' : 'cursor-move'}`}>
-            <div className="text-center">
-              <p className="text-sm text-muted-foreground mb-2">
-                <strong 
-                  contentEditable={editMode}
-                  suppressContentEditableWarning={true}
-                  onBlur={(e) => setDemoTitle(e.currentTarget.textContent || "")}
-                  className={`outline-none ${editMode ? 'focus:bg-muted/20 px-1 rounded' : ''}`}
-                >
-                  {demoTitle}
-                </strong>
-              </p>
-              <div className="flex flex-col gap-1 text-xs text-primary">
-                <span>Email: demo@euvatar.com</span>
-                <span>Senha: demo123</span>
-              </div>
+          <div className="text-center">
+            <p className="text-sm text-muted-foreground mb-2">
+              <strong 
+                contentEditable={editMode}
+                suppressContentEditableWarning={true}
+                onBlur={(e) => setDemoTitle(e.currentTarget.textContent || "")}
+                className={`outline-none ${editMode ? 'focus:bg-muted/20 px-1 rounded' : ''}`}
+              >
+                {demoTitle}
+              </strong>
+            </p>
+            <div className="flex flex-col gap-1 text-xs text-primary">
+              <span>Email: demo@euvatar.com</span>
+              <span>Senha: demo123</span>
             </div>
-          </Card>
-        </Draggable>
+          </div>
+        </Card>
 
         {/* Login Form */}
-        <Draggable 
-          disabled={editMode}
-          position={positions.form}
-          onStop={(e, data) => savePosition('form', { x: data.x, y: data.y })}
+        <Card 
+          className="gradient-card shadow-card border-border p-8"
+          style={{ transform: `translate(${positions.form.x}px, ${positions.form.y}px)` }}
         >
-          <Card className={`gradient-card shadow-card border-border p-8 ${editMode ? 'cursor-text' : 'cursor-move'}`}>
-            <form onSubmit={handleSubmit} className="space-y-6">
-              <div className="space-y-2">
-                <Label 
-                  htmlFor="email" 
-                  contentEditable={editMode}
-                  suppressContentEditableWarning={true}
-                  onBlur={(e) => setEmailLabel(e.currentTarget.textContent || "")}
-                  className={`outline-none cursor-text ${editMode ? 'focus:bg-muted/20 px-1 rounded' : ''}`}
-                >
-                  {emailLabel}
-                </Label>
-                <Input
-                  id="email"
-                  type="email"
-                  placeholder="demo@euvatar.com"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  required
-                  className="bg-muted border-border"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label 
-                  htmlFor="password"
-                  contentEditable={editMode}
-                  suppressContentEditableWarning={true}
-                  onBlur={(e) => setPasswordLabel(e.currentTarget.textContent || "")}
-                  className={`outline-none cursor-text ${editMode ? 'focus:bg-muted/20 px-1 rounded' : ''}`}
-                >
-                  {passwordLabel}
-                </Label>
-                <Input
-                  id="password"
-                  type="password"
-                  placeholder="demo123"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  required
-                  className="bg-muted border-border"
-                />
-              </div>
-
-              <Button
-                type="submit"
-                className="w-full bg-gradient-primary hover:shadow-glow transition-all duration-300"
-                disabled={loading}
+          <form onSubmit={handleSubmit} className="space-y-6">
+            <div className="space-y-2">
+              <Label 
+                htmlFor="email" 
+                contentEditable={editMode}
+                suppressContentEditableWarning={true}
+                onBlur={(e) => setEmailLabel(e.currentTarget.textContent || "")}
+                className={`outline-none cursor-text ${editMode ? 'focus:bg-muted/20 px-1 rounded' : ''}`}
               >
-                <span 
-                  contentEditable={editMode && !loading}
-                  suppressContentEditableWarning={true}
-                  onBlur={(e) => setButtonText(e.currentTarget.textContent || "")}
-                  className={`outline-none ${editMode && !loading ? 'focus:bg-muted/20 px-1 rounded' : ''}`}
-                >
-                  {loading ? "Entrando..." : buttonText}
-                </span>
-              </Button>
+                {emailLabel}
+              </Label>
+              <Input
+                id="email"
+                type="email"
+                placeholder="demo@euvatar.com"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+                className="bg-muted border-border"
+              />
+            </div>
 
-              <div className="text-center">
-                <p 
-                  className={`text-xs text-muted-foreground outline-none ${editMode ? 'focus:bg-muted/20 px-1 rounded' : ''}`}
-                  contentEditable={editMode}
-                  suppressContentEditableWarning={true}
-                  onBlur={(e) => setDisclaimerText(e.currentTarget.textContent || "")}
-                >
-                  {disclaimerText}
-                </p>
-              </div>
-            </form>
-          </Card>
-        </Draggable>
+            <div className="space-y-2">
+              <Label 
+                htmlFor="password"
+                contentEditable={editMode}
+                suppressContentEditableWarning={true}
+                onBlur={(e) => setPasswordLabel(e.currentTarget.textContent || "")}
+                className={`outline-none cursor-text ${editMode ? 'focus:bg-muted/20 px-1 rounded' : ''}`}
+              >
+                {passwordLabel}
+              </Label>
+              <Input
+                id="password"
+                type="password"
+                placeholder="demo123"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+                className="bg-muted border-border"
+              />
+            </div>
+
+            <Button
+              type="submit"
+              className="w-full bg-gradient-primary hover:shadow-glow transition-all duration-300"
+              disabled={loading}
+            >
+              <span 
+                contentEditable={editMode && !loading}
+                suppressContentEditableWarning={true}
+                onBlur={(e) => setButtonText(e.currentTarget.textContent || "")}
+                className={`outline-none ${editMode && !loading ? 'focus:bg-muted/20 px-1 rounded' : ''}`}
+              >
+                {loading ? "Entrando..." : buttonText}
+              </span>
+            </Button>
+
+            <div className="text-center">
+              <p 
+                className={`text-xs text-muted-foreground outline-none ${editMode ? 'focus:bg-muted/20 px-1 rounded' : ''}`}
+                contentEditable={editMode}
+                suppressContentEditableWarning={true}
+                onBlur={(e) => setDisclaimerText(e.currentTarget.textContent || "")}
+              >
+                {disclaimerText}
+              </p>
+            </div>
+          </form>
+        </Card>
       </div>
     </div>
   );
