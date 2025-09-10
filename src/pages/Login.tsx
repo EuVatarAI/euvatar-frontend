@@ -41,9 +41,7 @@ export const Login = ({ onLogin }: LoginProps) => {
         {/* Logo and Branding */}
         <div className="text-center">
           <div className="flex justify-center mb-6">
-            <div className="p-4 rounded-full bg-gradient-primary shadow-glow">
-              <img src={euvatar} alt="Euvatar" className="h-12 w-12" />
-            </div>
+            <img src={euvatar} alt="Euvatar" className="h-16 w-auto" />
           </div>
           <h1 className="text-3xl font-bold bg-gradient-primary bg-clip-text text-transparent">
             Euvatar
