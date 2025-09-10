@@ -51,8 +51,7 @@ export const Login = ({ onLogin }: LoginProps) => {
             <img 
               src={processedLogo || euvatar} 
               alt="Euvatar" 
-              className="w-full max-w-4xl h-auto" 
-              style={{ maxHeight: '400px' }}
+              className="max-w-4xl h-auto" 
             />
           </div>
           <h1 className="text-3xl font-bold bg-gradient-primary bg-clip-text text-transparent">
