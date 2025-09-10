@@ -1,10 +1,11 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import euvatar from "@/assets/euvatar-ai-logo.png";
+import { removeBackground, loadImage } from "@/utils/backgroundRemoval";
 
 interface LoginProps {
   onLogin: (credentials: { email: string; password: string }) => void;
@@ -14,7 +15,30 @@ export const Login = ({ onLogin }: LoginProps) => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
+  const [processedLogo, setProcessedLogo] = useState<string | null>(null);
   const { toast } = useToast();
+
+  useEffect(() => {
+    const processLogo = async () => {
+      try {
+        // Load the original image
+        const response = await fetch(euvatar);
+        const blob = await response.blob();
+        const img = await loadImage(blob);
+        
+        // Remove background
+        const processedBlob = await removeBackground(img);
+        const processedUrl = URL.createObjectURL(processedBlob);
+        setProcessedLogo(processedUrl);
+      } catch (error) {
+        console.error('Error processing logo:', error);
+        // Fallback to original logo
+        setProcessedLogo(euvatar);
+      }
+    };
+
+    processLogo();
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -40,8 +64,12 @@ export const Login = ({ onLogin }: LoginProps) => {
       <div className="w-full max-w-md space-y-8 animate-fade-in">
         {/* Logo and Branding */}
         <div className="text-center">
-          <div className="flex justify-center mb-6">
-            <img src={euvatar} alt="Euvatar" className="h-16 w-auto" />
+          <div className="flex justify-center mb-8">
+            <img 
+              src={processedLogo || euvatar} 
+              alt="Euvatar" 
+              className="h-32 w-auto max-w-sm" 
+            />
           </div>
           <h1 className="text-3xl font-bold bg-gradient-primary bg-clip-text text-transparent">
             Euvatar
