@@ -19,11 +19,11 @@ export const ResizableLogo = ({ src, alt, className }: ResizableLogoProps) => {
   }, [size]);
 
   const increasSize = () => {
-    setSize(prev => Math.min(prev + 8, 128)); // max 128px
+    setSize(prev => Math.min(prev + 8, 200)); // max 200px
   };
 
   const decreaseSize = () => {
-    setSize(prev => Math.max(prev - 8, 24)); // min 24px
+    setSize(prev => Math.max(prev - 8, 16)); // min 16px
   };
 
   return (
