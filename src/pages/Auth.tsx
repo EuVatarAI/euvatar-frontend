@@ -26,11 +26,7 @@ export const Auth = ({ onAuthSuccess }: AuthProps) => {
   const { toast } = useToast();
 
   useEffect(() => {
-    // Criar usuário demo ao carregar a página
-    const initializeDemoUser = async () => {
-      await createDemoUser();
-    };
-    initializeDemoUser();
+    // Remover a criação automática do usuário demo que estava causando problemas
   }, []);
 
   const handleAuth = async (e: React.FormEvent) => {
