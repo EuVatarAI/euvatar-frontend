@@ -47,7 +47,7 @@ export const Login = ({ onLogin }: LoginProps) => {
       <div className="w-full max-w-md mx-auto space-y-2 animate-fade-in">
         {/* Logo and Branding */}
         <div className="text-center">
-          <div className="flex justify-center mb-1">
+          <div className="flex justify-center">
             <img 
               src={processedLogo || euvatar} 
               alt="Euvatar" 
