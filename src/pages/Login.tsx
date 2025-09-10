@@ -54,7 +54,7 @@ export const Login = ({ onLogin }: LoginProps) => {
               className="max-w-xs h-auto" 
             />
           </div>
-          <p className="mt-0 text-lg text-center text-muted-foreground leading-relaxed">
+          <p className="-mt-2 text-lg text-center text-muted-foreground leading-relaxed">
             não fale para o seu público, converse com ele no mundo real.{" "}
             <span className="text-primary font-semibold">
               a evolução da comunicação humano-marca
