@@ -66,16 +66,38 @@ const mockCharacters: Character[] = [
   }
 ];
 
+interface Profile {
+  id: string;
+  user_id: string;
+  organization_id: string;
+  email: string;
+  full_name: string | null;
+  avatar_url: string | null;
+  role: 'admin' | 'manager' | 'member';
+  is_active: boolean;
+}
+
+interface Organization {
+  id: string;
+  name: string;
+  slug: string;
+  description: string | null;
+  logo_url: string | null;
+  settings: any;
+}
+
 interface CharactersProps {
   user: {
     name: string;
     email: string;
   };
+  organization: Organization | null;
+  profile: Profile | null;
   onLogout: () => void;
   onBack: () => void;
 }
 
-export const Characters = ({ user, onLogout, onBack }: CharactersProps) => {
+export const Characters = ({ user, organization, profile, onLogout, onBack }: CharactersProps) => {
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedCharacter, setSelectedCharacter] = useState<Character | null>(null);
 

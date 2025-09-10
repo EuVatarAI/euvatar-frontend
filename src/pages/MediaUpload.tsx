@@ -31,16 +31,38 @@ const mockSquares = [
   { id: "3", name: "Shopping Center Norte", totems: 6 },
 ];
 
+interface Profile {
+  id: string;
+  user_id: string;
+  organization_id: string;
+  email: string;
+  full_name: string | null;
+  avatar_url: string | null;
+  role: 'admin' | 'manager' | 'member';
+  is_active: boolean;
+}
+
+interface Organization {
+  id: string;
+  name: string;
+  slug: string;
+  description: string | null;
+  logo_url: string | null;
+  settings: any;
+}
+
 interface MediaUploadProps {
   user: {
     name: string;
     email: string;
   };
+  organization: Organization | null;
+  profile: Profile | null;
   onLogout: () => void;
   onBack: () => void;
 }
 
-export const MediaUpload = ({ user, onLogout, onBack }: MediaUploadProps) => {
+export const MediaUpload = ({ user, organization, profile, onLogout, onBack }: MediaUploadProps) => {
   const [uploadedFiles, setUploadedFiles] = useState<MediaFile[]>([]);
   const [selectedSquares, setSelectedSquares] = useState<string[]>([]);
   const [selectAll, setSelectAll] = useState(false);

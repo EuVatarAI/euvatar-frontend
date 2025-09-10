@@ -107,16 +107,38 @@ const squares = [
   { name: "Terminal Rodoviário", location: "Belo Horizonte, MG", totems: 4, status: "maintenance" },
 ];
 
+interface Profile {
+  id: string;
+  user_id: string;
+  organization_id: string;
+  email: string;
+  full_name: string | null;
+  avatar_url: string | null;
+  role: 'admin' | 'manager' | 'member';
+  is_active: boolean;
+}
+
+interface Organization {
+  id: string;
+  name: string;
+  slug: string;
+  description: string | null;
+  logo_url: string | null;
+  settings: any;
+}
+
 interface DashboardProps {
   user: {
     name: string;
     email: string;
   };
+  organization: Organization | null;
+  profile: Profile | null;
   onLogout: () => void;
   onNavigate: (page: 'square' | 'upload' | 'characters' | 'create') => void;
 }
 
-export const Dashboard = ({ user, onLogout, onNavigate }: DashboardProps) => {
+export const Dashboard = ({ user, organization, profile, onLogout, onNavigate }: DashboardProps) => {
   return (
     <div className="min-h-screen bg-gradient-subtle">
       <Header user={user} onLogout={onLogout} />
@@ -128,7 +150,7 @@ export const Dashboard = ({ user, onLogout, onNavigate }: DashboardProps) => {
             Bem-vindo, {user.name.split(' ')[0]}
           </h2>
           <p className="text-muted-foreground">
-            Gerencie sua rede de mídia OOH interativa
+            {organization?.name || 'Sua organização'} - Gerencie sua rede de mídia OOH interativa
           </p>
         </div>
 

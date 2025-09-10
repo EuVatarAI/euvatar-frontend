@@ -20,16 +20,38 @@ import {
   Copy
 } from "lucide-react";
 
+interface Profile {
+  id: string;
+  user_id: string;
+  organization_id: string;
+  email: string;
+  full_name: string | null;
+  avatar_url: string | null;
+  role: 'admin' | 'manager' | 'member';
+  is_active: boolean;
+}
+
+interface Organization {
+  id: string;
+  name: string;
+  slug: string;
+  description: string | null;
+  logo_url: string | null;
+  settings: any;
+}
+
 interface CreateSquareProps {
   user: {
     name: string;
     email: string;
   };
+  organization: Organization | null;
+  profile: Profile | null;
   onLogout: () => void;
   onBack: () => void;
 }
 
-export const CreateSquare = ({ user, onLogout, onBack }: CreateSquareProps) => {
+export const CreateSquare = ({ user, organization, profile, onLogout, onBack }: CreateSquareProps) => {
   const [step, setStep] = useState<'square' | 'totem'>('square');
   const [squareData, setSquareData] = useState({
     name: '',

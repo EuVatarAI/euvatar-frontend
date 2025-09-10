@@ -1,61 +1,32 @@
 import { useState, useEffect } from "react";
-import { User, Session } from '@supabase/supabase-js';
+import { useAuth } from "@/hooks/useAuth";
 import { Auth } from "./Auth";
 import { Dashboard } from "./Dashboard";
 import { SquareView } from "./SquareView";
 import { MediaUpload } from "./MediaUpload";
 import { Characters } from "./Characters";
 import { CreateSquare } from "./CreateSquare";
-import { supabase } from "@/integrations/supabase/client";
 
 type Page = 'auth' | 'dashboard' | 'square' | 'upload' | 'characters' | 'create';
 
 const Index = () => {
+  const { user, profile, organization, loading, signOut } = useAuth();
   const [currentPage, setCurrentPage] = useState<Page>('auth');
-  const [user, setUser] = useState<User | null>(null);
-  const [session, setSession] = useState<Session | null>(null);
-  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Set up auth state listener FIRST
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (event, session) => {
-        setSession(session);
-        setUser(session?.user ?? null);
-        
-        if (session?.user) {
-          setCurrentPage('dashboard');
-        } else {
-          setCurrentPage('auth');
-        }
-        setLoading(false);
-      }
-    );
-
-    // THEN check for existing session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      setUser(session?.user ?? null);
-      
-      if (session?.user) {
-        setCurrentPage('dashboard');
-      } else {
-        setCurrentPage('auth');
-      }
-      setLoading(false);
-    });
-
-    return () => subscription.unsubscribe();
-  }, []);
+    if (user && profile && organization) {
+      setCurrentPage('dashboard');
+    } else if (!user) {
+      setCurrentPage('auth');
+    }
+  }, [user, profile, organization]);
 
   const handleAuthSuccess = () => {
     setCurrentPage('dashboard');
   };
 
   const handleLogout = async () => {
-    await supabase.auth.signOut();
-    setUser(null);
-    setSession(null);
+    await signOut();
     setCurrentPage('auth');
   };
 
@@ -82,17 +53,71 @@ const Index = () => {
     case 'auth':
       return <Auth onAuthSuccess={handleAuthSuccess} />;
     case 'dashboard':
-      return <Dashboard user={{ name: user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'Usuário', email: user?.email || '' }} onLogout={handleLogout} onNavigate={navigateTo} />;
+      return <Dashboard 
+        user={{ 
+          name: profile?.full_name || user?.email?.split('@')[0] || 'Usuário', 
+          email: user?.email || '' 
+        }} 
+        organization={organization}
+        profile={profile}
+        onLogout={handleLogout} 
+        onNavigate={navigateTo} 
+      />;
     case 'square':
-      return <SquareView user={{ name: user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'Usuário', email: user?.email || '' }} onLogout={handleLogout} onBack={() => navigateTo('dashboard')} />;
+      return <SquareView 
+        user={{ 
+          name: profile?.full_name || user?.email?.split('@')[0] || 'Usuário', 
+          email: user?.email || '' 
+        }} 
+        organization={organization}
+        profile={profile}
+        onLogout={handleLogout} 
+        onBack={() => navigateTo('dashboard')} 
+      />;
     case 'upload':
-      return <MediaUpload user={{ name: user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'Usuário', email: user?.email || '' }} onLogout={handleLogout} onBack={() => navigateTo('dashboard')} />;
+      return <MediaUpload 
+        user={{ 
+          name: profile?.full_name || user?.email?.split('@')[0] || 'Usuário', 
+          email: user?.email || '' 
+        }} 
+        organization={organization}
+        profile={profile}
+        onLogout={handleLogout} 
+        onBack={() => navigateTo('dashboard')} 
+      />;
     case 'characters':
-      return <Characters user={{ name: user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'Usuário', email: user?.email || '' }} onLogout={handleLogout} onBack={() => navigateTo('dashboard')} />;
+      return <Characters 
+        user={{ 
+          name: profile?.full_name || user?.email?.split('@')[0] || 'Usuário', 
+          email: user?.email || '' 
+        }} 
+        organization={organization}
+        profile={profile}
+        onLogout={handleLogout} 
+        onBack={() => navigateTo('dashboard')} 
+      />;
     case 'create':
-      return <CreateSquare user={{ name: user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'Usuário', email: user?.email || '' }} onLogout={handleLogout} onBack={() => navigateTo('dashboard')} />;
+      return <CreateSquare 
+        user={{ 
+          name: profile?.full_name || user?.email?.split('@')[0] || 'Usuário', 
+          email: user?.email || '' 
+        }} 
+        organization={organization}
+        profile={profile}
+        onLogout={handleLogout} 
+        onBack={() => navigateTo('dashboard')} 
+      />;
     default:
-      return <Dashboard user={{ name: user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'Usuário', email: user?.email || '' }} onLogout={handleLogout} onNavigate={navigateTo} />;
+      return <Dashboard 
+        user={{ 
+          name: profile?.full_name || user?.email?.split('@')[0] || 'Usuário', 
+          email: user?.email || '' 
+        }} 
+        organization={organization}
+        profile={profile}
+        onLogout={handleLogout} 
+        onNavigate={navigateTo} 
+      />;
   }
 };
 
