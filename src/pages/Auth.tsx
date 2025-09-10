@@ -7,7 +7,7 @@ import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { Eye, EyeOff } from "lucide-react";
 import { createDemoUser } from "@/utils/createDemoUser";
-import euvatar from "/lovable-uploads/71410e48-d9ab-4136-86ab-f30f24385139.png";
+import euvatar from "/lovable-uploads/63bf0e26-2b28-4b7d-be53-62600f82881c.png";
 
 interface AuthProps {
   onAuthSuccess: () => void;
