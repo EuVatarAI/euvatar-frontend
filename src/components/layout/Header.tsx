@@ -14,7 +14,7 @@ export const Header = ({
   return <header className="sticky top-0 z-50 w-full border-b border-border bg-gradient-card backdrop-blur supports-[backdrop-filter]:bg-gradient-card/80">
       <div className="container flex h-16 items-center justify-between">
         <div className="flex items-center gap-3">
-          <img src="/lovable-uploads/afab8cad-2c7f-4598-b7ce-f0d5c353db4c.png" alt="Euvatar" className="h-8" />
+          <img src="/lovable-uploads/afab8cad-2c7f-4598-b7ce-f0d5c353db4c.png" alt="Euvatar" className="h-12" />
         </div>
 
         {user && <div className="flex items-center gap-4">
