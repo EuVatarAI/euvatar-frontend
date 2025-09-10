@@ -43,7 +43,7 @@ export const Login = ({ onLogin }: LoginProps) => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-subtle flex items-center justify-center p-4">
+    <div className="min-h-screen bg-gradient-subtle flex items-start justify-center pt-8 p-4">
       <div className="w-full max-w-md space-y-2 animate-fade-in">
         {/* Logo and Branding */}
         <div className="text-center">
