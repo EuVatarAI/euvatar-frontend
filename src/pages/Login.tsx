@@ -54,9 +54,6 @@ export const Login = ({ onLogin }: LoginProps) => {
               className="max-w-xs h-auto" 
             />
           </div>
-          <h1 className="text-3xl font-bold bg-gradient-primary bg-clip-text text-transparent">
-            Euvatar
-          </h1>
           <p className="mt-2 text-lg text-center text-muted-foreground leading-relaxed">
             não fale para o seu público, converse com ele no mundo real.{" "}
             <span className="text-primary font-semibold">
