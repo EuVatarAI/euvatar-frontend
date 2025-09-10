@@ -44,20 +44,20 @@ export const Login = ({ onLogin }: LoginProps) => {
 
   return (
     <div className="min-h-screen bg-gradient-subtle flex items-center justify-center p-4">
-      <div className="w-full max-w-md space-y-8 animate-fade-in">
+      <div className="w-full max-w-md space-y-6 animate-fade-in">
         {/* Logo and Branding */}
         <div className="text-center">
-          <div className="flex justify-center mb-8">
+          <div className="flex justify-center mb-4">
             <img 
               src={processedLogo || euvatar} 
               alt="Euvatar" 
-              className="max-w-4xl h-auto" 
+              className="max-w-xs h-auto" 
             />
           </div>
           <h1 className="text-3xl font-bold bg-gradient-primary bg-clip-text text-transparent">
             Euvatar
           </h1>
-          <p className="mt-4 text-lg text-center text-muted-foreground leading-relaxed">
+          <p className="mt-2 text-lg text-center text-muted-foreground leading-relaxed">
             não fale para o seu público, converse com ele no mundo real.{" "}
             <span className="text-primary font-semibold">
               a evolução da comunicação humano-marca
