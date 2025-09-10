@@ -25,6 +25,14 @@ export const Login = ({ onLogin }: LoginProps) => {
   const [disclaimerText, setDisclaimerText] = useState("Este é um ambiente de demonstração. Qualquer email/senha funcionará.");
   const [editMode, setEditMode] = useState(false);
   
+  // Fixed positions from user's adjustments
+  const fixedPositions = {
+    logo: { x: 0, y: -50 },
+    tagline: { x: 0, y: -40 },
+    demo: { x: 0, y: -30 },
+    form: { x: 0, y: -20 }
+  };
+  
   const { toast } = useToast();
 
   useEffect(() => {
@@ -53,21 +61,26 @@ export const Login = ({ onLogin }: LoginProps) => {
 
   return (
     <div className="min-h-screen bg-gradient-subtle p-4">
-      {/* Mode Toggle Button */}
-      <div className="fixed top-4 right-4 z-50">
-        <Button
-          onClick={() => setEditMode(!editMode)}
-          variant={editMode ? "default" : "secondary"}
-          size="sm"
-          className="shadow-lg"
-        >
-          {editMode ? "✏️ Salvar" : "✏️ Editar"}
-        </Button>
-      </div>
+      {/* Edit Mode Button - Only for text editing */}
+      {editMode && (
+        <div className="fixed top-4 right-4 z-50">
+          <Button
+            onClick={() => setEditMode(false)}
+            variant="default"
+            size="sm"
+            className="shadow-lg"
+          >
+            ✏️ Salvar
+          </Button>
+        </div>
+      )}
       
       <div className="w-full max-w-md mx-auto animate-fade-in">
         {/* Logo and Branding */}
-        <div className="text-center mb-4">
+        <div 
+          className="text-center mb-4"
+          style={{ transform: `translate(${fixedPositions.logo.x}px, ${fixedPositions.logo.y}px)` }}
+        >
           <div className="flex justify-center">
             <img 
               src={processedLogo || euvatar} 
@@ -77,13 +90,17 @@ export const Login = ({ onLogin }: LoginProps) => {
           </div>
         </div>
 
-        <div className="text-center mb-4">
+        <div 
+          className="text-center mb-4"
+          style={{ transform: `translate(${fixedPositions.tagline.x}px, ${fixedPositions.tagline.y}px)` }}
+        >
           <p className="text-lg text-center text-muted-foreground leading-tight">
             <span 
               contentEditable={editMode}
               suppressContentEditableWarning={true}
               onBlur={(e) => setEditableText(e.currentTarget.textContent || "")}
               className={`outline-none ${editMode ? 'focus:bg-muted/20 px-1 rounded' : ''}`}
+              onDoubleClick={() => setEditMode(true)}
             >
               {editableText}
             </span>{" "}
@@ -92,6 +109,7 @@ export const Login = ({ onLogin }: LoginProps) => {
               suppressContentEditableWarning={true}
               onBlur={(e) => setEditableSubtext(e.currentTarget.textContent || "")}
               className={`text-primary font-semibold outline-none ${editMode ? 'focus:bg-muted/20 px-1 rounded' : ''}`}
+              onDoubleClick={() => setEditMode(true)}
             >
               {editableSubtext}
             </span>
@@ -99,7 +117,10 @@ export const Login = ({ onLogin }: LoginProps) => {
         </div>
 
         {/* Demo Credentials */}
-        <Card className="gradient-card shadow-card border-border p-4 mb-2 mt-12">
+        <Card 
+          className="gradient-card shadow-card border-border p-4 mb-2 mt-12"
+          style={{ transform: `translate(${fixedPositions.demo.x}px, ${fixedPositions.demo.y}px)` }}
+        >
           <div className="text-center">
             <p className="text-sm text-muted-foreground mb-2">
               <strong 
@@ -107,6 +128,7 @@ export const Login = ({ onLogin }: LoginProps) => {
                 suppressContentEditableWarning={true}
                 onBlur={(e) => setDemoTitle(e.currentTarget.textContent || "")}
                 className={`outline-none ${editMode ? 'focus:bg-muted/20 px-1 rounded' : ''}`}
+                onDoubleClick={() => setEditMode(true)}
               >
                 {demoTitle}
               </strong>
@@ -119,7 +141,10 @@ export const Login = ({ onLogin }: LoginProps) => {
         </Card>
 
         {/* Login Form */}
-        <Card className="gradient-card shadow-card border-border p-8">
+        <Card 
+          className="gradient-card shadow-card border-border p-8"
+          style={{ transform: `translate(${fixedPositions.form.x}px, ${fixedPositions.form.y}px)` }}
+        >
           <form onSubmit={handleSubmit} className="space-y-6">
             <div className="space-y-2">
               <Label 
@@ -128,6 +153,7 @@ export const Login = ({ onLogin }: LoginProps) => {
                 suppressContentEditableWarning={true}
                 onBlur={(e) => setEmailLabel(e.currentTarget.textContent || "")}
                 className={`outline-none cursor-text ${editMode ? 'focus:bg-muted/20 px-1 rounded' : ''}`}
+                onDoubleClick={() => setEditMode(true)}
               >
                 {emailLabel}
               </Label>
@@ -149,6 +175,7 @@ export const Login = ({ onLogin }: LoginProps) => {
                 suppressContentEditableWarning={true}
                 onBlur={(e) => setPasswordLabel(e.currentTarget.textContent || "")}
                 className={`outline-none cursor-text ${editMode ? 'focus:bg-muted/20 px-1 rounded' : ''}`}
+                onDoubleClick={() => setEditMode(true)}
               >
                 {passwordLabel}
               </Label>
@@ -173,6 +200,7 @@ export const Login = ({ onLogin }: LoginProps) => {
                 suppressContentEditableWarning={true}
                 onBlur={(e) => setButtonText(e.currentTarget.textContent || "")}
                 className={`outline-none ${editMode && !loading ? 'focus:bg-muted/20 px-1 rounded' : ''}`}
+                onDoubleClick={() => !loading && setEditMode(true)}
               >
                 {loading ? "Entrando..." : buttonText}
               </span>
@@ -184,6 +212,7 @@ export const Login = ({ onLogin }: LoginProps) => {
                 contentEditable={editMode}
                 suppressContentEditableWarning={true}
                 onBlur={(e) => setDisclaimerText(e.currentTarget.textContent || "")}
+                onDoubleClick={() => setEditMode(true)}
               >
                 {disclaimerText}
               </p>
