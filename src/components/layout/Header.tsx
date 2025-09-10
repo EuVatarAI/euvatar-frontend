@@ -14,7 +14,7 @@ export const Header = ({
   return <header className="sticky top-0 z-50 w-full border-b border-border bg-gradient-card backdrop-blur supports-[backdrop-filter]:bg-gradient-card/80">
       <div className="container flex h-16 items-center justify-between">
         <div className="flex items-center gap-3">
-          <img src="/euvatar-logo-final.png" alt="Euvatar" className="h-8" />
+          <img src={`/euvatar-logo-final.png?t=${Date.now()}`} alt="Euvatar" className="h-8" />
         </div>
 
         {user && <div className="flex items-center gap-4">
