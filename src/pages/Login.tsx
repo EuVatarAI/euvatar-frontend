@@ -17,6 +17,13 @@ export const Login = ({ onLogin }: LoginProps) => {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [processedLogo, setProcessedLogo] = useState<string | null>(null);
+  const [editableText, setEditableText] = useState("não fale para o seu público, converse com ele no mundo real.");
+  const [editableSubtext, setEditableSubtext] = useState("a evolução da comunicação humano-marca");
+  const [demoTitle, setDemoTitle] = useState("Demo - Use qualquer credencial para entrar:");
+  const [emailLabel, setEmailLabel] = useState("E-mail da empresa");
+  const [passwordLabel, setPasswordLabel] = useState("Senha");
+  const [buttonText, setButtonText] = useState("Entrar na plataforma");
+  const [disclaimerText, setDisclaimerText] = useState("Este é um ambiente de demonstração. Qualquer email/senha funcionará.");
   const { toast } = useToast();
 
   useEffect(() => {
@@ -62,9 +69,21 @@ export const Login = ({ onLogin }: LoginProps) => {
         <Draggable>
           <div className="text-center cursor-move mb-4">
             <p className="text-lg text-center text-muted-foreground leading-tight">
-              não fale para o seu público, converse com ele no mundo real.{" "}
-              <span className="text-primary font-semibold">
-                a evolução da comunicação humano-marca
+              <span 
+                contentEditable 
+                suppressContentEditableWarning={true}
+                onBlur={(e) => setEditableText(e.currentTarget.textContent || "")}
+                className="outline-none focus:bg-muted/20 px-1 rounded"
+              >
+                {editableText}
+              </span>{" "}
+              <span 
+                contentEditable 
+                suppressContentEditableWarning={true}
+                onBlur={(e) => setEditableSubtext(e.currentTarget.textContent || "")}
+                className="text-primary font-semibold outline-none focus:bg-muted/20 px-1 rounded"
+              >
+                {editableSubtext}
               </span>
             </p>
           </div>
@@ -75,7 +94,14 @@ export const Login = ({ onLogin }: LoginProps) => {
           <Card className="gradient-card shadow-card border-border p-4 mb-2 mt-12 cursor-move">
             <div className="text-center">
               <p className="text-sm text-muted-foreground mb-2">
-                <strong>Demo - Use qualquer credencial para entrar:</strong>
+                <strong 
+                  contentEditable 
+                  suppressContentEditableWarning={true}
+                  onBlur={(e) => setDemoTitle(e.currentTarget.textContent || "")}
+                  className="outline-none focus:bg-muted/20 px-1 rounded"
+                >
+                  {demoTitle}
+                </strong>
               </p>
               <div className="flex flex-col gap-1 text-xs text-primary">
                 <span>Email: demo@euvatar.com</span>
@@ -90,7 +116,15 @@ export const Login = ({ onLogin }: LoginProps) => {
           <Card className="gradient-card shadow-card border-border p-8 cursor-move">
             <form onSubmit={handleSubmit} className="space-y-6">
               <div className="space-y-2">
-                <Label htmlFor="email">E-mail da empresa</Label>
+                <Label 
+                  htmlFor="email" 
+                  contentEditable 
+                  suppressContentEditableWarning={true}
+                  onBlur={(e) => setEmailLabel(e.currentTarget.textContent || "")}
+                  className="outline-none focus:bg-muted/20 px-1 rounded cursor-text"
+                >
+                  {emailLabel}
+                </Label>
                 <Input
                   id="email"
                   type="email"
@@ -103,7 +137,15 @@ export const Login = ({ onLogin }: LoginProps) => {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="password">Senha</Label>
+                <Label 
+                  htmlFor="password"
+                  contentEditable 
+                  suppressContentEditableWarning={true}
+                  onBlur={(e) => setPasswordLabel(e.currentTarget.textContent || "")}
+                  className="outline-none focus:bg-muted/20 px-1 rounded cursor-text"
+                >
+                  {passwordLabel}
+                </Label>
                 <Input
                   id="password"
                   type="password"
@@ -120,12 +162,24 @@ export const Login = ({ onLogin }: LoginProps) => {
                 className="w-full bg-gradient-primary hover:shadow-glow transition-all duration-300"
                 disabled={loading}
               >
-                {loading ? "Entrando..." : "Entrar na plataforma"}
+                <span 
+                  contentEditable 
+                  suppressContentEditableWarning={true}
+                  onBlur={(e) => setButtonText(e.currentTarget.textContent || "")}
+                  className="outline-none focus:bg-muted/20 px-1 rounded"
+                >
+                  {loading ? "Entrando..." : buttonText}
+                </span>
               </Button>
 
               <div className="text-center">
-                <p className="text-xs text-muted-foreground">
-                  Este é um ambiente de demonstração. Qualquer email/senha funcionará.
+                <p 
+                  className="text-xs text-muted-foreground outline-none focus:bg-muted/20 px-1 rounded"
+                  contentEditable 
+                  suppressContentEditableWarning={true}
+                  onBlur={(e) => setDisclaimerText(e.currentTarget.textContent || "")}
+                >
+                  {disclaimerText}
                 </p>
               </div>
             </form>
