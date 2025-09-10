@@ -24,6 +24,7 @@ export const Login = ({ onLogin }: LoginProps) => {
   const [passwordLabel, setPasswordLabel] = useState("Senha");
   const [buttonText, setButtonText] = useState("Entrar na plataforma");
   const [disclaimerText, setDisclaimerText] = useState("Este é um ambiente de demonstração. Qualquer email/senha funcionará.");
+  const [editMode, setEditMode] = useState(false);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -52,10 +53,22 @@ export const Login = ({ onLogin }: LoginProps) => {
 
   return (
     <div className="min-h-screen bg-gradient-subtle p-4">
+      {/* Mode Toggle Button */}
+      <div className="fixed top-4 right-4 z-50">
+        <Button
+          onClick={() => setEditMode(!editMode)}
+          variant={editMode ? "default" : "secondary"}
+          size="sm"
+          className="shadow-lg"
+        >
+          {editMode ? "✏️ Editar" : "🔄 Mover"}
+        </Button>
+      </div>
+      
       <div className="w-full max-w-md mx-auto animate-fade-in">
         {/* Logo and Branding */}
-        <Draggable>
-          <div className="text-center cursor-move mb-4">
+        <Draggable disabled={editMode}>
+          <div className={`text-center mb-4 ${editMode ? 'cursor-text' : 'cursor-move'}`}>
             <div className="flex justify-center">
               <img 
                 src={processedLogo || euvatar} 
@@ -66,22 +79,22 @@ export const Login = ({ onLogin }: LoginProps) => {
           </div>
         </Draggable>
 
-        <Draggable>
-          <div className="text-center cursor-move mb-4">
+        <Draggable disabled={editMode}>
+          <div className={`text-center mb-4 ${editMode ? 'cursor-text' : 'cursor-move'}`}>
             <p className="text-lg text-center text-muted-foreground leading-tight">
               <span 
-                contentEditable 
+                contentEditable={editMode}
                 suppressContentEditableWarning={true}
                 onBlur={(e) => setEditableText(e.currentTarget.textContent || "")}
-                className="outline-none focus:bg-muted/20 px-1 rounded"
+                className={`outline-none ${editMode ? 'focus:bg-muted/20 px-1 rounded' : ''}`}
               >
                 {editableText}
               </span>{" "}
               <span 
-                contentEditable 
+                contentEditable={editMode}
                 suppressContentEditableWarning={true}
                 onBlur={(e) => setEditableSubtext(e.currentTarget.textContent || "")}
-                className="text-primary font-semibold outline-none focus:bg-muted/20 px-1 rounded"
+                className={`text-primary font-semibold outline-none ${editMode ? 'focus:bg-muted/20 px-1 rounded' : ''}`}
               >
                 {editableSubtext}
               </span>
@@ -90,15 +103,15 @@ export const Login = ({ onLogin }: LoginProps) => {
         </Draggable>
 
         {/* Demo Credentials */}
-        <Draggable>
-          <Card className="gradient-card shadow-card border-border p-4 mb-2 mt-12 cursor-move">
+        <Draggable disabled={editMode}>
+          <Card className={`gradient-card shadow-card border-border p-4 mb-2 mt-12 ${editMode ? 'cursor-text' : 'cursor-move'}`}>
             <div className="text-center">
               <p className="text-sm text-muted-foreground mb-2">
                 <strong 
-                  contentEditable 
+                  contentEditable={editMode}
                   suppressContentEditableWarning={true}
                   onBlur={(e) => setDemoTitle(e.currentTarget.textContent || "")}
-                  className="outline-none focus:bg-muted/20 px-1 rounded"
+                  className={`outline-none ${editMode ? 'focus:bg-muted/20 px-1 rounded' : ''}`}
                 >
                   {demoTitle}
                 </strong>
@@ -112,16 +125,16 @@ export const Login = ({ onLogin }: LoginProps) => {
         </Draggable>
 
         {/* Login Form */}
-        <Draggable>
-          <Card className="gradient-card shadow-card border-border p-8 cursor-move">
+        <Draggable disabled={editMode}>
+          <Card className={`gradient-card shadow-card border-border p-8 ${editMode ? 'cursor-text' : 'cursor-move'}`}>
             <form onSubmit={handleSubmit} className="space-y-6">
               <div className="space-y-2">
                 <Label 
                   htmlFor="email" 
-                  contentEditable 
+                  contentEditable={editMode}
                   suppressContentEditableWarning={true}
                   onBlur={(e) => setEmailLabel(e.currentTarget.textContent || "")}
-                  className="outline-none focus:bg-muted/20 px-1 rounded cursor-text"
+                  className={`outline-none cursor-text ${editMode ? 'focus:bg-muted/20 px-1 rounded' : ''}`}
                 >
                   {emailLabel}
                 </Label>
@@ -139,10 +152,10 @@ export const Login = ({ onLogin }: LoginProps) => {
               <div className="space-y-2">
                 <Label 
                   htmlFor="password"
-                  contentEditable 
+                  contentEditable={editMode}
                   suppressContentEditableWarning={true}
                   onBlur={(e) => setPasswordLabel(e.currentTarget.textContent || "")}
-                  className="outline-none focus:bg-muted/20 px-1 rounded cursor-text"
+                  className={`outline-none cursor-text ${editMode ? 'focus:bg-muted/20 px-1 rounded' : ''}`}
                 >
                   {passwordLabel}
                 </Label>
@@ -163,10 +176,10 @@ export const Login = ({ onLogin }: LoginProps) => {
                 disabled={loading}
               >
                 <span 
-                  contentEditable 
+                  contentEditable={editMode && !loading}
                   suppressContentEditableWarning={true}
                   onBlur={(e) => setButtonText(e.currentTarget.textContent || "")}
-                  className="outline-none focus:bg-muted/20 px-1 rounded"
+                  className={`outline-none ${editMode && !loading ? 'focus:bg-muted/20 px-1 rounded' : ''}`}
                 >
                   {loading ? "Entrando..." : buttonText}
                 </span>
@@ -174,8 +187,8 @@ export const Login = ({ onLogin }: LoginProps) => {
 
               <div className="text-center">
                 <p 
-                  className="text-xs text-muted-foreground outline-none focus:bg-muted/20 px-1 rounded"
-                  contentEditable 
+                  className={`text-xs text-muted-foreground outline-none ${editMode ? 'focus:bg-muted/20 px-1 rounded' : ''}`}
+                  contentEditable={editMode}
                   suppressContentEditableWarning={true}
                   onBlur={(e) => setDisclaimerText(e.currentTarget.textContent || "")}
                 >
