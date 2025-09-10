@@ -1,6 +1,6 @@
 import { Button } from "@/components/ui/button";
 import { LogOut, User } from "lucide-react";
-import euvatar from "@/assets/euvatar-logo.png";
+import euvatarLogo from "@/assets/euvatar-ai-logo.png";
 interface HeaderProps {
   user?: {
     name: string;
@@ -15,10 +15,7 @@ export const Header = ({
   return <header className="sticky top-0 z-50 w-full border-b border-border bg-gradient-card backdrop-blur supports-[backdrop-filter]:bg-gradient-card/80">
       <div className="container flex h-16 items-center justify-between">
         <div className="flex items-center gap-3">
-          
-          <h1 className="text-xl font-bold bg-gradient-primary bg-clip-text text-transparent">
-            Euvatar
-          </h1>
+          <img src={euvatarLogo} alt="Euvatar" className="h-8" />
         </div>
 
         {user && <div className="flex items-center gap-4">
