@@ -8,7 +8,6 @@ import { supabase } from "@/integrations/supabase/client";
 import { Eye, EyeOff } from "lucide-react";
 import { createDemoUser } from "@/utils/createDemoUser";
 import euvatar from "/lovable-uploads/71410e48-d9ab-4136-86ab-f30f24385139.png";
-import Draggable from 'react-draggable';
 
 interface AuthProps {
   onAuthSuccess: () => void;
@@ -20,9 +19,6 @@ export const Auth = ({ onAuthSuccess }: AuthProps) => {
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [editableText, setEditableText] = useState("não fale para o seu público, converse com ele no mundo real.");
-  const [editableSubtext, setEditableSubtext] = useState("a evolução da comunicação humano-marca");
-  const [editMode, setEditMode] = useState(false);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -77,169 +73,139 @@ export const Auth = ({ onAuthSuccess }: AuthProps) => {
 
   return (
     <div className="min-h-screen bg-gradient-subtle p-4">
-      {/* Mode Toggle Button */}
-      <div className="fixed top-4 right-4 z-50">
-        <Button
-          onClick={() => setEditMode(!editMode)}
-          variant={editMode ? "default" : "secondary"}
-          size="sm"
-          className="shadow-lg"
-        >
-          {editMode ? "✏️ Editar" : "🔄 Mover"}
-        </Button>
-      </div>
-      
       <div className="w-full max-w-md mx-auto animate-fade-in">
         {/* Logo and Branding */}
-        <Draggable disabled={editMode}>
-          <div className={`text-center mb-4 ${editMode ? 'cursor-text' : 'cursor-move'}`}>
-            <div className="flex justify-center">
-              <img 
-                src={euvatar} 
-                alt="Euvatar" 
-                className="max-w-xs h-auto block" 
-              />
-            </div>
+        <div className="text-center mb-4">
+          <div className="flex justify-center">
+            <img 
+              src={euvatar} 
+              alt="Euvatar" 
+              className="max-w-xs h-auto block" 
+            />
           </div>
-        </Draggable>
+        </div>
 
-        <Draggable disabled={editMode}>
-          <div className={`text-center mb-4 ${editMode ? 'cursor-text' : 'cursor-move'}`}>
-            <p className="text-lg text-center text-muted-foreground leading-tight">
-              <span 
-                contentEditable={editMode}
-                suppressContentEditableWarning={true}
-                onBlur={(e) => setEditableText(e.currentTarget.textContent || "")}
-                className={`outline-none ${editMode ? 'focus:bg-muted/20 px-1 rounded' : ''}`}
-              >
-                {editableText}
-              </span>{" "}
-              <span 
-                contentEditable={editMode}
-                suppressContentEditableWarning={true}
-                onBlur={(e) => setEditableSubtext(e.currentTarget.textContent || "")}
-                className={`text-primary font-semibold outline-none ${editMode ? 'focus:bg-muted/20 px-1 rounded' : ''}`}
-              >
-                {editableSubtext}
-              </span>
-            </p>
-          </div>
-        </Draggable>
+        <div className="text-center mb-4">
+          <p className="text-lg text-center text-muted-foreground leading-tight">
+            não fale para o seu público, converse com ele no mundo real.{" "}
+            <span className="text-primary font-semibold">
+              a evolução da comunicação humano-marca
+            </span>
+          </p>
+        </div>
 
         {/* Auth Form */}
-        <Draggable disabled={editMode}>
-          <Card className={`gradient-card shadow-card border-border p-8 ${editMode ? 'cursor-text' : 'cursor-move'}`}>
-            <div className="text-center mb-6">
-              <h2 className="text-2xl font-bold">
-                {isLogin ? "Entre na sua conta" : "Crie sua conta"}
-              </h2>
-              <p className="text-muted-foreground mt-2">
-                {isLogin ? "Acesse sua plataforma de mídia OOH" : "Cadastre-se para começar"}
-              </p>
+        <Card className="gradient-card shadow-card border-border p-8">
+          <div className="text-center mb-6">
+            <h2 className="text-2xl font-bold">
+              {isLogin ? "Entre na sua conta" : "Crie sua conta"}
+            </h2>
+            <p className="text-muted-foreground mt-2">
+              {isLogin ? "Acesse sua plataforma de mídia OOH" : "Cadastre-se para começar"}
+            </p>
+          </div>
+
+          <form onSubmit={handleAuth} className="space-y-6">
+            {/* Demo Credentials */}
+            <div className="p-4 bg-muted/50 rounded-lg border border-border">
+              <h3 className="text-sm font-semibold text-muted-foreground mb-2">🔧 Credenciais Demo</h3>
+              <div className="text-xs space-y-1 text-muted-foreground">
+                <p><strong>Email:</strong> demo@euvatar.ai</p>
+                <p><strong>Senha:</strong> demo123</p>
+              </div>
+              <div className="flex gap-2 mt-3">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setEmail('demo@euvatar.ai');
+                    setPassword('demo123');
+                  }}
+                  className="text-xs"
+                >
+                  Preencher Demo
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={async () => {
+                    const result = await createDemoUser();
+                    if (result.success) {
+                      toast({
+                        title: "Conta demo criada!",
+                        description: "Use as credenciais acima para fazer login.",
+                      });
+                    } else {
+                      toast({
+                        title: "Conta demo já existe",
+                        description: "Use as credenciais acima para fazer login.",
+                      });
+                    }
+                  }}
+                  className="text-xs"
+                >
+                  Criar Demo
+                </Button>
+              </div>
             </div>
 
-            <form onSubmit={handleAuth} className="space-y-6">
-              {/* Demo Credentials */}
-              <div className="p-4 bg-muted/50 rounded-lg border border-border">
-                <h3 className="text-sm font-semibold text-muted-foreground mb-2">🔧 Credenciais Demo</h3>
-                <div className="text-xs space-y-1 text-muted-foreground">
-                  <p><strong>Email:</strong> demo@euvatar.ai</p>
-                  <p><strong>Senha:</strong> demo123</p>
-                </div>
-                <div className="flex gap-2 mt-3">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() => {
-                      setEmail('demo@euvatar.ai');
-                      setPassword('demo123');
-                    }}
-                    className="text-xs"
-                  >
-                    Preencher Demo
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={async () => {
-                      const result = await createDemoUser();
-                      if (result.success) {
-                        toast({
-                          title: "Conta demo criada!",
-                          description: "Use as credenciais acima para fazer login.",
-                        });
-                      } else {
-                        toast({
-                          title: "Conta demo já existe",
-                          description: "Use as credenciais acima para fazer login.",
-                        });
-                      }
-                    }}
-                    className="text-xs"
-                  >
-                    Criar Demo
-                  </Button>
-                </div>
-              </div>
+            <div className="space-y-2">
+              <Label htmlFor="email">E-mail</Label>
+              <Input
+                id="email"
+                type="email"
+                placeholder="seu@email.com"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+                className="bg-muted border-border"
+              />
+            </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="email">E-mail</Label>
+            <div className="space-y-2">
+              <Label htmlFor="password">Senha</Label>
+              <div className="relative">
                 <Input
-                  id="email"
-                  type="email"
-                  placeholder="seu@email.com"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
+                  id="password"
+                  type={showPassword ? "text" : "password"}
+                  placeholder={isLogin ? "Sua senha" : "Mínimo 6 caracteres"}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
                   required
-                  className="bg-muted border-border"
+                  minLength={6}
+                  className="bg-muted border-border pr-10"
                 />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="password">Senha</Label>
-                <div className="relative">
-                  <Input
-                    id="password"
-                    type={showPassword ? "text" : "password"}
-                    placeholder={isLogin ? "Sua senha" : "Mínimo 6 caracteres"}
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    required
-                    minLength={6}
-                    className="bg-muted border-border pr-10"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
-                  >
-                    {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
-                  </button>
-                </div>
-              </div>
-
-              <Button
-                type="submit"
-                className="w-full bg-gradient-primary hover:shadow-glow transition-all duration-300"
-                disabled={loading}
-              >
-                {loading ? "Processando..." : isLogin ? "Entrar na plataforma" : "Criar conta"}
-              </Button>
-
-              <div className="text-center">
                 <button
                   type="button"
-                  onClick={() => setIsLogin(!isLogin)}
-                  className="text-sm text-primary hover:underline"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
                 >
-                  {isLogin ? "Não tem uma conta? Cadastre-se" : "Já tem uma conta? Faça login"}
+                  {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
                 </button>
               </div>
-            </form>
-          </Card>
-        </Draggable>
+            </div>
+
+            <Button
+              type="submit"
+              className="w-full bg-gradient-primary hover:shadow-glow transition-all duration-300"
+              disabled={loading}
+            >
+              {loading ? "Processando..." : isLogin ? "Entrar na plataforma" : "Criar conta"}
+            </Button>
+
+            <div className="text-center">
+              <button
+                type="button"
+                onClick={() => setIsLogin(!isLogin)}
+                className="text-sm text-primary hover:underline"
+              >
+                {isLogin ? "Não tem uma conta? Cadastre-se" : "Já tem uma conta? Faça login"}
+              </button>
+            </div>
+          </form>
+        </Card>
       </div>
     </div>
   );
