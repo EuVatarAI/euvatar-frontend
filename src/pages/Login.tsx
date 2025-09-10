@@ -48,7 +48,7 @@ export const Login = ({ onLogin }: LoginProps) => {
       <div className="w-full max-w-md mx-auto animate-fade-in">
         {/* Logo and Branding */}
         <Draggable>
-          <div className="text-center relative cursor-move">
+          <div className="text-center cursor-move mb-4">
             <div className="flex justify-center">
               <img 
                 src={processedLogo || euvatar} 
@@ -56,7 +56,12 @@ export const Login = ({ onLogin }: LoginProps) => {
                 className="max-w-xs h-auto block" 
               />
             </div>
-            <p className="absolute -bottom-8 left-0 right-0 text-lg text-center text-muted-foreground leading-tight mb-4">
+          </div>
+        </Draggable>
+
+        <Draggable>
+          <div className="text-center cursor-move mb-4">
+            <p className="text-lg text-center text-muted-foreground leading-tight">
               não fale para o seu público, converse com ele no mundo real.{" "}
               <span className="text-primary font-semibold">
                 a evolução da comunicação humano-marca
