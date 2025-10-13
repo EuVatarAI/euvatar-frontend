@@ -1,463 +1,295 @@
-import { MetricCard } from "@/components/ui/metric-card";
-import { Card } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Header } from "@/components/layout/Header";
-import { 
-  Monitor, 
-  MessageCircle, 
-  Video, 
-  MapPin, 
-  Plus, 
-  Users, 
-  Upload,
-  Eye,
-  BarChart3,
-  Badge as BadgeIcon
-} from "lucide-react";
-import { 
-  BarChart, 
-  Bar, 
-  XAxis, 
-  YAxis, 
-  CartesianGrid, 
-  Tooltip, 
-  ResponsiveContainer,
-  PieChart,
-  Pie,
-  Cell
-} from 'recharts';
+import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { useAuth } from '@/hooks/useAuth';
+import { supabase } from '@/integrations/supabase/client';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Progress } from '@/components/ui/progress';
+import { useToast } from '@/hooks/use-toast';
+import { LogOut, Settings } from 'lucide-react';
 
-const interactionData = [
-  { name: 'Totem 1', interactions: 145 },
-  { name: 'Totem 2', interactions: 123 },
-  { name: 'Totem 3', interactions: 98 },
-  { name: 'Totem 4', interactions: 87 },
-  { name: 'Totem 5', interactions: 76 },
-];
-
-const conversationData = [
-  { name: 'Totem Principal', conversations: 89, avgDuration: '3m 24s' },
-  { name: 'Totem Entrada', conversations: 76, avgDuration: '2m 18s' },
-  { name: 'Totem Info A', conversations: 65, avgDuration: '1m 45s' },
-  { name: 'Totem Info B', conversations: 52, avgDuration: '2m 01s' },
-  { name: 'Totem Saída', conversations: 34, avgDuration: '1m 12s' },
-];
-
-const topMediaData = [
-  { name: 'Promoção Black Friday', views: 1432, engagement: 85, duration: '30s' },
-  { name: 'Novo Produto Tech', views: 1218, engagement: 72, duration: '15s' },
-  { name: 'Campanha Sustentável', views: 967, engagement: 68, duration: '1m' },
-  { name: 'Ofertas Especiais', views: 845, engagement: 79, duration: '30s' },
-  { name: 'Tutorial Produto', views: 723, engagement: 91, duration: '1m' },
-];
-
-const visionData = [
-  { name: 'Homens', value: 45, color: '#8b5cf6' },
-  { name: 'Mulheres', value: 55, color: '#06b6d4' },
-];
-
-const allTotems = [
-  { 
-    id: '1', 
-    name: 'Totem Principal - Entrada', 
-    location: 'Aeroporto Brasília',
-    character: 'Ana Virtual',
-    status: 'active',
-    interactions: 145,
-    conversations: 89,
-    lastActive: '2 min atrás'
-  },
-  { 
-    id: '2', 
-    name: 'Totem Informativo - Portão A', 
-    location: 'Aeroporto Brasília',
-    character: 'Carlos Assistente',
-    status: 'active',
-    interactions: 123,
-    conversations: 76,
-    lastActive: '5 min atrás'
-  },
-  { 
-    id: '3', 
-    name: 'Totem Shopping - Praça Central', 
-    location: 'Shopping Center Norte',
-    character: 'Maria Recepcionista',
-    status: 'maintenance',
-    interactions: 98,
-    conversations: 65,
-    lastActive: '1h atrás'
-  },
-  { 
-    id: '4', 
-    name: 'Totem Parque - Entrada Principal', 
-    location: 'Parque Olímpico RJ',
-    character: 'Roberto Guia',
-    status: 'active',
-    interactions: 87,
-    conversations: 52,
-    lastActive: '3 min atrás'
-  },
-];
-
-const squares = [
-  { name: "Aeroporto Brasília", location: "Brasília, DF", totems: 8, status: "active" },
-  { name: "Parque Olímpico RJ", location: "Rio de Janeiro, RJ", totems: 12, status: "active" },
-  { name: "Shopping Center Norte", location: "São Paulo, SP", totems: 6, status: "active" },
-  { name: "Terminal Rodoviário", location: "Belo Horizonte, MG", totems: 4, status: "maintenance" },
-];
-
-interface Profile {
-  id: string;
-  user_id: string;
-  organization_id: string;
-  email: string;
-  full_name: string | null;
-  avatar_url: string | null;
-  role: 'admin' | 'manager' | 'member';
-  is_active: boolean;
-}
-
-interface Organization {
+interface Avatar {
   id: string;
   name: string;
-  slug: string;
-  description: string | null;
-  logo_url: string | null;
-  settings: any;
+  backstory: string | null;
+  language: string;
+  ai_model: string;
+  voice_model: string;
 }
 
-interface DashboardProps {
-  user: {
-    name: string;
-    email: string;
+interface Credits {
+  total_credits: number;
+  used_credits: number;
+}
+
+interface AvatarStats {
+  avatarId: string;
+  webUsage: number;
+  appUsage: number;
+  totalUsage: number;
+}
+
+const Dashboard = () => {
+  const navigate = useNavigate();
+  const { user, signOut } = useAuth();
+  const { toast } = useToast();
+  const [avatars, setAvatars] = useState<Avatar[]>([]);
+  const [credits, setCredits] = useState<Credits | null>(null);
+  const [avatarStats, setAvatarStats] = useState<AvatarStats[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!user) {
+      navigate('/login');
+      return;
+    }
+    fetchData();
+  }, [user, navigate]);
+
+  const fetchData = async () => {
+    try {
+      setLoading(false);
+      toast({
+        title: 'Configuração necessária',
+        description: 'Por favor, acesse a aba Cloud para configurar o banco de dados.',
+      });
+    } catch (error: any) {
+      console.error('Error fetching data:', error);
+      toast({
+        title: 'Erro',
+        description: 'Erro ao carregar dados.',
+        variant: 'destructive',
+      });
+      setLoading(false);
+    }
   };
-  organization: Organization | null;
-  profile: Profile | null;
-  onLogout: () => void;
-  onNavigate: (page: 'square' | 'upload' | 'characters' | 'create') => void;
-}
 
-export const Dashboard = ({ user, organization, profile, onLogout, onNavigate }: DashboardProps) => {
+  const handleSignOut = async () => {
+    await signOut();
+    navigate('/login');
+  };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <p>Carregando...</p>
+      </div>
+    );
+  }
+
+  const remainingCredits = credits ? credits.total_credits - credits.used_credits : 1000;
+  const creditsPercentage = credits ? ((credits.total_credits - credits.used_credits) / credits.total_credits) * 100 : 100;
+  const remainingConversations = Math.floor(remainingCredits / 10);
+
   return (
-    <div className="min-h-screen bg-gradient-subtle">
-      <Header user={user} onLogout={onLogout} />
-      
-      <main className="container py-8 space-y-8">
-        {/* Welcome Section */}
-        <div className="text-center mb-8">
-          <h2 className="text-3xl font-bold text-foreground mb-2">
-            Bem-vindo, {user.name.split(' ')[0]}
-          </h2>
-          <p className="text-muted-foreground">
-            {organization?.name || 'Sua organização'} - Gerencie sua rede de mídia OOH interativa
-          </p>
+    <div className="min-h-screen bg-background p-8">
+      <div className="max-w-7xl mx-auto">
+        <div className="flex justify-between items-center mb-8">
+          <h1 className="text-4xl font-bold">Gerenciamento de Avatares</h1>
+          <Button onClick={handleSignOut} variant="outline">
+            <LogOut className="mr-2 h-4 w-4" />
+            Sair
+          </Button>
         </div>
 
-        {/* Metrics Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <MetricCard
-            title="Total de Totens"
-            value="30"
-            Icon={Monitor}
-            trend={{ value: 12, label: "este mês" }}
-            onClick={() => {
-              console.log('Clicou em Total de Totens');
-              onNavigate('square');
-            }}
-          />
-          <MetricCard
-            title="Conversas Hoje"
-            value="1,247"
-            Icon={MessageCircle}
-            trend={{ value: 8, label: "vs ontem" }}
-            onClick={() => {
-              console.log('Clicou em Conversas Hoje');
-              onNavigate('square');
-            }}
-          />
-          <MetricCard
-            title="Mídias Cadastradas"
-            value="156"
-            Icon={Video}
-            trend={{ value: 5, label: "esta semana" }}
-            onClick={() => {
-              console.log('Clicou em Mídias Cadastradas');
-              onNavigate('upload');
-            }}
-          />
-        </div>
-
-        {/* Quick Actions */}
-        <Card className="gradient-card shadow-card border-border p-6">
-          <h3 className="text-xl font-semibold mb-4 flex items-center gap-2">
-            <Plus className="h-5 w-5 text-primary" />
-            Ações Rápidas
-          </h3>
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <Button 
-              variant="outline" 
-              className="justify-start gap-2 h-auto p-4"
-              onClick={() => window.location.href = '/avatars'}
-            >
-              <Users className="h-4 w-4" />
-              <div className="text-left">
-                <div className="font-medium">Gerenciar Avatares</div>
-                <div className="text-sm text-muted-foreground">Sistema de créditos e IA</div>
+        {/* Credits Overview */}
+        <Card className="mb-8">
+          <CardHeader>
+            <CardTitle>Uso Geral de Créditos</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              <div>
+                <div className="flex justify-between mb-2">
+                  <span className="text-sm font-medium">
+                    {remainingCredits} de 1000 créditos restantes
+                  </span>
+                  <span className="text-sm text-muted-foreground">
+                    ~{remainingConversations} conversas de 2,5min
+                  </span>
+                </div>
+                <Progress value={creditsPercentage} />
               </div>
-            </Button>
-            <Button 
-              variant="outline" 
-              className="justify-start gap-2 h-auto p-4"
-              onClick={() => onNavigate('create')}
-            >
-              <MapPin className="h-4 w-4" />
-              <div className="text-left">
-                <div className="font-medium">Criar Nova Praça</div>
-                <div className="text-sm text-muted-foreground">Adicionar localização</div>
-              </div>
-            </Button>
-            <Button 
-              variant="outline" 
-              className="justify-start gap-2 h-auto p-4"
-              onClick={() => onNavigate('characters')}
-            >
-              <Users className="h-4 w-4" />
-              <div className="text-left">
-                <div className="font-medium">Área de Personagens</div>
-                <div className="text-sm text-muted-foreground">Gerenciar avatares</div>
-              </div>
-            </Button>
-            <Button 
-              variant="outline" 
-              className="justify-start gap-2 h-auto p-4"
-              onClick={() => onNavigate('upload')}
-            >
-              <Upload className="h-4 w-4" />
-              <div className="text-left">
-                <div className="font-medium">Upload de Mídias</div>
-                <div className="text-sm text-muted-foreground">Carregar vídeos</div>
-              </div>
-            </Button>
-          </div>
+              <p className="text-sm text-muted-foreground">
+                Cada conversa de até 2,5 minutos consome 10 créditos. Configure o banco de dados na aba Cloud para começar.
+              </p>
+            </div>
+          </CardContent>
         </Card>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Conversations by Totem */}
-          <Card className="gradient-card shadow-card border-border p-6">
-            <h3 className="text-xl font-semibold mb-4 flex items-center gap-2">
-              <MessageCircle className="h-5 w-5 text-primary" />
-              Conversas por Totem
-            </h3>
-            <div className="space-y-3">
-              {conversationData.map((totem, index) => (
-                <div 
-                  key={index}
-                  className="flex items-center justify-between p-3 rounded-lg bg-muted/30 border border-border hover:bg-muted/50 transition-colors cursor-pointer"
-                  onClick={() => {
-                    console.log('Clicou em conversa por totem');
-                    onNavigate('square');
-                  }}
-                >
-                  <div>
-                    <h4 className="font-medium text-sm">{totem.name}</h4>
-                    <p className="text-xs text-muted-foreground">Duração média: {totem.avgDuration}</p>
-                  </div>
-                  <div className="text-right">
-                    <div className="font-bold text-primary">{totem.conversations}</div>
-                    <div className="text-xs text-muted-foreground">conversas</div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </Card>
-
-          {/* Top Media by Views */}
-          <Card className="gradient-card shadow-card border-border p-6">
-            <h3 className="text-xl font-semibold mb-4 flex items-center gap-2">
-              <Eye className="h-5 w-5 text-primary" />
-              Mídias Mais Visualizadas
-            </h3>
-            <div className="space-y-3">
-              {topMediaData.slice(0, 5).map((media, index) => (
-                <div 
-                  key={index}
-                  className="flex items-center justify-between p-3 rounded-lg bg-muted/30 border border-border hover:bg-muted/50 transition-colors cursor-pointer"
-                >
-                  <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded bg-primary/10 flex items-center justify-center">
-                      <Video className="h-4 w-4 text-primary" />
-                    </div>
-                    <div>
-                      <h4 className="font-medium text-sm">{media.name}</h4>
-                      <p className="text-xs text-muted-foreground">{media.duration} • {media.engagement}% engajamento</p>
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <div className="font-bold text-primary">{media.views.toLocaleString()}</div>
-                    <div className="text-xs text-muted-foreground">visualizações</div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </Card>
-        </div>
-
-        {/* All Totems Grid */}
-        <Card className="gradient-card shadow-card border-border p-6">
-          <h3 className="text-xl font-semibold mb-4 flex items-center gap-2">
-            <Monitor className="h-5 w-5 text-primary" />
-            Todos os Totens
-          </h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {allTotems.map((totem) => (
-              <div 
-                key={totem.id}
-                className="p-4 rounded-lg bg-muted/30 border border-border hover:bg-muted/50 transition-all cursor-pointer hover:shadow-card"
-                onClick={() => {
-                  console.log('Clicou em totem');
-                  onNavigate('square');
-                }}
-              >
-                <div className="flex items-start justify-between mb-3">
-                  <div>
-                    <h4 className="font-medium text-sm">{totem.name}</h4>
-                    <p className="text-xs text-muted-foreground">{totem.location}</p>
-                  </div>
-                  <Badge 
-                    variant={totem.status === 'active' ? 'default' : 'secondary'}
-                    className={`text-xs ${totem.status === 'active' ? 'bg-success text-white' : 'bg-warning text-black'}`}
+        {/* Avatars Grid - Placeholder */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+          {[1, 2, 3].map((num) => (
+            <Card 
+              key={num} 
+              className="cursor-pointer hover:shadow-lg transition-shadow"
+              onClick={() => navigate(`/avatar/avatar-${num}`)}
+            >
+              <CardHeader>
+                <div className="flex justify-between items-start">
+                  <CardTitle>Avatar {num}</CardTitle>
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      navigate(`/avatar/avatar-${num}/settings`);
+                    }}
                   >
-                    {totem.status === 'active' ? 'Ativo' : 'Manutenção'}
-                  </Badge>
+                    <Settings className="h-4 w-4" />
+                  </Button>
                 </div>
-                
+              </CardHeader>
+              <CardContent>
                 <div className="space-y-2">
-                  <div className="flex items-center justify-between text-xs">
-                    <span className="text-muted-foreground">Personagem:</span>
-                    <span className="font-medium text-primary">{totem.character}</span>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-muted-foreground">Web:</span>
+                    <span>0 créditos</span>
                   </div>
-                  <div className="flex items-center justify-between text-xs">
-                    <span className="text-muted-foreground">Interações:</span>
-                    <span className="font-medium">{totem.interactions}</span>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-muted-foreground">App:</span>
+                    <span>0 créditos</span>
                   </div>
-                  <div className="flex items-center justify-between text-xs">
-                    <span className="text-muted-foreground">Conversas:</span>
-                    <span className="font-medium">{totem.conversations}</span>
-                  </div>
-                  <div className="flex items-center justify-between text-xs">
-                    <span className="text-muted-foreground">Última atividade:</span>
-                    <span className="font-medium text-success">{totem.lastActive}</span>
+                  <div className="flex justify-between text-sm font-medium pt-2 border-t">
+                    <span>Total:</span>
+                    <span>0 créditos</span>
                   </div>
                 </div>
-              </div>
-            ))}
-          </div>
-        </Card>
-
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Squares List */}
-          <Card className="gradient-card shadow-card border-border p-6">
-            <h3 className="text-xl font-semibold mb-4 flex items-center gap-2">
-              <MapPin className="h-5 w-5 text-primary" />
-              Praças Cadastradas
-            </h3>
-            <div className="space-y-4">
-              {squares.map((square) => (
-                <div 
-                  key={square.name}
-                  className="flex items-center justify-between p-4 rounded-lg bg-muted/30 border border-border hover:bg-muted/50 transition-colors cursor-pointer"
-                  onClick={() => onNavigate('square')}
-                >
-                  <div>
-                    <h4 className="font-medium">{square.name}</h4>
-                    <p className="text-sm text-muted-foreground">{square.location}</p>
-                  </div>
-                  <div className="text-right">
-                    <div className="font-medium">{square.totems} totens</div>
-                    <div className={`text-xs ${square.status === 'active' ? 'text-success' : 'text-warning'}`}>
-                      {square.status === 'active' ? 'Ativo' : 'Manutenção'}
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </Card>
-
-          {/* Interactions Chart */}
-          <Card className="gradient-card shadow-card border-border p-6">
-            <h3 className="text-xl font-semibold mb-4 flex items-center gap-2">
-              <BarChart3 className="h-5 w-5 text-primary" />
-              Interações por Totem
-            </h3>
-            <ResponsiveContainer width="100%" height={250}>
-              <BarChart data={interactionData}>
-                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                <XAxis 
-                  dataKey="name" 
-                  stroke="hsl(var(--muted-foreground))"
-                  fontSize={12}
-                />
-                <YAxis 
-                  stroke="hsl(var(--muted-foreground))"
-                  fontSize={12}
-                />
-                <Tooltip 
-                  contentStyle={{
-                    backgroundColor: 'hsl(var(--card))',
-                    border: '1px solid hsl(var(--border))',
-                    borderRadius: '8px'
-                  }}
-                />
-                <Bar dataKey="interactions" fill="hsl(var(--primary))" />
-              </BarChart>
-            </ResponsiveContainer>
-          </Card>
+              </CardContent>
+            </Card>
+          ))}
         </div>
 
-        {/* Vision Analytics */}
-        <Card className="gradient-card shadow-card border-border p-6">
-          <h3 className="text-xl font-semibold mb-4 flex items-center gap-2">
-            <Eye className="h-5 w-5 text-primary" />
-            Análise de Visão Computacional
-          </h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div>
-              <h4 className="font-medium mb-3">Demografia dos Usuários</h4>
-              <ResponsiveContainer width="100%" height={200}>
-                <PieChart>
-                  <Pie
-                    data={visionData}
-                    cx="50%"
-                    cy="50%"
-                    outerRadius={80}
-                    dataKey="value"
-                  >
-                    {visionData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={entry.color} />
-                    ))}
-                  </Pie>
-                  <Tooltip />
-                </PieChart>
-              </ResponsiveContainer>
+        {/* Info Card */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Configuração Necessária</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="mb-4">
+              Para usar o sistema de gerenciamento de avatares, você precisa configurar o banco de dados primeiro.
+            </p>
+            <p className="mb-4">
+              Acesse a aba <strong>Cloud</strong> no menu superior e execute a seguinte migração SQL no <strong>SQL Editor</strong>:
+            </p>
+            <div className="bg-muted p-4 rounded-lg overflow-x-auto">
+              <pre className="text-sm">
+{`-- Criar tabela de avatares
+create table public.avatars (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid references auth.users(id) on delete cascade not null,
+  name text not null,
+  backstory text,
+  language text default 'pt-BR',
+  ai_model text default 'gpt-5-mini-2025-08-07',
+  voice_model text default 'alloy',
+  elevenlabs_api_key text,
+  idle_media_url text,
+  idle_media_type text check (idle_media_type in ('image', 'video')),
+  created_at timestamp with time zone default now(),
+  updated_at timestamp with time zone default now()
+);
+
+-- Criar tabela de créditos
+create table public.user_credits (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid references auth.users(id) on delete cascade not null unique,
+  total_credits integer default 1000 not null,
+  used_credits integer default 0 not null,
+  created_at timestamp with time zone default now(),
+  updated_at timestamp with time zone default now()
+);
+
+-- Criar tabela de conversas
+create table public.conversations (
+  id uuid primary key default gen_random_uuid(),
+  avatar_id uuid references public.avatars(id) on delete cascade not null,
+  user_id uuid references auth.users(id) on delete cascade not null,
+  platform text check (platform in ('web', 'app')) not null,
+  duration_seconds integer not null,
+  credits_used integer not null,
+  topics jsonb default '[]'::jsonb,
+  created_at timestamp with time zone default now()
+);
+
+-- Criar tabela de gatilhos de mídia
+create table public.media_triggers (
+  id uuid primary key default gen_random_uuid(),
+  avatar_id uuid references public.avatars(id) on delete cascade not null,
+  trigger_phrase text not null,
+  media_url text not null,
+  media_type text check (media_type in ('image', 'video')) not null,
+  orientation text,
+  created_at timestamp with time zone default now()
+);
+
+-- Criar tabela de documentos de treinamento
+create table public.training_documents (
+  id uuid primary key default gen_random_uuid(),
+  avatar_id uuid references public.avatars(id) on delete cascade not null,
+  file_name text not null,
+  file_url text not null,
+  uploaded_at timestamp with time zone default now()
+);
+
+-- Habilitar RLS
+alter table public.avatars enable row level security;
+alter table public.user_credits enable row level security;
+alter table public.conversations enable row level security;
+alter table public.media_triggers enable row level security;
+alter table public.training_documents enable row level security;
+
+-- Políticas RLS para avatars
+create policy "Users can view own avatars"
+  on public.avatars for select using (auth.uid() = user_id);
+create policy "Users can insert own avatars"
+  on public.avatars for insert with check (auth.uid() = user_id);
+create policy "Users can update own avatars"
+  on public.avatars for update using (auth.uid() = user_id);
+create policy "Users can delete own avatars"
+  on public.avatars for delete using (auth.uid() = user_id);
+
+-- Políticas RLS para credits
+create policy "Users can view own credits"
+  on public.user_credits for select using (auth.uid() = user_id);
+create policy "Users can update own credits"
+  on public.user_credits for update using (auth.uid() = user_id);
+
+-- Políticas RLS para conversations
+create policy "Users can view own conversations"
+  on public.conversations for select using (auth.uid() = user_id);
+create policy "Users can insert own conversations"
+  on public.conversations for insert with check (auth.uid() = user_id);
+
+-- Políticas RLS para media_triggers
+create policy "Users can view own media triggers"
+  on public.media_triggers for select using (exists (
+    select 1 from public.avatars where avatars.id = avatar_id and avatars.user_id = auth.uid()
+  ));
+create policy "Users can manage own media triggers"
+  on public.media_triggers for all using (exists (
+    select 1 from public.avatars where avatars.id = avatar_id and avatars.user_id = auth.uid()
+  ));
+
+-- Políticas RLS para training_documents
+create policy "Users can view own training documents"
+  on public.training_documents for select using (exists (
+    select 1 from public.avatars where avatars.id = avatar_id and avatars.user_id = auth.uid()
+  ));
+create policy "Users can manage own training documents"
+  on public.training_documents for all using (exists (
+    select 1 from public.avatars where avatars.id = avatar_id and avatars.user_id = auth.uid()
+  ));`}
+              </pre>
             </div>
-            <div className="space-y-4">
-              <div className="p-4 rounded-lg bg-muted/30 border border-border">
-                <div className="text-sm text-muted-foreground">Média de idade</div>
-                <div className="text-2xl font-bold">28 anos</div>
-              </div>
-              <div className="p-4 rounded-lg bg-muted/30 border border-border">
-                <div className="text-sm text-muted-foreground">Tempo médio de interação</div>
-                <div className="text-2xl font-bold">2m 34s</div>
-              </div>
-              <div className="p-4 rounded-lg bg-muted/30 border border-border">
-                <div className="text-sm text-muted-foreground">Taxa de engajamento</div>
-                <div className="text-2xl font-bold">73%</div>
-              </div>
-            </div>
-          </div>
+            <p className="mt-4">
+              Após executar a migração, recarregue esta página para começar a usar o sistema.
+            </p>
+          </CardContent>
         </Card>
-      </main>
+      </div>
     </div>
   );
 };
+
+export default Dashboard;

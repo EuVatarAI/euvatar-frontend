@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { Auth } from "./Auth";
-import { Dashboard } from "./Dashboard";
+import Dashboard from "./Dashboard";
 import { SquareView } from "./SquareView";
 import { MediaUpload } from "./MediaUpload";
 import { Characters } from "./Characters";
@@ -53,16 +53,7 @@ const Index = () => {
     case 'auth':
       return <Auth onAuthSuccess={handleAuthSuccess} />;
     case 'dashboard':
-      return <Dashboard 
-        user={{ 
-          name: profile?.full_name || user?.email?.split('@')[0] || 'Usuário', 
-          email: user?.email || '' 
-        }} 
-        organization={organization}
-        profile={profile}
-        onLogout={handleLogout} 
-        onNavigate={navigateTo} 
-      />;
+      return <Dashboard />;
     case 'square':
       return <SquareView 
         user={{ 
@@ -108,16 +99,7 @@ const Index = () => {
         onBack={() => navigateTo('dashboard')} 
       />;
     default:
-      return <Dashboard 
-        user={{ 
-          name: profile?.full_name || user?.email?.split('@')[0] || 'Usuário', 
-          email: user?.email || '' 
-        }} 
-        organization={organization}
-        profile={profile}
-        onLogout={handleLogout} 
-        onNavigate={navigateTo} 
-      />;
+      return <Dashboard />;
   }
 };
 
