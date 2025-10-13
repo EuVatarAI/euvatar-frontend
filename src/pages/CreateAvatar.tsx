@@ -244,7 +244,7 @@ const CreateAvatar = () => {
           </CardHeader>
           <CardContent>
             <p className="text-sm text-muted-foreground mb-4">
-              Configure frases que, quando detectadas, acionam a exibição de uma mídia específica
+              Defina contextos que, quando identificados pela IA durante a conversa, acionam a exibição de uma mídia específica
             </p>
 
             {mediaTriggers.length > 0 && (
@@ -252,8 +252,10 @@ const CreateAvatar = () => {
                 {mediaTriggers.map((trigger, index) => (
                   <div key={index} className="flex justify-between items-start p-3 bg-muted rounded">
                     <div className="flex-1">
-                      <p className="font-medium">{trigger.trigger_phrase}</p>
-                      <p className="text-sm text-muted-foreground truncate">{trigger.media_url}</p>
+                      <p className="font-medium text-sm text-muted-foreground">Contexto:</p>
+                      <p className="mb-1">{trigger.trigger_phrase}</p>
+                      <p className="text-xs text-muted-foreground">Mídia:</p>
+                      <p className="text-sm truncate">{trigger.media_url}</p>
                     </div>
                     <Button 
                       variant="ghost" 
@@ -267,25 +269,32 @@ const CreateAvatar = () => {
               </div>
             )}
 
-            <div className="space-y-4 p-4 border rounded-lg">
+            <div className="space-y-4 p-4 border rounded-lg bg-muted/50">
               <div>
-                <Label htmlFor="trigger_phrase">Frase Gatilho</Label>
-                <Input
+                <Label htmlFor="trigger_phrase">Contexto do Gatilho</Label>
+                <Textarea
                   id="trigger_phrase"
                   value={newTrigger.trigger_phrase}
                   onChange={(e) => setNewTrigger({ ...newTrigger, trigger_phrase: e.target.value })}
-                  placeholder="Ex: mostre o produto, veja o gráfico..."
+                  placeholder="Ex: Quando o usuário perguntar sobre produtos, funcionalidades ou quiser ver uma demonstração visual..."
+                  rows={3}
                 />
+                <p className="text-xs text-muted-foreground mt-1">
+                  Descreva o contexto da conversa que deve acionar esta mídia. A IA interpretará semanticamente.
+                </p>
               </div>
               <div>
-                <Label htmlFor="trigger_media_url">URL da Mídia</Label>
+                <Label htmlFor="trigger_media_url">URL da Mídia (Imagem ou Vídeo)</Label>
                 <Input
                   id="trigger_media_url"
                   type="url"
                   value={newTrigger.media_url}
                   onChange={(e) => setNewTrigger({ ...newTrigger, media_url: e.target.value })}
-                  placeholder="https://exemplo.com/imagem.jpg"
+                  placeholder="https://exemplo.com/imagem-produto.jpg"
                 />
+                <p className="text-xs text-muted-foreground mt-1">
+                  URL da imagem ou vídeo que será exibido quando o contexto for identificado
+                </p>
               </div>
               <Button variant="outline" onClick={handleAddTrigger}>
                 <Plus className="mr-2 h-4 w-4" />
