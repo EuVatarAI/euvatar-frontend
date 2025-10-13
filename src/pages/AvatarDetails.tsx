@@ -5,7 +5,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
-import { ArrowLeft, Settings } from 'lucide-react';
+import { ArrowLeft, Settings, Sparkles } from 'lucide-react';
 
 interface Avatar {
   id: string;
@@ -104,10 +104,16 @@ const AvatarDetails = () => {
             </Button>
             <h1 className="text-4xl font-bold">{avatar?.name || 'Avatar'}</h1>
           </div>
-          <Button onClick={() => navigate(`/avatar/${id}/settings`)}>
-            <Settings className="mr-2 h-4 w-4" />
-            Configurações
-          </Button>
+          <div className="flex gap-2">
+            <Button onClick={() => navigate(`/avatar/${id}/contexts`)} variant="outline">
+              <Sparkles className="mr-2 h-4 w-4" />
+              Contextos
+            </Button>
+            <Button onClick={() => navigate(`/avatar/${id}/settings`)}>
+              <Settings className="mr-2 h-4 w-4" />
+              Configurações
+            </Button>
+          </div>
         </div>
 
         {avatar?.backstory && (
