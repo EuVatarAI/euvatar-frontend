@@ -50,6 +50,59 @@ export type Database = {
         }
         Relationships: []
       }
+      contexts: {
+        Row: {
+          avatar_id: string
+          created_at: string
+          description: string
+          enabled: boolean
+          id: string
+          keywords_text: string | null
+          media_type: string
+          media_url: string
+          name: string
+          placement: string
+          size: string
+          updated_at: string
+        }
+        Insert: {
+          avatar_id: string
+          created_at?: string
+          description: string
+          enabled?: boolean
+          id?: string
+          keywords_text?: string | null
+          media_type?: string
+          media_url: string
+          name: string
+          placement?: string
+          size?: string
+          updated_at?: string
+        }
+        Update: {
+          avatar_id?: string
+          created_at?: string
+          description?: string
+          enabled?: boolean
+          id?: string
+          keywords_text?: string | null
+          media_type?: string
+          media_url?: string
+          name?: string
+          placement?: string
+          size?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "contexts_avatar_id_fkey"
+            columns: ["avatar_id"]
+            isOneToOne: false
+            referencedRelation: "avatars"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       conversations: {
         Row: {
           avatar_id: string

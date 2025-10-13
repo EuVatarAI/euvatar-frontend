@@ -2,3 +2,6 @@ project_id = "aqbyqtvaxjroakgnxlun"
 
 [functions.validate-media]
 verify_jwt = false
+
+[functions.match-context]
+verify_jwt = false
