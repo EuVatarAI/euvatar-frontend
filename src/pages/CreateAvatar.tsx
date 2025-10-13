@@ -22,6 +22,8 @@ const CreateAvatar = () => {
     language: 'pt-BR',
     ai_model: 'gpt-4',
     voice_model: 'alloy',
+    heygen_avatar_id: '',
+    heygen_voice_id: '',
   });
 
   const handleCreate = async () => {
@@ -164,6 +166,43 @@ const CreateAvatar = () => {
                 </SelectContent>
               </Select>
             </div>
+
+            <Card className="mt-6">
+              <CardHeader>
+                <CardTitle>Integração HeyGen (Opcional)</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <p className="text-sm text-muted-foreground mb-4">
+                  Configure a integração com HeyGen para usar avatares de vídeo realistas
+                </p>
+                
+                <div>
+                  <Label htmlFor="heygen_avatar_id">HeyGen Avatar ID</Label>
+                  <Input
+                    id="heygen_avatar_id"
+                    value={formData.heygen_avatar_id}
+                    onChange={(e) => setFormData({ ...formData, heygen_avatar_id: e.target.value })}
+                    placeholder="ID do avatar da sua conta HeyGen"
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Você pode encontrar o ID do avatar no painel do HeyGen
+                  </p>
+                </div>
+
+                <div>
+                  <Label htmlFor="heygen_voice_id">HeyGen Voice ID</Label>
+                  <Input
+                    id="heygen_voice_id"
+                    value={formData.heygen_voice_id}
+                    onChange={(e) => setFormData({ ...formData, heygen_voice_id: e.target.value })}
+                    placeholder="ID da voz no HeyGen"
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    ID da voz que será usada para o avatar HeyGen
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
 
             <div className="flex justify-end gap-4 pt-4">
               <Button variant="outline" onClick={() => navigate('/avatars')}>
