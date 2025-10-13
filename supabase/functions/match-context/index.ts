@@ -1,138 +1,117 @@
+import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.75.0";
 
 const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
 serve(async (req) => {
-  if (req.method === 'OPTIONS') {
+  if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
-    const { avatar_id, question } = await req.json();
+    const { avatar_id, user_message } = await req.json();
 
-    if (!avatar_id || !question) {
+    if (!avatar_id || !user_message) {
       return new Response(
-        JSON.stringify({ error: "avatar_id and question are required" }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        JSON.stringify({ error: "avatar_id and user_message required" }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-    const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    // Buscar contextos ativos do avatar
+    // Get all enabled contexts for this avatar
     const { data: contexts, error: contextError } = await supabase
-      .from('contexts')
-      .select('*')
-      .eq('avatar_id', avatar_id)
-      .eq('enabled', true);
+      .from("contexts")
+      .select("name, description, keywords_text")
+      .eq("avatar_id", avatar_id)
+      .eq("enabled", true);
 
-    if (contextError) {
-      console.error("Error fetching contexts:", contextError);
+    if (contextError || !contexts || contexts.length === 0) {
       return new Response(
-        JSON.stringify({ error: "Failed to fetch contexts" }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        JSON.stringify({ context_name: "none" }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    if (!contexts || contexts.length === 0) {
-      return new Response(
-        JSON.stringify({ matched_context: null, message: "No active contexts found" }),
-        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    // Tentar LLM matching primeiro
-    const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
-    let matchedContext = null;
-
-    if (LOVABLE_API_KEY) {
+    // Try LLM-based matching first
+    const lovableApiKey = Deno.env.get("LOVABLE_API_KEY");
+    
+    if (lovableApiKey) {
       try {
-        const contextList = contexts.map(c => ({
+        const contextList = contexts.map((c) => ({
           name: c.name,
-          description: c.description
+          description: c.description,
         }));
 
         const prompt = `Você recebe:
-- Pergunta do usuário: "${question}"
+- Pergunta do usuário: "${user_message}"
 - Lista de contextos: ${JSON.stringify(contextList)}
 
 Escolha no máximo 1 contexto cujo description melhor se aplica à pergunta.
-Responda APENAS com o name do contexto ou "none".
-Não adicione explicações ou formatação extra.`;
+Responda APENAS com o name do contexto ou "none". Nada mais.`;
 
-        const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
-          method: 'POST',
+        const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+          method: "POST",
           headers: {
-            'Authorization': `Bearer ${LOVABLE_API_KEY}`,
-            'Content-Type': 'application/json',
+            Authorization: `Bearer ${lovableApiKey}`,
+            "Content-Type": "application/json",
           },
           body: JSON.stringify({
-            model: 'google/gemini-2.5-flash',
+            model: "google/gemini-2.5-flash",
             messages: [
-              { role: 'user', content: prompt }
+              { role: "system", content: "Você é um assistente que identifica contextos relevantes." },
+              { role: "user", content: prompt },
             ],
-            max_tokens: 50
+            max_completion_tokens: 50,
           }),
         });
 
-        if (response.ok) {
-          const data = await response.json();
-          const aiAnswer = data.choices?.[0]?.message?.content?.trim() || "none";
-          
-          if (aiAnswer !== "none") {
-            // Verificar se o contexto retornado existe
-            const foundContext = contexts.find(c => c.name === aiAnswer);
-            if (foundContext) {
-              matchedContext = foundContext.name;
-            }
-          }
-        }
-      } catch (error) {
-        console.error("LLM matching failed, falling back to keyword matching:", error);
-      }
-    }
-
-    // Fallback: keyword matching
-    if (!matchedContext) {
-      const questionLower = question.toLowerCase()
-        .normalize('NFD')
-        .replace(/[\u0300-\u036f]/g, '');
-
-      for (const context of contexts) {
-        const keywords = context.keywords_text || "";
-        const words = keywords.split(/\s+/);
+        const data = await response.json();
+        const answer = data.choices?.[0]?.message?.content?.trim() || "none";
         
-        // Verifica se pelo menos 2 palavras do contexto aparecem na pergunta
-        const matches = words.filter((word: string) => 
-          word.length > 3 && questionLower.includes(word)
+        console.log("LLM match result:", answer);
+
+        return new Response(
+          JSON.stringify({ context_name: answer }),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
-        
-        if (matches.length >= 2) {
-          matchedContext = context.name;
-          break;
-        }
+      } catch (llmError) {
+        console.error("LLM matching failed:", llmError);
+        // Fall through to keyword fallback
+      }
+    }
+
+    // Fallback: simple keyword matching
+    const userLower = user_message.toLowerCase();
+    for (const ctx of contexts) {
+      if (!ctx.keywords_text) continue;
+      const keywords = ctx.keywords_text.split(/\s+/);
+      const matchCount = keywords.filter((kw: string) => userLower.includes(kw)).length;
+      if (matchCount >= 2) {
+        console.log("Keyword match:", ctx.name);
+        return new Response(
+          JSON.stringify({ context_name: ctx.name }),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
       }
     }
 
     return new Response(
-      JSON.stringify({ 
-        matched_context: matchedContext,
-        method: matchedContext ? (LOVABLE_API_KEY ? "llm" : "keyword") : null
-      }),
-      { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      JSON.stringify({ context_name: "none" }),
+      { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
-
   } catch (error) {
-    console.error('Error in match-context function:', error);
+    console.error("Error in match-context:", error);
     return new Response(
-      JSON.stringify({ error: error instanceof Error ? error.message : 'Unknown error' }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      JSON.stringify({ error: String(error) }),
+      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }
 });

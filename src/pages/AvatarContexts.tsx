@@ -1,17 +1,16 @@
-import { useEffect, useState } from "react";
+import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Card } from "@/components/ui/card";
-import { Label } from "@/components/ui/label";
-import { Switch } from "@/components/ui/switch";
-import { toast } from "sonner";
-import { ArrowLeft, Plus, Trash2, TestTube, Save, Eye, EyeOff } from "lucide-react";
-import { validateMediaUrlClient, type ValidationResult } from "@/utils/mediaValidation";
+import { useToast } from "@/hooks/use-toast";
+import { Plus, Trash2, Eye, Check, X } from "lucide-react";
+import { sanitizeContextName } from "@/utils/contextNameSanitizer";
+import { validateMediaUrlClient } from "@/utils/mediaValidation";
 
-type Context = {
+interface Context {
   id: string;
   name: string;
   description: string;
@@ -20,327 +19,253 @@ type Context = {
   enabled: boolean;
   placement: string;
   size: string;
-};
-
-function sanitizeContextName(input: string): string {
-  return input
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '') // remove acentos
-    .replace(/\s+/g, '_')
-    .replace(/[^a-z0-9_]/g, '')
-    .replace(/_+/g, '_')
-    .replace(/^_+|_+$/g, '');
 }
 
 export default function AvatarContexts() {
-  const { id } = useParams();
+  const { avatarId } = useParams();
   const navigate = useNavigate();
+  const { toast } = useToast();
+  
   const [contexts, setContexts] = useState<Context[]>([]);
   const [loading, setLoading] = useState(true);
-  const [avatarName, setAvatarName] = useState("");
-  
-  // Form states
   const [showForm, setShowForm] = useState(false);
+  
+  // Form state
+  const [name, setName] = useState("");
+  const [description, setDescription] = useState("");
+  const [mediaUrl, setMediaUrl] = useState("");
+  const [mediaValid, setMediaValid] = useState<boolean | null>(null);
+  const [validating, setValidating] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [formData, setFormData] = useState({
-    name: "",
-    description: "",
-    media_url: "",
-    media_type: "image"
-  });
   
-  // Validation states
-  const [mediaValidation, setMediaValidation] = useState<ValidationResult | null>(null);
-  const [isValidating, setIsValidating] = useState(false);
-  const [debounceTimer, setDebounceTimer] = useState<NodeJS.Timeout | null>(null);
-  
-  // Test states
-  const [testQuestion, setTestQuestion] = useState("");
-  const [testResult, setTestResult] = useState<{ context: string | null; message: string } | null>(null);
-  const [testLoading, setTestLoading] = useState(false);
+  // Test state
+  const [testQuery, setTestQuery] = useState("");
+  const [testResult, setTestResult] = useState<string | null>(null);
+  const [testing, setTesting] = useState(false);
 
   useEffect(() => {
-    fetchData();
-  }, [id]);
+    loadContexts();
+  }, [avatarId]);
 
-  const fetchData = async () => {
-    try {
-      const { data: avatar } = await supabase
-        .from("avatars")
-        .select("name")
-        .eq("id", id)
-        .single();
-      
-      if (avatar) setAvatarName(avatar.name);
+  const loadContexts = async () => {
+    if (!avatarId) return;
+    
+    const { data, error } = await supabase
+      .from("contexts")
+      .select("*")
+      .eq("avatar_id", avatarId)
+      .order("created_at", { ascending: false });
 
-      const { data } = await supabase
-        .from("contexts")
-        .select("*")
-        .eq("avatar_id", id)
-        .order("created_at", { ascending: false });
-      
-      if (data) setContexts(data);
-    } catch (error) {
-      console.error("Error fetching data:", error);
-      toast.error("Erro ao carregar dados");
-    } finally {
-      setLoading(false);
+    if (error) {
+      toast({ title: "Erro ao carregar contextos", variant: "destructive" });
+    } else {
+      setContexts(data || []);
     }
+    setLoading(false);
   };
 
-  const handleMediaUrlChange = (url: string) => {
-    setFormData(prev => ({ ...prev, media_url: url }));
-    setMediaValidation(null);
+  const handleNameChange = (value: string) => {
+    const sanitized = sanitizeContextName(value);
+    setName(sanitized);
+  };
+
+  const handleMediaUrlChange = async (value: string) => {
+    setMediaUrl(value);
+    setMediaValid(null);
     
-    if (debounceTimer) clearTimeout(debounceTimer);
+    if (!value.trim()) return;
     
-    if (!url) return;
+    setValidating(true);
+    const clientCheck = await validateMediaUrlClient(value);
     
-    const timer = setTimeout(async () => {
-      setIsValidating(true);
-      const result = await validateMediaUrlClient(url);
-      setMediaValidation(result);
-      setIsValidating(false);
-      
-      // Detecta tipo automaticamente
-      if (result.ok && result.kind) {
-        setFormData(prev => ({ ...prev, media_type: result.kind! }));
+    if (clientCheck.ok) {
+      try {
+        const response = await fetch(
+          `https://aqbyqtvaxjroakgnxlun.supabase.co/functions/v1/validate-media`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ url: value }),
+          }
+        );
+        const serverCheck = await response.json();
+        setMediaValid(serverCheck.ok);
+      } catch {
+        setMediaValid(false);
       }
-    }, 400);
-    
-    setDebounceTimer(timer);
+    } else {
+      setMediaValid(false);
+    }
+    setValidating(false);
   };
 
   const handleSave = async () => {
-    if (!formData.name || !formData.description || !formData.media_url) {
-      toast.error("Preencha todos os campos obrigatórios");
+    if (!name || !description || !mediaUrl) {
+      toast({ title: "Preencha todos os campos", variant: "destructive" });
       return;
     }
 
-    if (mediaValidation && !mediaValidation.ok) {
-      toast.error("Corrija a URL da mídia antes de salvar");
+    if (!mediaValid) {
+      toast({ title: "Mídia inválida", variant: "destructive" });
       return;
     }
 
-    try {
-      if (editingId) {
-        await supabase
-          .from("contexts")
-          .update({
-            name: formData.name,
-            description: formData.description,
-            media_url: formData.media_url,
-            media_type: formData.media_type
-          })
-          .eq("id", editingId);
-        toast.success("Contexto atualizado");
-      } else {
-        await supabase
-          .from("contexts")
-          .insert({
-            avatar_id: id,
-            name: formData.name,
-            description: formData.description,
-            media_url: formData.media_url,
-            media_type: formData.media_type
-          });
-        toast.success("Contexto criado");
-      }
-      
-      resetForm();
-      fetchData();
-    } catch (error) {
-      console.error("Error saving context:", error);
-      toast.error("Erro ao salvar contexto");
-    }
-  };
+    const mediaType = mediaUrl.match(/\.(mp4|webm|mov)$/i) ? "video" : "image";
 
-  const handleDelete = async (contextId: string) => {
-    if (!confirm("Deseja realmente excluir este contexto?")) return;
-    
-    try {
-      await supabase.from("contexts").delete().eq("id", contextId);
-      toast.success("Contexto excluído");
-      fetchData();
-    } catch (error) {
-      console.error("Error deleting context:", error);
-      toast.error("Erro ao excluir contexto");
-    }
-  };
+    const payload = {
+      avatar_id: avatarId,
+      name,
+      description,
+      media_url: mediaUrl,
+      media_type: mediaType,
+      enabled: true,
+    };
 
-  const handleToggle = async (contextId: string, enabled: boolean) => {
-    try {
-      await supabase
+    let error;
+    if (editingId) {
+      const result = await supabase
         .from("contexts")
-        .update({ enabled })
-        .eq("id", contextId);
-      fetchData();
-    } catch (error) {
-      console.error("Error toggling context:", error);
-      toast.error("Erro ao atualizar status");
-    }
-  };
-
-  const handleTest = async () => {
-    if (!testQuestion.trim()) {
-      toast.error("Digite uma pergunta para testar");
-      return;
+        .update(payload)
+        .eq("id", editingId);
+      error = result.error;
+    } else {
+      const result = await supabase.from("contexts").insert(payload);
+      error = result.error;
     }
 
-    setTestLoading(true);
-    try {
-      const { data, error } = await supabase.functions.invoke("match-context", {
-        body: {
-          avatar_id: id,
-          question: testQuestion
-        }
-      });
-
-      if (error) throw error;
-
-      setTestResult({
-        context: data.matched_context,
-        message: data.matched_context 
-          ? `Contexto "${data.matched_context}" seria acionado`
-          : "Nenhum contexto seria acionado"
-      });
-    } catch (error) {
-      console.error("Error testing context:", error);
-      toast.error("Erro ao testar contexto");
-      setTestResult(null);
-    } finally {
-      setTestLoading(false);
+    if (error) {
+      toast({ title: "Erro ao salvar contexto", variant: "destructive" });
+    } else {
+      toast({ title: "Contexto salvo com sucesso!" });
+      resetForm();
+      loadContexts();
     }
   };
 
   const resetForm = () => {
-    setFormData({ name: "", description: "", media_url: "", media_type: "image" });
-    setMediaValidation(null);
+    setName("");
+    setDescription("");
+    setMediaUrl("");
+    setMediaValid(null);
     setEditingId(null);
     setShowForm(false);
   };
 
-  const startEdit = (context: Context) => {
-    setFormData({
-      name: context.name,
-      description: context.description,
-      media_url: context.media_url,
-      media_type: context.media_type
-    });
-    setEditingId(context.id);
+  const handleEdit = (ctx: Context) => {
+    setName(ctx.name);
+    setDescription(ctx.description);
+    setMediaUrl(ctx.media_url);
+    setMediaValid(true);
+    setEditingId(ctx.id);
     setShowForm(true);
   };
 
-  if (loading) {
-    return <div className="p-8">Carregando...</div>;
-  }
+  const handleDelete = async (id: string) => {
+    const { error } = await supabase.from("contexts").delete().eq("id", id);
+    if (error) {
+      toast({ title: "Erro ao excluir", variant: "destructive" });
+    } else {
+      toast({ title: "Contexto excluído" });
+      loadContexts();
+    }
+  };
+
+  const handleToggleEnabled = async (id: string, enabled: boolean) => {
+    const { error } = await supabase
+      .from("contexts")
+      .update({ enabled: !enabled })
+      .eq("id", id);
+    if (error) {
+      toast({ title: "Erro ao atualizar", variant: "destructive" });
+    } else {
+      loadContexts();
+    }
+  };
+
+  const handleTest = async () => {
+    if (!testQuery.trim()) return;
+    
+    setTesting(true);
+    try {
+      const response = await fetch(
+        `https://aqbyqtvaxjroakgnxlun.supabase.co/functions/v1/match-context`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            avatar_id: avatarId,
+            user_message: testQuery,
+          }),
+        }
+      );
+      const result = await response.json();
+      setTestResult(result.context_name || "none");
+    } catch {
+      toast({ title: "Erro ao testar", variant: "destructive" });
+    }
+    setTesting(false);
+  };
+
+  if (loading) return <div className="p-8">Carregando...</div>;
 
   return (
-    <div className="container mx-auto p-6 max-w-5xl">
-      <div className="flex items-center gap-4 mb-6">
-        <Button variant="ghost" size="sm" onClick={() => navigate("/avatars")}>
-          <ArrowLeft className="h-4 w-4 mr-2" />
-          Voltar
+    <div className="container mx-auto p-8">
+      <div className="flex items-center justify-between mb-6">
+        <h1 className="text-3xl font-bold">Contextos</h1>
+        <Button onClick={() => setShowForm(!showForm)}>
+          <Plus className="mr-2 h-4 w-4" />
+          Novo Contexto
         </Button>
-        <div>
-          <h1 className="text-3xl font-bold">Contextos</h1>
-          <p className="text-muted-foreground">{avatarName}</p>
-        </div>
       </div>
 
-      {/* Test Section */}
-      <Card className="p-4 mb-6 bg-accent/5">
-        <Label className="text-sm font-semibold mb-2 flex items-center gap-2">
-          <TestTube className="h-4 w-4" />
-          Testar Contextos
-        </Label>
-        <div className="flex gap-2">
-          <Input
-            placeholder="Digite uma pergunta para testar (ex: tem apartamento de 3 quartos?)"
-            value={testQuestion}
-            onChange={(e) => setTestQuestion(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && handleTest()}
-          />
-          <Button onClick={handleTest} disabled={testLoading}>
-            {testLoading ? "Testando..." : "Testar"}
-          </Button>
-        </div>
-        {testResult && (
-          <div className={`mt-3 p-3 rounded-md ${testResult.context ? "bg-green-500/10 text-green-700" : "bg-yellow-500/10 text-yellow-700"}`}>
-            <p className="text-sm font-medium">{testResult.message}</p>
-          </div>
-        )}
-      </Card>
-
-      {/* Form */}
-      {showForm ? (
+      {showForm && (
         <Card className="p-6 mb-6">
           <h2 className="text-xl font-semibold mb-4">
-            {editingId ? "Editar Contexto" : "Novo Contexto"}
+            {editingId ? "Editar" : "Novo"} Contexto
           </h2>
           
           <div className="space-y-4">
             <div>
-              <Label>Nome do Contexto</Label>
+              <label className="block text-sm font-medium mb-2">Nome do contexto</label>
               <Input
-                placeholder="ex: APARTAMENTO 3 QUARTOS"
-                value={formData.name}
-                onChange={(e) => {
-                  const sanitized = sanitizeContextName(e.target.value);
-                  setFormData(prev => ({ ...prev, name: sanitized }));
-                }}
+                value={name}
+                onChange={(e) => handleNameChange(e.target.value)}
+                placeholder="ex: apto_3_quartos"
               />
-              <p className="text-xs text-muted-foreground mt-1">
-                Será convertido automaticamente: apartamento_3_quartos
-              </p>
             </div>
 
             <div>
-              <Label>Contexto (texto livre)</Label>
+              <label className="block text-sm font-medium mb-2">Contexto (texto livre)</label>
               <Textarea
-                placeholder="Quando o usuário pedir apartamento de 3 quartos, mostrar a galeria com as áreas de lazer..."
-                value={formData.description}
-                onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                placeholder="ex: Quando o usuário pedir apartamento de 3 quartos..."
                 rows={3}
               />
             </div>
 
             <div>
-              <Label>Mídia (URL)</Label>
+              <label className="block text-sm font-medium mb-2">URL da Mídia</label>
               <Input
-                type="url"
-                placeholder="https://cdn.exemplo.com/imagem.jpg"
-                value={formData.media_url}
+                value={mediaUrl}
                 onChange={(e) => handleMediaUrlChange(e.target.value)}
-                className={mediaValidation && !mediaValidation.ok ? "border-red-500" : ""}
+                placeholder="https://..."
+                className={mediaValid === false ? "border-red-500" : ""}
               />
-              
-              {isValidating && (
-                <p className="text-xs text-muted-foreground mt-1">Validando mídia...</p>
-              )}
-              
-              {mediaValidation && !mediaValidation.ok && (
-                <p className="text-xs text-red-500 mt-1">
-                  Erro: {mediaValidation.reason}
-                </p>
-              )}
-              
-              {mediaValidation?.ok && formData.media_url && (
+              {validating && <p className="text-sm text-muted-foreground mt-1">Validando...</p>}
+              {mediaValid === true && (
                 <div className="mt-2">
-                  <p className="text-xs text-green-600 mb-2">✓ Mídia válida - Preview:</p>
-                  {formData.media_type === "image" ? (
-                    <img src={formData.media_url} alt="Preview" className="max-w-xs rounded border" />
-                  ) : (
-                    <video src={formData.media_url} className="max-w-xs rounded border" controls />
-                  )}
+                  <p className="text-sm text-green-600 mb-2">✓ Mídia válida - Preview:</p>
+                  <img src={mediaUrl} alt="Preview" className="max-w-xs rounded border" />
                 </div>
+              )}
+              {mediaValid === false && (
+                <p className="text-sm text-red-600 mt-1">✗ Mídia inválida</p>
               )}
             </div>
 
             <div className="flex gap-2">
-              <Button onClick={handleSave}>
-                <Save className="h-4 w-4 mr-2" />
+              <Button onClick={handleSave} disabled={!mediaValid}>
                 Salvar
               </Button>
               <Button variant="outline" onClick={resetForm}>
@@ -349,59 +274,63 @@ export default function AvatarContexts() {
             </div>
           </div>
         </Card>
-      ) : (
-        <Button onClick={() => setShowForm(true)} className="mb-6">
-          <Plus className="h-4 w-4 mr-2" />
-          Novo Contexto
-        </Button>
       )}
 
-      {/* Context List */}
-      <div className="space-y-3">
-        {contexts.map((context) => (
-          <Card key={context.id} className="p-4">
+      <Card className="p-6 mb-6">
+        <h2 className="text-xl font-semibold mb-4">Testar Contextos</h2>
+        <div className="flex gap-2">
+          <Input
+            value={testQuery}
+            onChange={(e) => setTestQuery(e.target.value)}
+            placeholder="Digite uma pergunta: ex: tem apartamento de 3 quartos?"
+          />
+          <Button onClick={handleTest} disabled={testing}>
+            <Eye className="mr-2 h-4 w-4" />
+            Testar
+          </Button>
+        </div>
+        {testResult && (
+          <div className="mt-4">
+            <p className="font-medium">
+              Contexto acionado: <span className="text-primary">{testResult}</span>
+            </p>
+          </div>
+        )}
+      </Card>
+
+      <div className="space-y-4">
+        {contexts.map((ctx) => (
+          <Card key={ctx.id} className="p-4">
             <div className="flex items-start justify-between">
               <div className="flex-1">
-                <div className="flex items-center gap-3 mb-2">
-                  <h3 className="font-semibold">{context.name}</h3>
-                  <Switch
-                    checked={context.enabled}
-                    onCheckedChange={(enabled) => handleToggle(context.id, enabled)}
-                  />
-                  {context.enabled ? (
-                    <Eye className="h-4 w-4 text-green-600" />
-                  ) : (
-                    <EyeOff className="h-4 w-4 text-muted-foreground" />
-                  )}
-                </div>
-                <p className="text-sm text-muted-foreground mb-2">{context.description}</p>
-                <div className="flex gap-2">
-                  {context.media_type === "image" ? (
-                    <img src={context.media_url} alt={context.name} className="h-20 rounded border" />
-                  ) : (
-                    <video src={context.media_url} className="h-20 rounded border" />
-                  )}
+                <h3 className="font-semibold text-lg">{ctx.name}</h3>
+                <p className="text-sm text-muted-foreground mt-1">{ctx.description}</p>
+                <div className="mt-2">
+                  <img src={ctx.media_url} alt={ctx.name} className="max-w-[200px] rounded" />
                 </div>
               </div>
-              
               <div className="flex gap-2">
-                <Button variant="outline" size="sm" onClick={() => startEdit(context)}>
-                  Editar
+                <Button
+                  size="icon"
+                  variant={ctx.enabled ? "default" : "outline"}
+                  onClick={() => handleToggleEnabled(ctx.id, ctx.enabled)}
+                >
+                  {ctx.enabled ? <Check className="h-4 w-4" /> : <X className="h-4 w-4" />}
                 </Button>
-                <Button variant="destructive" size="sm" onClick={() => handleDelete(context.id)}>
+                <Button size="icon" variant="outline" onClick={() => handleEdit(ctx)}>
+                  <Eye className="h-4 w-4" />
+                </Button>
+                <Button
+                  size="icon"
+                  variant="destructive"
+                  onClick={() => handleDelete(ctx.id)}
+                >
                   <Trash2 className="h-4 w-4" />
                 </Button>
               </div>
             </div>
           </Card>
         ))}
-
-        {contexts.length === 0 && !showForm && (
-          <Card className="p-8 text-center text-muted-foreground">
-            <p>Nenhum contexto criado ainda.</p>
-            <p className="text-sm mt-2">Clique em "Novo Contexto" para começar.</p>
-          </Card>
-        )}
       </div>
     </div>
   );
