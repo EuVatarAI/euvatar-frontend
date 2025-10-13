@@ -23,6 +23,9 @@ const CreateAvatar = () => {
   const [creating, setCreating] = useState(false);
   const [mediaTriggers, setMediaTriggers] = useState<MediaTrigger[]>([]);
   const [newTrigger, setNewTrigger] = useState<MediaTrigger>({ trigger_phrase: '', media_url: '' });
+  const [idleMediaUrl, setIdleMediaUrl] = useState('');
+  const [idleMediaValid, setIdleMediaValid] = useState(false);
+  const [triggerMediaValid, setTriggerMediaValid] = useState(false);
   const [formData, setFormData] = useState({
     name: '',
     backstory: '',
@@ -30,6 +33,31 @@ const CreateAvatar = () => {
     ai_model: 'gpt-4',
     voice_model: 'alloy',
   });
+
+  const validateMediaUrl = async (url: string): Promise<boolean> => {
+    if (!url) return false;
+    
+    try {
+      // Verifica se é uma URL válida
+      new URL(url);
+      
+      // Tenta carregar a imagem/vídeo
+      return new Promise((resolve) => {
+        const img = new Image();
+        img.onload = () => resolve(true);
+        img.onerror = () => {
+          // Se não for imagem, pode ser vídeo
+          const video = document.createElement('video');
+          video.onloadedmetadata = () => resolve(true);
+          video.onerror = () => resolve(false);
+          video.src = url;
+        };
+        img.src = url;
+      });
+    } catch {
+      return false;
+    }
+  };
 
   const handleCreate = async () => {
     if (!user) {
@@ -100,11 +128,22 @@ const CreateAvatar = () => {
     }
   };
 
-  const handleAddTrigger = () => {
+  const handleAddTrigger = async () => {
     if (!newTrigger.trigger_phrase || !newTrigger.media_url) {
       toast({
         title: 'Erro',
-        description: 'Preencha a frase gatilho e a URL da mídia.',
+        description: 'Preencha o contexto e a URL da mídia.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    // Valida a URL da mídia
+    const isValid = await validateMediaUrl(newTrigger.media_url);
+    if (!isValid) {
+      toast({
+        title: 'Erro',
+        description: 'URL da mídia inválida. Verifique se a imagem/vídeo está acessível.',
         variant: 'destructive',
       });
       return;
@@ -112,6 +151,7 @@ const CreateAvatar = () => {
 
     setMediaTriggers([...mediaTriggers, newTrigger]);
     setNewTrigger({ trigger_phrase: '', media_url: '' });
+    setTriggerMediaValid(false);
     
     toast({
       title: 'Sucesso',
@@ -121,6 +161,26 @@ const CreateAvatar = () => {
 
   const handleRemoveTrigger = (index: number) => {
     setMediaTriggers(mediaTriggers.filter((_, i) => i !== index));
+  };
+
+  const handleIdleMediaUrlChange = async (url: string) => {
+    setIdleMediaUrl(url);
+    if (url) {
+      const isValid = await validateMediaUrl(url);
+      setIdleMediaValid(isValid);
+    } else {
+      setIdleMediaValid(false);
+    }
+  };
+
+  const handleTriggerMediaUrlChange = async (url: string) => {
+    setNewTrigger({ ...newTrigger, media_url: url });
+    if (url) {
+      const isValid = await validateMediaUrl(url);
+      setTriggerMediaValid(isValid);
+    } else {
+      setTriggerMediaValid(false);
+    }
   };
 
   return (
@@ -226,8 +286,29 @@ const CreateAvatar = () => {
                 <Input
                   id="idle_media_url"
                   type="url"
+                  value={idleMediaUrl}
+                  onChange={(e) => handleIdleMediaUrlChange(e.target.value)}
                   placeholder="https://exemplo.com/video-idle.mp4"
+                  className={idleMediaUrl && !idleMediaValid ? 'border-red-500' : ''}
                 />
+                {idleMediaUrl && !idleMediaValid && (
+                  <p className="text-xs text-red-500 mt-1">
+                    URL inválida ou mídia não acessível
+                  </p>
+                )}
+                {idleMediaValid && (
+                  <div className="mt-2">
+                    <p className="text-xs text-green-600 mb-2">✓ Mídia válida - Preview:</p>
+                    <img 
+                      src={idleMediaUrl} 
+                      alt="Preview" 
+                      className="max-h-32 rounded border"
+                      onError={(e) => {
+                        e.currentTarget.style.display = 'none';
+                      }}
+                    />
+                  </div>
+                )}
                 <p className="text-xs text-muted-foreground mt-1">
                   Cole a URL de uma imagem ou vídeo hospedado
                 </p>
@@ -289,9 +370,28 @@ const CreateAvatar = () => {
                   id="trigger_media_url"
                   type="url"
                   value={newTrigger.media_url}
-                  onChange={(e) => setNewTrigger({ ...newTrigger, media_url: e.target.value })}
+                  onChange={(e) => handleTriggerMediaUrlChange(e.target.value)}
                   placeholder="https://exemplo.com/imagem-produto.jpg"
+                  className={newTrigger.media_url && !triggerMediaValid ? 'border-red-500' : ''}
                 />
+                {newTrigger.media_url && !triggerMediaValid && (
+                  <p className="text-xs text-red-500 mt-1">
+                    URL inválida ou mídia não acessível
+                  </p>
+                )}
+                {triggerMediaValid && (
+                  <div className="mt-2">
+                    <p className="text-xs text-green-600 mb-2">✓ Mídia válida - Preview:</p>
+                    <img 
+                      src={newTrigger.media_url} 
+                      alt="Preview" 
+                      className="max-h-32 rounded border"
+                      onError={(e) => {
+                        e.currentTarget.style.display = 'none';
+                      }}
+                    />
+                  </div>
+                )}
                 <p className="text-xs text-muted-foreground mt-1">
                   URL da imagem ou vídeo que será exibido quando o contexto for identificado
                 </p>
