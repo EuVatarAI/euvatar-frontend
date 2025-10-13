@@ -48,11 +48,49 @@ const AvatarsManagement = () => {
 
   const fetchData = async () => {
     try {
+      // Fetch avatars
+      const { data: avatarsData, error: avatarsError } = await supabase
+        .from('avatars')
+        .select('*')
+        .eq('user_id', user?.id);
+
+      if (avatarsError) throw avatarsError;
+      setAvatars(avatarsData || []);
+
+      // Fetch credits
+      const { data: creditsData, error: creditsError } = await supabase
+        .from('user_credits')
+        .select('*')
+        .eq('user_id', user?.id)
+        .maybeSingle();
+
+      if (creditsError) throw creditsError;
+      setCredits(creditsData);
+
+      // Fetch conversations for stats
+      const { data: conversationsData, error: conversationsError } = await supabase
+        .from('conversations')
+        .select('*')
+        .eq('user_id', user?.id);
+
+      if (conversationsError) throw conversationsError;
+
+      // Calculate stats per avatar
+      const stats: AvatarStats[] = avatarsData?.map(avatar => {
+        const avatarConversations = conversationsData?.filter(c => c.avatar_id === avatar.id) || [];
+        const webUsage = avatarConversations.filter(c => c.platform === 'web').reduce((sum, c) => sum + c.credits_used, 0);
+        const appUsage = avatarConversations.filter(c => c.platform === 'app').reduce((sum, c) => sum + c.credits_used, 0);
+        
+        return {
+          avatarId: avatar.id,
+          webUsage,
+          appUsage,
+          totalUsage: webUsage + appUsage,
+        };
+      }) || [];
+
+      setAvatarStats(stats);
       setLoading(false);
-      toast({
-        title: 'Configuração necessária',
-        description: 'Por favor, acesse a aba Cloud para configurar o banco de dados.',
-      });
     } catch (error: any) {
       console.error('Error fetching data:', error);
       toast({
@@ -102,7 +140,7 @@ const AvatarsManagement = () => {
               <div>
                 <div className="flex justify-between mb-2">
                   <span className="text-sm font-medium">
-                    {remainingCredits} de 1000 créditos restantes
+                    {remainingCredits} de {credits?.total_credits || 1000} créditos restantes
                   </span>
                   <span className="text-sm text-muted-foreground">
                     ~{remainingConversations} conversas de 2,5min
@@ -111,97 +149,75 @@ const AvatarsManagement = () => {
                 <Progress value={creditsPercentage} />
               </div>
               <p className="text-sm text-muted-foreground">
-                Cada conversa de até 2,5 minutos consome 10 créditos. Configure o banco de dados na aba Cloud para começar.
+                Cada conversa de até 2,5 minutos consome 10 créditos.
               </p>
             </div>
           </CardContent>
         </Card>
 
-        {/* Info Card */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Configuração Necessária</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="mb-4">
-              Para usar o sistema de gerenciamento de avatares, você precisa configurar o banco de dados primeiro.
-            </p>
-            <p className="mb-4">
-              Acesse a aba <strong>Cloud</strong> no menu superior e execute a seguinte migração SQL no <strong>SQL Editor</strong>:
-            </p>
-            <div className="bg-muted p-4 rounded-lg overflow-x-auto">
-              <pre className="text-sm">
-{`-- Criar tabela de avatares
-create table public.avatars (
-  id uuid primary key default gen_random_uuid(),
-  user_id uuid references auth.users(id) on delete cascade not null,
-  name text not null,
-  backstory text,
-  language text default 'pt-BR',
-  ai_model text default 'gpt-5-mini-2025-08-07',
-  voice_model text default 'alloy',
-  elevenlabs_api_key text,
-  idle_media_url text,
-  idle_media_type text check (idle_media_type in ('image', 'video')),
-  created_at timestamp with time zone default now(),
-  updated_at timestamp with time zone default now()
-);
-
--- Criar tabela de créditos
-create table public.user_credits (
-  id uuid primary key default gen_random_uuid(),
-  user_id uuid references auth.users(id) on delete cascade not null unique,
-  total_credits integer default 1000 not null,
-  used_credits integer default 0 not null,
-  created_at timestamp with time zone default now(),
-  updated_at timestamp with time zone default now()
-);
-
--- Criar tabela de conversas
-create table public.conversations (
-  id uuid primary key default gen_random_uuid(),
-  avatar_id uuid references public.avatars(id) on delete cascade not null,
-  user_id uuid references auth.users(id) on delete cascade not null,
-  platform text check (platform in ('web', 'app')) not null,
-  duration_seconds integer not null,
-  credits_used integer not null,
-  topics jsonb default '[]'::jsonb,
-  created_at timestamp with time zone default now()
-);
-
--- Habilitar RLS
-alter table public.avatars enable row level security;
-alter table public.user_credits enable row level security;
-alter table public.conversations enable row level security;
-
--- Políticas RLS para avatars
-create policy "Users can view own avatars"
-  on public.avatars for select using (auth.uid() = user_id);
-create policy "Users can insert own avatars"
-  on public.avatars for insert with check (auth.uid() = user_id);
-create policy "Users can update own avatars"
-  on public.avatars for update using (auth.uid() = user_id);
-create policy "Users can delete own avatars"
-  on public.avatars for delete using (auth.uid() = user_id);
-
--- Políticas RLS para credits
-create policy "Users can view own credits"
-  on public.user_credits for select using (auth.uid() = user_id);
-create policy "Users can update own credits"
-  on public.user_credits for update using (auth.uid() = user_id);
-
--- Políticas RLS para conversations
-create policy "Users can view own conversations"
-  on public.conversations for select using (auth.uid() = user_id);
-create policy "Users can insert own conversations"
-  on public.conversations for insert with check (auth.uid() = user_id);`}
-              </pre>
-            </div>
-            <p className="mt-4">
-              Após executar a migração, recarregue esta página para começar a usar o sistema.
-            </p>
-          </CardContent>
-        </Card>
+        {/* Avatars List */}
+        <div className="grid gap-4">
+          {avatars.length === 0 ? (
+            <Card>
+              <CardContent className="pt-6">
+                <div className="text-center py-8">
+                  <p className="text-muted-foreground mb-4">Nenhum avatar criado ainda</p>
+                  <Button onClick={() => navigate('/create-avatar')}>
+                    Criar Primeiro Avatar
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          ) : (
+            avatars.map((avatar) => {
+              const stats = avatarStats.find(s => s.avatarId === avatar.id);
+              return (
+                <Card key={avatar.id} className="hover:shadow-lg transition-shadow">
+                  <CardContent className="pt-6">
+                    <div className="flex justify-between items-start">
+                      <div className="flex-1">
+                        <h3 className="text-xl font-semibold mb-2">{avatar.name}</h3>
+                        <p className="text-sm text-muted-foreground mb-4">
+                          {avatar.backstory?.substring(0, 100)}...
+                        </p>
+                        <div className="grid grid-cols-3 gap-4 mb-4">
+                          <div>
+                            <p className="text-xs text-muted-foreground">Web</p>
+                            <p className="text-lg font-semibold">{stats?.webUsage || 0}</p>
+                          </div>
+                          <div>
+                            <p className="text-xs text-muted-foreground">App</p>
+                            <p className="text-lg font-semibold">{stats?.appUsage || 0}</p>
+                          </div>
+                          <div>
+                            <p className="text-xs text-muted-foreground">Total</p>
+                            <p className="text-lg font-semibold">{stats?.totalUsage || 0}</p>
+                          </div>
+                        </div>
+                      </div>
+                      <div className="flex gap-2">
+                        <Button 
+                          variant="outline" 
+                          size="sm"
+                          onClick={() => navigate(`/avatar/${avatar.id}`)}
+                        >
+                          Ver Detalhes
+                        </Button>
+                        <Button 
+                          variant="outline" 
+                          size="sm"
+                          onClick={() => navigate(`/avatar/${avatar.id}/settings`)}
+                        >
+                          <Settings className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              );
+            })
+          )}
+        </div>
       </div>
     </div>
   );

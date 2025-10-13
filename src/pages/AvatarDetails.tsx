@@ -16,7 +16,7 @@ interface Avatar {
 interface Conversation {
   id: string;
   platform: string;
-  duration_seconds: number;
+  duration: number;
   credits_used: number;
   topics: string[];
   created_at: string;
@@ -41,11 +41,25 @@ const AvatarDetails = () => {
 
   const fetchAvatarData = async () => {
     try {
+      const { data: avatarData, error: avatarError } = await supabase
+        .from('avatars')
+        .select('*')
+        .eq('id', id)
+        .eq('user_id', user?.id)
+        .single();
+
+      if (avatarError) throw avatarError;
+      setAvatar(avatarData);
+
+      const { data: conversationsData, error: conversationsError } = await supabase
+        .from('conversations')
+        .select('*')
+        .eq('avatar_id', id);
+
+      if (conversationsError) throw conversationsError;
+      setConversations((conversationsData || []) as Conversation[]);
+
       setLoading(false);
-      toast({
-        title: 'Configuração necessária',
-        description: 'Configure o banco de dados na aba Cloud primeiro.',
-      });
     } catch (error: any) {
       console.error('Error fetching avatar data:', error);
       toast({
@@ -65,10 +79,20 @@ const AvatarDetails = () => {
     );
   }
 
-  const webUsage = 0;
-  const appUsage = 0;
-  const totalUsage = 0;
-  const topTopics: [string, number][] = [];
+  const webUsage = conversations.filter(c => c.platform === 'web').reduce((sum, c) => sum + c.credits_used, 0);
+  const appUsage = conversations.filter(c => c.platform === 'app').reduce((sum, c) => sum + c.credits_used, 0);
+  const totalUsage = webUsage + appUsage;
+
+  // Calculate top topics
+  const topicsCount = new Map<string, number>();
+  conversations.forEach(conv => {
+    conv.topics?.forEach((topic: string) => {
+      topicsCount.set(topic, (topicsCount.get(topic) || 0) + 1);
+    });
+  });
+  const topTopics = Array.from(topicsCount.entries())
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 5);
 
   return (
     <div className="min-h-screen bg-background p-8">
@@ -78,7 +102,7 @@ const AvatarDetails = () => {
             <Button onClick={() => navigate('/avatars')} variant="outline" size="icon">
               <ArrowLeft className="h-4 w-4" />
             </Button>
-            <h1 className="text-4xl font-bold">Avatar {id?.slice(0, 8)}</h1>
+            <h1 className="text-4xl font-bold">{avatar?.name || 'Avatar'}</h1>
           </div>
           <Button onClick={() => navigate(`/avatar/${id}/settings`)}>
             <Settings className="mr-2 h-4 w-4" />
@@ -86,14 +110,16 @@ const AvatarDetails = () => {
           </Button>
         </div>
 
-        <Card className="mb-8">
-          <CardHeader>
-            <CardTitle>Configuração necessária</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p>Configure o banco de dados na aba <strong>Cloud</strong> para ver os detalhes do avatar.</p>
-          </CardContent>
-        </Card>
+        {avatar?.backstory && (
+          <Card className="mb-8">
+            <CardHeader>
+              <CardTitle>Sobre o Avatar</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-muted-foreground">{avatar.backstory}</p>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Usage Stats */}
         <Card className="mb-8">

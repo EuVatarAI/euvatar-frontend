@@ -18,17 +18,12 @@ interface Avatar {
   language: string;
   ai_model: string;
   voice_model: string;
-  elevenlabs_api_key: string | null;
-  idle_media_url: string | null;
-  idle_media_type: string | null;
 }
 
 interface MediaTrigger {
   id: string;
   trigger_phrase: string;
   media_url: string;
-  media_type: string;
-  orientation: string | null;
 }
 
 const AvatarSettings = () => {
@@ -51,13 +46,32 @@ const AvatarSettings = () => {
 
   const fetchAvatarSettings = async () => {
     try {
-      toast({
-        title: 'Configuração necessária',
-        description: 'Configure o banco de dados na aba Cloud primeiro.',
-      });
+      const { data: avatarData, error: avatarError } = await supabase
+        .from('avatars')
+        .select('*')
+        .eq('id', id)
+        .eq('user_id', user?.id)
+        .single();
+
+      if (avatarError) throw avatarError;
+      setAvatar(avatarData as Avatar);
+
+      const { data: triggersData, error: triggersError } = await supabase
+        .from('media_triggers')
+        .select('*')
+        .eq('avatar_id', id);
+
+      if (triggersError) throw triggersError;
+      setMediaTriggers((triggersData || []) as MediaTrigger[]);
+
       setLoading(false);
     } catch (error: any) {
       console.error('Error fetching settings:', error);
+      toast({
+        title: 'Erro',
+        description: 'Erro ao carregar configurações do avatar.',
+        variant: 'destructive',
+      });
       setLoading(false);
     }
   };
@@ -67,9 +81,23 @@ const AvatarSettings = () => {
     
     setSaving(true);
     try {
+      const { error } = await supabase
+        .from('avatars')
+        .update({
+          name: avatar.name,
+          backstory: avatar.backstory,
+          language: avatar.language,
+          ai_model: avatar.ai_model,
+          voice_model: avatar.voice_model,
+        })
+        .eq('id', id)
+        .eq('user_id', user?.id);
+
+      if (error) throw error;
+
       toast({
-        title: 'Configuração necessária',
-        description: 'Configure o banco de dados na aba Cloud primeiro.',
+        title: 'Sucesso',
+        description: 'Configurações salvas com sucesso!',
       });
     } catch (error: any) {
       console.error('Error saving:', error);
@@ -101,17 +129,7 @@ const AvatarSettings = () => {
           <h1 className="text-4xl font-bold">Configurações do Avatar</h1>
         </div>
 
-        <Card className="mb-6">
-          <CardHeader>
-            <CardTitle>Informações necessárias</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p>Configure o banco de dados na aba <strong>Cloud</strong> para usar todas as funcionalidades de configuração do avatar.</p>
-          </CardContent>
-        </Card>
-
-        {/* Campos de configuração desabilitados até o banco estar configurado */}
-        <div className="space-y-6 opacity-50 pointer-events-none">
+        <div className="space-y-6">
           <Card>
             <CardHeader>
               <CardTitle>Informações Básicas</CardTitle>
@@ -119,11 +137,22 @@ const AvatarSettings = () => {
             <CardContent className="space-y-4">
               <div>
                 <Label htmlFor="name">Nome do Avatar</Label>
-                <Input id="name" placeholder="Avatar 1" disabled />
+                <Input 
+                  id="name" 
+                  value={avatar?.name || ''} 
+                  onChange={(e) => setAvatar(prev => prev ? {...prev, name: e.target.value} : null)}
+                  placeholder="Avatar 1" 
+                />
               </div>
               <div>
                 <Label htmlFor="backstory">Backstory / Contexto de Treinamento</Label>
-                <Textarea id="backstory" placeholder="Contexto e personalidade do avatar..." rows={6} disabled />
+                <Textarea 
+                  id="backstory" 
+                  value={avatar?.backstory || ''} 
+                  onChange={(e) => setAvatar(prev => prev ? {...prev, backstory: e.target.value} : null)}
+                  placeholder="Contexto e personalidade do avatar..." 
+                  rows={6} 
+                />
               </div>
             </CardContent>
           </Card>
@@ -135,7 +164,10 @@ const AvatarSettings = () => {
             <CardContent className="space-y-4">
               <div>
                 <Label htmlFor="language">Idioma</Label>
-                <Select disabled>
+                <Select 
+                  value={avatar?.language || 'pt-BR'} 
+                  onValueChange={(value) => setAvatar(prev => prev ? {...prev, language: value} : null)}
+                >
                   <SelectTrigger id="language">
                     <SelectValue placeholder="Selecione o idioma" />
                   </SelectTrigger>
@@ -148,7 +180,10 @@ const AvatarSettings = () => {
               </div>
               <div>
                 <Label htmlFor="ai_model">Modelo de IA</Label>
-                <Select disabled>
+                <Select 
+                  value={avatar?.ai_model || 'gpt-4'} 
+                  onValueChange={(value) => setAvatar(prev => prev ? {...prev, ai_model: value} : null)}
+                >
                   <SelectTrigger id="ai_model">
                     <SelectValue placeholder="Selecione o modelo" />
                   </SelectTrigger>
@@ -161,7 +196,10 @@ const AvatarSettings = () => {
               </div>
               <div>
                 <Label htmlFor="voice_model">Modelo de Voz</Label>
-                <Select disabled>
+                <Select 
+                  value={avatar?.voice_model || 'default'} 
+                  onValueChange={(value) => setAvatar(prev => prev ? {...prev, voice_model: value} : null)}
+                >
                   <SelectTrigger id="voice_model">
                     <SelectValue placeholder="Selecione a voz" />
                   </SelectTrigger>
@@ -171,10 +209,6 @@ const AvatarSettings = () => {
                     <SelectItem value="shimmer">Shimmer</SelectItem>
                   </SelectContent>
                 </Select>
-              </div>
-              <div>
-                <Label htmlFor="elevenlabs_key">API Key Eleven Labs (opcional)</Label>
-                <Input id="elevenlabs_key" type="password" placeholder="sk-..." disabled />
               </div>
             </CardContent>
           </Card>
@@ -187,7 +221,7 @@ const AvatarSettings = () => {
               <p className="text-sm text-muted-foreground mb-4">
                 Imagem ou vídeo exibido antes do usuário iniciar uma conversa
               </p>
-              <Button variant="outline" disabled>
+              <Button variant="outline">
                 <Upload className="mr-2 h-4 w-4" />
                 Upload de Mídia Idle
               </Button>
@@ -198,7 +232,7 @@ const AvatarSettings = () => {
             <CardHeader>
               <div className="flex justify-between items-center">
                 <CardTitle>Gatilhos de Mídia</CardTitle>
-                <Button variant="outline" size="sm" disabled>
+                <Button variant="outline" size="sm">
                   <Plus className="mr-2 h-4 w-4" />
                   Adicionar Gatilho
                 </Button>
@@ -208,9 +242,25 @@ const AvatarSettings = () => {
               <p className="text-sm text-muted-foreground mb-4">
                 Configure mídias para serem exibidas quando determinadas frases forem detectadas
               </p>
-              <div className="text-center text-muted-foreground py-8">
-                Nenhum gatilho configurado
-              </div>
+              {mediaTriggers.length === 0 ? (
+                <div className="text-center text-muted-foreground py-8">
+                  Nenhum gatilho configurado
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {mediaTriggers.map((trigger) => (
+                    <div key={trigger.id} className="flex justify-between items-center p-3 bg-muted rounded">
+                      <div>
+                        <p className="font-medium">{trigger.trigger_phrase}</p>
+                        <p className="text-sm text-muted-foreground">{trigger.media_url}</p>
+                      </div>
+                      <Button variant="ghost" size="sm">
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              )}
             </CardContent>
           </Card>
 
@@ -222,12 +272,21 @@ const AvatarSettings = () => {
               <p className="text-sm text-muted-foreground mb-4">
                 Faça upload de PDFs para treinar o avatar com informações específicas
               </p>
-              <Button variant="outline" disabled>
+              <Button variant="outline">
                 <Upload className="mr-2 h-4 w-4" />
                 Upload de PDFs
               </Button>
             </CardContent>
           </Card>
+
+          <div className="flex justify-end gap-4">
+            <Button variant="outline" onClick={() => navigate(`/avatar/${id}`)}>
+              Cancelar
+            </Button>
+            <Button onClick={handleSave} disabled={saving}>
+              {saving ? 'Salvando...' : 'Salvar Configurações'}
+            </Button>
+          </div>
         </div>
       </div>
     </div>
