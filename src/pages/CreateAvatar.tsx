@@ -376,11 +376,14 @@ const CreateAvatar = () => {
                 <Input
                   id="trigger_name"
                   value={newTrigger.trigger_phrase}
-                  onChange={(e) => setNewTrigger({ ...newTrigger, trigger_phrase: sanitizeContextName(e.target.value) })}
-                  placeholder="ex: apto_3_quartos"
+                  onChange={(e) => {
+                    const sanitized = sanitizeContextName(e.target.value);
+                    setNewTrigger({ ...newTrigger, trigger_phrase: sanitized });
+                  }}
+                  placeholder="ex: digite 'Apto 3 Quartos' e vire 'apto_3_quartos'"
                 />
                 <p className="text-xs text-muted-foreground mt-1">
-                  Digite apenas letras, números e espaços. Será automaticamente formatado.
+                  Digite normalmente. Espaços viram _, letras maiúsculas viram minúsculas automaticamente.
                 </p>
               </div>
 
