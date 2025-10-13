@@ -377,7 +377,9 @@ const CreateAvatar = () => {
                   id="trigger_name"
                   value={newTrigger.trigger_phrase}
                   onChange={(e) => {
-                    const sanitized = sanitizeContextName(e.target.value);
+                    const rawValue = e.target.value;
+                    const sanitized = sanitizeContextName(rawValue);
+                    console.log('Raw:', rawValue, '| Sanitized:', sanitized);
                     setNewTrigger({ ...newTrigger, trigger_phrase: sanitized });
                   }}
                   placeholder="ex: digite 'Apto 3 Quartos' e vire 'apto_3_quartos'"
