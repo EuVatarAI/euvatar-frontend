@@ -148,21 +148,27 @@ export type Database = {
         Row: {
           avatar_id: string
           created_at: string
+          description: string | null
           id: string
+          keywords_text: string | null
           media_url: string
           trigger_phrase: string
         }
         Insert: {
           avatar_id: string
           created_at?: string
+          description?: string | null
           id?: string
+          keywords_text?: string | null
           media_url: string
           trigger_phrase: string
         }
         Update: {
           avatar_id?: string
           created_at?: string
+          description?: string | null
           id?: string
+          keywords_text?: string | null
           media_url?: string
           trigger_phrase?: string
         }

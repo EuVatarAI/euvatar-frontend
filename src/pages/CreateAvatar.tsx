@@ -11,10 +11,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { useToast } from '@/hooks/use-toast';
 import { ArrowLeft, Upload, Plus, Trash2, AlertCircle, CheckCircle2 } from 'lucide-react';
 import { validateMediaUrlWithCache, validateMediaUrlServer, type ValidationResult } from '@/utils/mediaValidation';
+import { sanitizeContextName } from '@/utils/contextNameSanitizer';
 
 interface MediaTrigger {
   trigger_phrase: string;
   media_url: string;
+  description: string;
 }
 
 const CreateAvatar = () => {
@@ -23,7 +25,7 @@ const CreateAvatar = () => {
   const { toast } = useToast();
   const [creating, setCreating] = useState(false);
   const [mediaTriggers, setMediaTriggers] = useState<MediaTrigger[]>([]);
-  const [newTrigger, setNewTrigger] = useState<MediaTrigger>({ trigger_phrase: '', media_url: '' });
+  const [newTrigger, setNewTrigger] = useState<MediaTrigger>({ trigger_phrase: '', media_url: '', description: '' });
   const [idleMediaUrl, setIdleMediaUrl] = useState('');
   const [idleMediaValidation, setIdleMediaValidation] = useState<ValidationResult | null>(null);
   const [triggerMediaValidation, setTriggerMediaValidation] = useState<ValidationResult | null>(null);
@@ -83,6 +85,7 @@ const CreateAvatar = () => {
           avatar_id: avatarData.id,
           trigger_phrase: trigger.trigger_phrase,
           media_url: trigger.media_url,
+          description: trigger.description,
         }));
 
         const { error: triggersError } = await supabase
@@ -131,7 +134,7 @@ const CreateAvatar = () => {
     }
 
     setMediaTriggers([...mediaTriggers, newTrigger]);
-    setNewTrigger({ trigger_phrase: '', media_url: '' });
+    setNewTrigger({ trigger_phrase: '', media_url: '', description: '' });
     setTriggerMediaValidation(null);
     
     toast({
@@ -382,16 +385,28 @@ const CreateAvatar = () => {
 
             <div className="space-y-4 p-4 border rounded-lg bg-muted/50">
               <div>
-                <Label htmlFor="trigger_phrase">Contexto do Gatilho</Label>
-                <Textarea
-                  id="trigger_phrase"
+                <Label htmlFor="trigger_name">Nome do Contexto</Label>
+                <Input
+                  id="trigger_name"
                   value={newTrigger.trigger_phrase}
-                  onChange={(e) => setNewTrigger({ ...newTrigger, trigger_phrase: e.target.value })}
-                  placeholder="Ex: Quando o usuário perguntar sobre produtos, funcionalidades ou quiser ver uma demonstração visual..."
+                  onChange={(e) => setNewTrigger({ ...newTrigger, trigger_phrase: sanitizeContextName(e.target.value) })}
+                  placeholder="ex: apto_3_quartos"
+                />
+                <p className="text-xs text-muted-foreground mt-1">
+                  Digite apenas letras, números e espaços. Será automaticamente formatado.
+                </p>
+              </div>
+              <div>
+                <Label htmlFor="trigger_description">Contexto (descrição)</Label>
+                <Textarea
+                  id="trigger_description"
+                  value={newTrigger.description}
+                  onChange={(e) => setNewTrigger({ ...newTrigger, description: e.target.value })}
+                  placeholder="Ex: Quando o usuário perguntar sobre apartamentos de 3 quartos, mostrar a galeria com as áreas de lazer..."
                   rows={3}
                 />
                 <p className="text-xs text-muted-foreground mt-1">
-                  Descreva o contexto da conversa que deve acionar esta mídia. A IA interpretará semanticamente.
+                  Descreva quando este contexto deve ser acionado. A IA interpretará semanticamente.
                 </p>
               </div>
               <div>
@@ -448,7 +463,7 @@ const CreateAvatar = () => {
                 </Button>
                 <Button 
                   variant="outline" 
-                  onClick={() => setNewTrigger({ trigger_phrase: '', media_url: '' })}
+                  onClick={() => setNewTrigger({ trigger_phrase: '', media_url: '', description: '' })}
                 >
                   <Plus className="mr-2 h-4 w-4" />
                   Novo Gatilho

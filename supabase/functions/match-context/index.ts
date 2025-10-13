@@ -26,14 +26,13 @@ serve(async (req) => {
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    // Get all enabled contexts for this avatar
-    const { data: contexts, error: contextError } = await supabase
-      .from("contexts")
-      .select("name, description, keywords_text")
-      .eq("avatar_id", avatar_id)
-      .eq("enabled", true);
+    // Get all enabled media triggers with description for this avatar
+    const { data: triggers, error: triggerError } = await supabase
+      .from("media_triggers")
+      .select("trigger_phrase, description, keywords_text, media_url")
+      .eq("avatar_id", avatar_id);
 
-    if (contextError || !contexts || contexts.length === 0) {
+    if (triggerError || !triggers || triggers.length === 0) {
       return new Response(
         JSON.stringify({ context_name: "none" }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -45,14 +44,16 @@ serve(async (req) => {
     
     if (lovableApiKey) {
       try {
-        const contextList = contexts.map((c) => ({
-          name: c.name,
-          description: c.description,
-        }));
+        const triggerList = triggers
+          .filter(t => t.description) // Only triggers with description
+          .map((c) => ({
+            name: c.trigger_phrase,
+            description: c.description,
+          }));
 
         const prompt = `Você recebe:
 - Pergunta do usuário: "${user_message}"
-- Lista de contextos: ${JSON.stringify(contextList)}
+- Lista de contextos: ${JSON.stringify(triggerList)}
 
 Escolha no máximo 1 contexto cujo description melhor se aplica à pergunta.
 Responda APENAS com o name do contexto ou "none". Nada mais.`;
@@ -90,14 +91,14 @@ Responda APENAS com o name do contexto ou "none". Nada mais.`;
 
     // Fallback: simple keyword matching
     const userLower = user_message.toLowerCase();
-    for (const ctx of contexts) {
-      if (!ctx.keywords_text) continue;
-      const keywords = ctx.keywords_text.split(/\s+/);
+    for (const trigger of triggers) {
+      if (!trigger.keywords_text) continue;
+      const keywords = trigger.keywords_text.split(/\s+/);
       const matchCount = keywords.filter((kw: string) => userLower.includes(kw)).length;
       if (matchCount >= 2) {
-        console.log("Keyword match:", ctx.name);
+        console.log("Keyword match:", trigger.trigger_phrase);
         return new Response(
-          JSON.stringify({ context_name: ctx.name }),
+          JSON.stringify({ context_name: trigger.trigger_phrase, media_url: trigger.media_url }),
           { headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
