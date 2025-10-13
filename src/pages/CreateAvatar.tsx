@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
@@ -9,7 +9,8 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
-import { ArrowLeft, Upload, Plus, Trash2 } from 'lucide-react';
+import { ArrowLeft, Upload, Plus, Trash2, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { validateMediaUrlWithCache, validateMediaUrlServer, type ValidationResult } from '@/utils/mediaValidation';
 
 interface MediaTrigger {
   trigger_phrase: string;
@@ -24,8 +25,10 @@ const CreateAvatar = () => {
   const [mediaTriggers, setMediaTriggers] = useState<MediaTrigger[]>([]);
   const [newTrigger, setNewTrigger] = useState<MediaTrigger>({ trigger_phrase: '', media_url: '' });
   const [idleMediaUrl, setIdleMediaUrl] = useState('');
-  const [idleMediaValid, setIdleMediaValid] = useState(false);
-  const [triggerMediaValid, setTriggerMediaValid] = useState(false);
+  const [idleMediaValidation, setIdleMediaValidation] = useState<ValidationResult | null>(null);
+  const [triggerMediaValidation, setTriggerMediaValidation] = useState<ValidationResult | null>(null);
+  const [validatingIdle, setValidatingIdle] = useState(false);
+  const [validatingTrigger, setValidatingTrigger] = useState(false);
   const [formData, setFormData] = useState({
     name: '',
     backstory: '',
@@ -34,30 +37,9 @@ const CreateAvatar = () => {
     voice_model: 'alloy',
   });
 
-  const validateMediaUrl = async (url: string): Promise<boolean> => {
-    if (!url) return false;
-    
-    try {
-      // Verifica se é uma URL válida
-      new URL(url);
-      
-      // Tenta carregar a imagem/vídeo
-      return new Promise((resolve) => {
-        const img = new Image();
-        img.onload = () => resolve(true);
-        img.onerror = () => {
-          // Se não for imagem, pode ser vídeo
-          const video = document.createElement('video');
-          video.onloadedmetadata = () => resolve(true);
-          video.onerror = () => resolve(false);
-          video.src = url;
-        };
-        img.src = url;
-      });
-    } catch {
-      return false;
-    }
-  };
+  // Debounce timer refs
+  let idleDebounceTimer: any;
+  let triggerDebounceTimer: any;
 
   const handleCreate = async () => {
     if (!user) {
@@ -138,12 +120,11 @@ const CreateAvatar = () => {
       return;
     }
 
-    // Valida a URL da mídia
-    const isValid = await validateMediaUrl(newTrigger.media_url);
-    if (!isValid) {
+    // Verifica se validação passou (cliente e servidor)
+    if (!triggerMediaValidation?.ok) {
       toast({
         title: 'Erro',
-        description: 'URL da mídia inválida. Verifique se a imagem/vídeo está acessível.',
+        description: 'A URL da mídia não foi validada. Aguarde a validação ou corrija a URL.',
         variant: 'destructive',
       });
       return;
@@ -151,7 +132,7 @@ const CreateAvatar = () => {
 
     setMediaTriggers([...mediaTriggers, newTrigger]);
     setNewTrigger({ trigger_phrase: '', media_url: '' });
-    setTriggerMediaValid(false);
+    setTriggerMediaValidation(null);
     
     toast({
       title: 'Sucesso',
@@ -163,25 +144,61 @@ const CreateAvatar = () => {
     setMediaTriggers(mediaTriggers.filter((_, i) => i !== index));
   };
 
-  const handleIdleMediaUrlChange = async (url: string) => {
+  const handleIdleMediaUrlChange = useCallback((url: string) => {
     setIdleMediaUrl(url);
-    if (url) {
-      const isValid = await validateMediaUrl(url);
-      setIdleMediaValid(isValid);
-    } else {
-      setIdleMediaValid(false);
+    setIdleMediaValidation(null);
+    
+    clearTimeout(idleDebounceTimer);
+    
+    if (!url) {
+      setIdleMediaValidation(null);
+      return;
     }
-  };
 
-  const handleTriggerMediaUrlChange = async (url: string) => {
-    setNewTrigger({ ...newTrigger, media_url: url });
-    if (url) {
-      const isValid = await validateMediaUrl(url);
-      setTriggerMediaValid(isValid);
-    } else {
-      setTriggerMediaValid(false);
+    idleDebounceTimer = setTimeout(async () => {
+      setValidatingIdle(true);
+      
+      // Validação cliente
+      const clientResult = await validateMediaUrlWithCache(url);
+      setIdleMediaValidation(clientResult);
+      
+      if (clientResult.ok) {
+        // Validação servidor
+        const serverResult = await validateMediaUrlServer(url);
+        setIdleMediaValidation(serverResult);
+      }
+      
+      setValidatingIdle(false);
+    }, 400);
+  }, []);
+
+  const handleTriggerMediaUrlChange = useCallback((url: string) => {
+    setNewTrigger(prev => ({ ...prev, media_url: url }));
+    setTriggerMediaValidation(null);
+    
+    clearTimeout(triggerDebounceTimer);
+    
+    if (!url) {
+      setTriggerMediaValidation(null);
+      return;
     }
-  };
+
+    triggerDebounceTimer = setTimeout(async () => {
+      setValidatingTrigger(true);
+      
+      // Validação cliente
+      const clientResult = await validateMediaUrlWithCache(url);
+      setTriggerMediaValidation(clientResult);
+      
+      if (clientResult.ok) {
+        // Validação servidor
+        const serverResult = await validateMediaUrlServer(url);
+        setTriggerMediaValidation(serverResult);
+      }
+      
+      setValidatingTrigger(false);
+    }, 400);
+  }, []);
 
   return (
     <div className="min-h-screen bg-background p-8">
@@ -289,16 +306,28 @@ const CreateAvatar = () => {
                   value={idleMediaUrl}
                   onChange={(e) => handleIdleMediaUrlChange(e.target.value)}
                   placeholder="https://exemplo.com/video-idle.mp4"
-                  className={idleMediaUrl && !idleMediaValid ? 'border-red-500' : ''}
+                  className={idleMediaValidation && !idleMediaValidation.ok ? 'border-red-500' : ''}
                 />
-                {idleMediaUrl && !idleMediaValid && (
-                  <p className="text-xs text-red-500 mt-1">
-                    URL inválida ou mídia não acessível
+                
+                {validatingIdle && (
+                  <p className="text-xs text-blue-600 mt-1 flex items-center gap-1">
+                    <span className="animate-spin">⏳</span> Validando mídia...
                   </p>
                 )}
-                {idleMediaValid && (
+                
+                {idleMediaValidation && !idleMediaValidation.ok && (
+                  <p className="text-xs text-red-500 mt-1 flex items-center gap-1">
+                    <AlertCircle className="h-3 w-3" />
+                    {idleMediaValidation.reason}
+                  </p>
+                )}
+                
+                {idleMediaValidation?.ok && (
                   <div className="mt-2">
-                    <p className="text-xs text-green-600 mb-2">✓ Mídia válida - Preview:</p>
+                    <p className="text-xs text-green-600 mb-2 flex items-center gap-1">
+                      <CheckCircle2 className="h-3 w-3" />
+                      Mídia válida - Preview:
+                    </p>
                     <img 
                       src={idleMediaUrl} 
                       alt="Preview" 
@@ -309,8 +338,9 @@ const CreateAvatar = () => {
                     />
                   </div>
                 )}
+                
                 <p className="text-xs text-muted-foreground mt-1">
-                  Cole a URL de uma imagem ou vídeo hospedado
+                  Cole a URL de uma imagem ou vídeo de CDN aprovado (Supabase, Cloudinary, CloudFront, S3)
                 </p>
               </div>
             </div>
@@ -372,16 +402,28 @@ const CreateAvatar = () => {
                   value={newTrigger.media_url}
                   onChange={(e) => handleTriggerMediaUrlChange(e.target.value)}
                   placeholder="https://exemplo.com/imagem-produto.jpg"
-                  className={newTrigger.media_url && !triggerMediaValid ? 'border-red-500' : ''}
+                  className={triggerMediaValidation && !triggerMediaValidation.ok ? 'border-red-500' : ''}
                 />
-                {newTrigger.media_url && !triggerMediaValid && (
-                  <p className="text-xs text-red-500 mt-1">
-                    URL inválida ou mídia não acessível
+                
+                {validatingTrigger && (
+                  <p className="text-xs text-blue-600 mt-1 flex items-center gap-1">
+                    <span className="animate-spin">⏳</span> Validando mídia...
                   </p>
                 )}
-                {triggerMediaValid && (
+                
+                {triggerMediaValidation && !triggerMediaValidation.ok && (
+                  <p className="text-xs text-red-500 mt-1 flex items-center gap-1">
+                    <AlertCircle className="h-3 w-3" />
+                    {triggerMediaValidation.reason}
+                  </p>
+                )}
+                
+                {triggerMediaValidation?.ok && (
                   <div className="mt-2">
-                    <p className="text-xs text-green-600 mb-2">✓ Mídia válida - Preview:</p>
+                    <p className="text-xs text-green-600 mb-2 flex items-center gap-1">
+                      <CheckCircle2 className="h-3 w-3" />
+                      Mídia válida - Preview:
+                    </p>
                     <img 
                       src={newTrigger.media_url} 
                       alt="Preview" 
@@ -392,8 +434,9 @@ const CreateAvatar = () => {
                     />
                   </div>
                 )}
+                
                 <p className="text-xs text-muted-foreground mt-1">
-                  URL da imagem ou vídeo que será exibido quando o contexto for identificado
+                  URL da imagem ou vídeo de CDN aprovado (máx 25MB)
                 </p>
               </div>
               <div className="flex gap-2">
