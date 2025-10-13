@@ -9,21 +9,26 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, Upload, Plus, Trash2 } from 'lucide-react';
+
+interface MediaTrigger {
+  trigger_phrase: string;
+  media_url: string;
+}
 
 const CreateAvatar = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
   const { toast } = useToast();
   const [creating, setCreating] = useState(false);
+  const [mediaTriggers, setMediaTriggers] = useState<MediaTrigger[]>([]);
+  const [newTrigger, setNewTrigger] = useState<MediaTrigger>({ trigger_phrase: '', media_url: '' });
   const [formData, setFormData] = useState({
     name: '',
     backstory: '',
     language: 'pt-BR',
     ai_model: 'gpt-4',
     voice_model: 'alloy',
-    heygen_avatar_id: '',
-    heygen_voice_id: '',
   });
 
   const handleCreate = async () => {
@@ -47,7 +52,7 @@ const CreateAvatar = () => {
 
     setCreating(true);
     try {
-      const { data, error } = await supabase
+      const { data: avatarData, error: avatarError } = await supabase
         .from('avatars')
         .insert({
           user_id: user.id,
@@ -60,14 +65,29 @@ const CreateAvatar = () => {
         .select()
         .single();
 
-      if (error) throw error;
+      if (avatarError) throw avatarError;
+
+      // Create media triggers if any
+      if (mediaTriggers.length > 0) {
+        const triggersToInsert = mediaTriggers.map(trigger => ({
+          avatar_id: avatarData.id,
+          trigger_phrase: trigger.trigger_phrase,
+          media_url: trigger.media_url,
+        }));
+
+        const { error: triggersError } = await supabase
+          .from('media_triggers')
+          .insert(triggersToInsert);
+
+        if (triggersError) throw triggersError;
+      }
 
       toast({
         title: 'Sucesso',
         description: 'Avatar criado com sucesso!',
       });
 
-      navigate(`/avatar/${data.id}`);
+      navigate(`/avatar/${avatarData.id}`);
     } catch (error: any) {
       console.error('Error creating avatar:', error);
       toast({
@@ -78,6 +98,29 @@ const CreateAvatar = () => {
     } finally {
       setCreating(false);
     }
+  };
+
+  const handleAddTrigger = () => {
+    if (!newTrigger.trigger_phrase || !newTrigger.media_url) {
+      toast({
+        title: 'Erro',
+        description: 'Preencha a frase gatilho e a URL da mídia.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setMediaTriggers([...mediaTriggers, newTrigger]);
+    setNewTrigger({ trigger_phrase: '', media_url: '' });
+    
+    toast({
+      title: 'Sucesso',
+      description: 'Gatilho adicionado!',
+    });
+  };
+
+  const handleRemoveTrigger = (index: number) => {
+    setMediaTriggers(mediaTriggers.filter((_, i) => i !== index));
   };
 
   return (
@@ -166,54 +209,115 @@ const CreateAvatar = () => {
                 </SelectContent>
               </Select>
             </div>
+          </CardContent>
+        </Card>
 
-            <Card className="mt-6">
-              <CardHeader>
-                <CardTitle>Integração HeyGen (Opcional)</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <p className="text-sm text-muted-foreground mb-4">
-                  Configure a integração com HeyGen para usar avatares de vídeo realistas
+        <Card className="mt-6">
+          <CardHeader>
+            <CardTitle>Mídia Idle</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm text-muted-foreground mb-4">
+              Imagem ou vídeo exibido enquanto o avatar não está em sessão ativa
+            </p>
+            <div className="space-y-4">
+              <div>
+                <Label htmlFor="idle_media_url">URL da Mídia Idle</Label>
+                <Input
+                  id="idle_media_url"
+                  type="url"
+                  placeholder="https://exemplo.com/video-idle.mp4"
+                />
+                <p className="text-xs text-muted-foreground mt-1">
+                  Cole a URL de uma imagem ou vídeo hospedado
                 </p>
-                
-                <div>
-                  <Label htmlFor="heygen_avatar_id">HeyGen Avatar ID</Label>
-                  <Input
-                    id="heygen_avatar_id"
-                    value={formData.heygen_avatar_id}
-                    onChange={(e) => setFormData({ ...formData, heygen_avatar_id: e.target.value })}
-                    placeholder="ID do avatar da sua conta HeyGen"
-                  />
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Você pode encontrar o ID do avatar no painel do HeyGen
-                  </p>
-                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
 
-                <div>
-                  <Label htmlFor="heygen_voice_id">HeyGen Voice ID</Label>
-                  <Input
-                    id="heygen_voice_id"
-                    value={formData.heygen_voice_id}
-                    onChange={(e) => setFormData({ ...formData, heygen_voice_id: e.target.value })}
-                    placeholder="ID da voz no HeyGen"
-                  />
-                  <p className="text-xs text-muted-foreground mt-1">
-                    ID da voz que será usada para o avatar HeyGen
-                  </p>
-                </div>
-              </CardContent>
-            </Card>
+        <Card className="mt-6">
+          <CardHeader>
+            <div className="flex justify-between items-center">
+              <CardTitle>Gatilhos de Mídia</CardTitle>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm text-muted-foreground mb-4">
+              Configure frases que, quando detectadas, acionam a exibição de uma mídia específica
+            </p>
 
-            <div className="flex justify-end gap-4 pt-4">
-              <Button variant="outline" onClick={() => navigate('/avatars')}>
-                Cancelar
-              </Button>
-              <Button onClick={handleCreate} disabled={creating}>
-                {creating ? 'Criando...' : 'Criar Avatar'}
+            {mediaTriggers.length > 0 && (
+              <div className="space-y-2 mb-4">
+                {mediaTriggers.map((trigger, index) => (
+                  <div key={index} className="flex justify-between items-start p-3 bg-muted rounded">
+                    <div className="flex-1">
+                      <p className="font-medium">{trigger.trigger_phrase}</p>
+                      <p className="text-sm text-muted-foreground truncate">{trigger.media_url}</p>
+                    </div>
+                    <Button 
+                      variant="ghost" 
+                      size="sm"
+                      onClick={() => handleRemoveTrigger(index)}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <div className="space-y-4 p-4 border rounded-lg">
+              <div>
+                <Label htmlFor="trigger_phrase">Frase Gatilho</Label>
+                <Input
+                  id="trigger_phrase"
+                  value={newTrigger.trigger_phrase}
+                  onChange={(e) => setNewTrigger({ ...newTrigger, trigger_phrase: e.target.value })}
+                  placeholder="Ex: mostre o produto, veja o gráfico..."
+                />
+              </div>
+              <div>
+                <Label htmlFor="trigger_media_url">URL da Mídia</Label>
+                <Input
+                  id="trigger_media_url"
+                  type="url"
+                  value={newTrigger.media_url}
+                  onChange={(e) => setNewTrigger({ ...newTrigger, media_url: e.target.value })}
+                  placeholder="https://exemplo.com/imagem.jpg"
+                />
+              </div>
+              <Button variant="outline" onClick={handleAddTrigger}>
+                <Plus className="mr-2 h-4 w-4" />
+                Adicionar Gatilho
               </Button>
             </div>
           </CardContent>
         </Card>
+
+        <Card className="mt-6">
+          <CardHeader>
+            <CardTitle>Documentos de Treinamento</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm text-muted-foreground mb-4">
+              Faça upload de PDFs para enriquecer o conhecimento do avatar (será implementado em breve)
+            </p>
+            <Button variant="outline" disabled>
+              <Upload className="mr-2 h-4 w-4" />
+              Upload de PDFs (Em breve)
+            </Button>
+          </CardContent>
+        </Card>
+
+        <div className="flex justify-end gap-4 pt-6">
+          <Button variant="outline" onClick={() => navigate('/avatars')}>
+            Cancelar
+          </Button>
+          <Button onClick={handleCreate} disabled={creating}>
+            {creating ? 'Criando...' : 'Criar Avatar'}
+          </Button>
+        </div>
       </div>
     </div>
   );
