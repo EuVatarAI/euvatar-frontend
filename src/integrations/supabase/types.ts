@@ -14,6 +14,115 @@ export type Database = {
   }
   public: {
     Tables: {
+      avatars: {
+        Row: {
+          ai_model: string
+          backstory: string | null
+          created_at: string
+          id: string
+          language: string
+          name: string
+          updated_at: string
+          user_id: string
+          voice_model: string
+        }
+        Insert: {
+          ai_model?: string
+          backstory?: string | null
+          created_at?: string
+          id?: string
+          language?: string
+          name: string
+          updated_at?: string
+          user_id: string
+          voice_model?: string
+        }
+        Update: {
+          ai_model?: string
+          backstory?: string | null
+          created_at?: string
+          id?: string
+          language?: string
+          name?: string
+          updated_at?: string
+          user_id?: string
+          voice_model?: string
+        }
+        Relationships: []
+      }
+      conversations: {
+        Row: {
+          avatar_id: string
+          created_at: string
+          credits_used: number
+          duration: number
+          id: string
+          platform: string
+          topics: string[] | null
+          user_id: string
+        }
+        Insert: {
+          avatar_id: string
+          created_at?: string
+          credits_used?: number
+          duration?: number
+          id?: string
+          platform: string
+          topics?: string[] | null
+          user_id: string
+        }
+        Update: {
+          avatar_id?: string
+          created_at?: string
+          credits_used?: number
+          duration?: number
+          id?: string
+          platform?: string
+          topics?: string[] | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "conversations_avatar_id_fkey"
+            columns: ["avatar_id"]
+            isOneToOne: false
+            referencedRelation: "avatars"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      media_triggers: {
+        Row: {
+          avatar_id: string
+          created_at: string
+          id: string
+          media_url: string
+          trigger_phrase: string
+        }
+        Insert: {
+          avatar_id: string
+          created_at?: string
+          id?: string
+          media_url: string
+          trigger_phrase: string
+        }
+        Update: {
+          avatar_id?: string
+          created_at?: string
+          id?: string
+          media_url?: string
+          trigger_phrase?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "media_triggers_avatar_id_fkey"
+            columns: ["avatar_id"]
+            isOneToOne: false
+            referencedRelation: "avatars"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       organization_invites: {
         Row: {
           accepted_at: string | null
@@ -134,6 +243,65 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      training_documents: {
+        Row: {
+          avatar_id: string
+          created_at: string
+          document_name: string
+          document_url: string
+          id: string
+        }
+        Insert: {
+          avatar_id: string
+          created_at?: string
+          document_name: string
+          document_url: string
+          id?: string
+        }
+        Update: {
+          avatar_id?: string
+          created_at?: string
+          document_name?: string
+          document_url?: string
+          id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "training_documents_avatar_id_fkey"
+            columns: ["avatar_id"]
+            isOneToOne: false
+            referencedRelation: "avatars"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      user_credits: {
+        Row: {
+          created_at: string
+          id: string
+          total_credits: number
+          updated_at: string
+          used_credits: number
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          total_credits?: number
+          updated_at?: string
+          used_credits?: number
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          total_credits?: number
+          updated_at?: string
+          used_credits?: number
+          user_id?: string
+        }
+        Relationships: []
       }
     }
     Views: {

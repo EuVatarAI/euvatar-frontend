@@ -7,20 +7,11 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { useToast } from '@/hooks/use-toast';
 import { LogOut, Settings } from 'lucide-react';
+import type { Database } from '@/integrations/supabase/types';
 
-interface Avatar {
-  id: string;
-  name: string;
-  backstory: string | null;
-  language: string;
-  ai_model: string;
-  voice_model: string;
-}
-
-interface Credits {
-  total_credits: number;
-  used_credits: number;
-}
+type Avatar = Database['public']['Tables']['avatars']['Row'];
+type UserCredits = Database['public']['Tables']['user_credits']['Row'];
+type Conversation = Database['public']['Tables']['conversations']['Row'];
 
 interface AvatarStats {
   avatarId: string;
@@ -34,7 +25,7 @@ const Dashboard = () => {
   const { user, signOut } = useAuth();
   const { toast } = useToast();
   const [avatars, setAvatars] = useState<Avatar[]>([]);
-  const [credits, setCredits] = useState<Credits | null>(null);
+  const [credits, setCredits] = useState<UserCredits | null>(null);
   const [avatarStats, setAvatarStats] = useState<AvatarStats[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -62,9 +53,9 @@ const Dashboard = () => {
         .from('user_credits')
         .select('*')
         .eq('user_id', user?.id)
-        .single();
+        .maybeSingle();
 
-      if (creditsError && creditsError.code !== 'PGRST116') throw creditsError;
+      if (creditsError) throw creditsError;
       setCredits(creditsData);
 
       // Fetch conversations stats per avatar
