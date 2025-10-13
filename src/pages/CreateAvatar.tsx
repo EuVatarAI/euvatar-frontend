@@ -420,16 +420,29 @@ const CreateAvatar = () => {
                 )}
                 
                 {newTrigger.media_url && (
-                  <div className="mt-2">
+                  <div className="mt-2 relative">
                     <p className="text-xs text-green-600 mb-2 flex items-center gap-1">
                       <CheckCircle2 className="h-3 w-3" />
                       Upload realizado - Preview:
                     </p>
-                    {triggerMediaFile?.type.startsWith('video/') ? (
-                      <video src={newTrigger.media_url} controls className="max-h-32 rounded border" />
-                    ) : (
-                      <img src={newTrigger.media_url} alt="Preview" className="max-h-32 rounded border" />
-                    )}
+                    <div className="relative inline-block">
+                      {triggerMediaFile?.type.startsWith('video/') ? (
+                        <video src={newTrigger.media_url} controls className="max-h-32 rounded border" />
+                      ) : (
+                        <img src={newTrigger.media_url} alt="Preview" className="max-h-32 rounded border" />
+                      )}
+                      <Button
+                        variant="destructive"
+                        size="sm"
+                        className="absolute -top-2 -right-2 h-6 w-6 p-0 rounded-full"
+                        onClick={() => {
+                          setNewTrigger({ ...newTrigger, media_url: '' });
+                          setTriggerMediaFile(null);
+                        }}
+                      >
+                        <Trash2 className="h-3 w-3" />
+                      </Button>
+                    </div>
                   </div>
                 )}
                 
