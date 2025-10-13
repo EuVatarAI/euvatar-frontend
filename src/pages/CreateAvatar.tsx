@@ -296,10 +296,21 @@ const CreateAvatar = () => {
                   URL da imagem ou vídeo que será exibido quando o contexto for identificado
                 </p>
               </div>
-              <Button variant="outline" onClick={handleAddTrigger}>
-                <Plus className="mr-2 h-4 w-4" />
-                Adicionar Gatilho
-              </Button>
+              <div className="flex gap-2">
+                <Button 
+                  className="flex-1 bg-purple-600 hover:bg-purple-700 text-white"
+                  onClick={handleAddTrigger}
+                >
+                  Salvar Gatilho
+                </Button>
+                <Button 
+                  variant="outline" 
+                  onClick={() => setNewTrigger({ trigger_phrase: '', media_url: '' })}
+                >
+                  <Plus className="mr-2 h-4 w-4" />
+                  Novo Gatilho
+                </Button>
+              </div>
             </div>
           </CardContent>
         </Card>
