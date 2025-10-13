@@ -194,7 +194,18 @@ export const Dashboard = ({ user, organization, profile, onLogout, onNavigate }:
             <Plus className="h-5 w-5 text-primary" />
             Ações Rápidas
           </h3>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <Button 
+              variant="outline" 
+              className="justify-start gap-2 h-auto p-4"
+              onClick={() => window.location.href = '/avatars'}
+            >
+              <Users className="h-4 w-4" />
+              <div className="text-left">
+                <div className="font-medium">Gerenciar Avatares</div>
+                <div className="text-sm text-muted-foreground">Sistema de créditos e IA</div>
+              </div>
+            </Button>
             <Button 
               variant="outline" 
               className="justify-start gap-2 h-auto p-4"
