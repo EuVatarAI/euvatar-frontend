@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
@@ -9,8 +9,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
-import { ArrowLeft, Upload, Plus, Trash2, AlertCircle, CheckCircle2 } from 'lucide-react';
-import { validateMediaUrlWithCache, validateMediaUrlServer, type ValidationResult } from '@/utils/mediaValidation';
+import { ArrowLeft, Plus, Trash2, AlertCircle, CheckCircle2 } from 'lucide-react';
 import { sanitizeContextName } from '@/utils/contextNameSanitizer';
 
 interface MediaTrigger {
@@ -27,10 +26,10 @@ const CreateAvatar = () => {
   const [mediaTriggers, setMediaTriggers] = useState<MediaTrigger[]>([]);
   const [newTrigger, setNewTrigger] = useState<MediaTrigger>({ trigger_phrase: '', media_url: '', description: '' });
   const [idleMediaUrl, setIdleMediaUrl] = useState('');
-  const [idleMediaValidation, setIdleMediaValidation] = useState<ValidationResult | null>(null);
-  const [triggerMediaValidation, setTriggerMediaValidation] = useState<ValidationResult | null>(null);
-  const [validatingIdle, setValidatingIdle] = useState(false);
-  const [validatingTrigger, setValidatingTrigger] = useState(false);
+  const [idleMediaFile, setIdleMediaFile] = useState<File | null>(null);
+  const [triggerMediaFile, setTriggerMediaFile] = useState<File | null>(null);
+  const [uploadingIdle, setUploadingIdle] = useState(false);
+  const [uploadingTrigger, setUploadingTrigger] = useState(false);
   const [formData, setFormData] = useState({
     name: '',
     backstory: '',
@@ -39,9 +38,66 @@ const CreateAvatar = () => {
     voice_model: 'alloy',
   });
 
-  // Debounce timer refs
-  let idleDebounceTimer: any;
-  let triggerDebounceTimer: any;
+  const uploadMediaFile = async (file: File): Promise<string | null> => {
+    if (!user) return null;
+
+    const fileExt = file.name.split('.').pop();
+    const fileName = `${user.id}/${Date.now()}.${fileExt}`;
+
+    const { data, error } = await supabase.storage
+      .from('avatar-media')
+      .upload(fileName, file, {
+        cacheControl: '3600',
+        upsert: false
+      });
+
+    if (error) {
+      console.error('Upload error:', error);
+      return null;
+    }
+
+    const { data: urlData } = supabase.storage
+      .from('avatar-media')
+      .getPublicUrl(data.path);
+
+    return urlData.publicUrl;
+  };
+
+  const handleIdleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setIdleMediaFile(file);
+    setUploadingIdle(true);
+
+    const url = await uploadMediaFile(file);
+    if (url) {
+      setIdleMediaUrl(url);
+      toast({ title: 'Upload realizado com sucesso!' });
+    } else {
+      toast({ title: 'Erro ao fazer upload', variant: 'destructive' });
+    }
+
+    setUploadingIdle(false);
+  };
+
+  const handleTriggerFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setTriggerMediaFile(file);
+    setUploadingTrigger(true);
+
+    const url = await uploadMediaFile(file);
+    if (url) {
+      setNewTrigger({ ...newTrigger, media_url: url });
+      toast({ title: 'Upload realizado com sucesso!' });
+    } else {
+      toast({ title: 'Erro ao fazer upload', variant: 'destructive' });
+    }
+
+    setUploadingTrigger(false);
+  };
 
   const handleCreate = async () => {
     if (!user) {
@@ -105,7 +161,7 @@ const CreateAvatar = () => {
       console.error('Error creating avatar:', error);
       toast({
         title: 'Erro',
-        description: 'Erro ao criar avatar.',
+        description: 'Erro ao criar avatar. Tente novamente.',
         variant: 'destructive',
       });
     } finally {
@@ -113,21 +169,11 @@ const CreateAvatar = () => {
     }
   };
 
-  const handleAddTrigger = async () => {
-    if (!newTrigger.trigger_phrase || !newTrigger.media_url) {
+  const handleAddTrigger = () => {
+    if (!newTrigger.trigger_phrase || !newTrigger.description || !newTrigger.media_url) {
       toast({
         title: 'Erro',
-        description: 'Preencha o contexto e a URL da mídia.',
-        variant: 'destructive',
-      });
-      return;
-    }
-
-    // Verifica se validação passou (cliente e servidor)
-    if (!triggerMediaValidation?.ok) {
-      toast({
-        title: 'Erro',
-        description: 'A URL da mídia não foi validada. Aguarde a validação ou corrija a URL.',
+        description: 'Preencha todos os campos do gatilho.',
         variant: 'destructive',
       });
       return;
@@ -135,7 +181,7 @@ const CreateAvatar = () => {
 
     setMediaTriggers([...mediaTriggers, newTrigger]);
     setNewTrigger({ trigger_phrase: '', media_url: '', description: '' });
-    setTriggerMediaValidation(null);
+    setTriggerMediaFile(null);
     
     toast({
       title: 'Sucesso',
@@ -146,62 +192,6 @@ const CreateAvatar = () => {
   const handleRemoveTrigger = (index: number) => {
     setMediaTriggers(mediaTriggers.filter((_, i) => i !== index));
   };
-
-  const handleIdleMediaUrlChange = useCallback((url: string) => {
-    setIdleMediaUrl(url);
-    setIdleMediaValidation(null);
-    
-    clearTimeout(idleDebounceTimer);
-    
-    if (!url) {
-      setIdleMediaValidation(null);
-      return;
-    }
-
-    idleDebounceTimer = setTimeout(async () => {
-      setValidatingIdle(true);
-      
-      // Validação cliente
-      const clientResult = await validateMediaUrlWithCache(url);
-      setIdleMediaValidation(clientResult);
-      
-      if (clientResult.ok) {
-        // Validação servidor
-        const serverResult = await validateMediaUrlServer(url);
-        setIdleMediaValidation(serverResult);
-      }
-      
-      setValidatingIdle(false);
-    }, 400);
-  }, []);
-
-  const handleTriggerMediaUrlChange = useCallback((url: string) => {
-    setNewTrigger(prev => ({ ...prev, media_url: url }));
-    setTriggerMediaValidation(null);
-    
-    clearTimeout(triggerDebounceTimer);
-    
-    if (!url) {
-      setTriggerMediaValidation(null);
-      return;
-    }
-
-    triggerDebounceTimer = setTimeout(async () => {
-      setValidatingTrigger(true);
-      
-      // Validação cliente
-      const clientResult = await validateMediaUrlWithCache(url);
-      setTriggerMediaValidation(clientResult);
-      
-      if (clientResult.ok) {
-        // Validação servidor
-        const serverResult = await validateMediaUrlServer(url);
-        setTriggerMediaValidation(serverResult);
-      }
-      
-      setValidatingTrigger(false);
-    }, 400);
-  }, []);
 
   return (
     <div className="min-h-screen bg-background p-8">
@@ -285,6 +275,9 @@ const CreateAvatar = () => {
                 <SelectContent>
                   <SelectItem value="alloy">Alloy</SelectItem>
                   <SelectItem value="echo">Echo</SelectItem>
+                  <SelectItem value="fable">Fable</SelectItem>
+                  <SelectItem value="onyx">Onyx</SelectItem>
+                  <SelectItem value="nova">Nova</SelectItem>
                   <SelectItem value="shimmer">Shimmer</SelectItem>
                 </SelectContent>
               </Select>
@@ -302,48 +295,37 @@ const CreateAvatar = () => {
             </p>
             <div className="space-y-4">
               <div>
-                <Label htmlFor="idle_media_url">URL da Mídia Idle</Label>
+                <Label htmlFor="idle_media_file">Selecionar Mídia Idle</Label>
                 <Input
-                  id="idle_media_url"
-                  type="url"
-                  value={idleMediaUrl}
-                  onChange={(e) => handleIdleMediaUrlChange(e.target.value)}
-                  placeholder="https://exemplo.com/video-idle.mp4"
-                  className={idleMediaValidation && !idleMediaValidation.ok ? 'border-red-500' : ''}
+                  id="idle_media_file"
+                  type="file"
+                  accept="image/*,video/*"
+                  onChange={handleIdleFileSelect}
+                  disabled={uploadingIdle}
                 />
                 
-                {validatingIdle && (
+                {uploadingIdle && (
                   <p className="text-xs text-blue-600 mt-1 flex items-center gap-1">
-                    <span className="animate-spin">⏳</span> Validando mídia...
+                    <span className="animate-spin">⏳</span> Fazendo upload...
                   </p>
                 )}
                 
-                {idleMediaValidation && !idleMediaValidation.ok && (
-                  <p className="text-xs text-red-500 mt-1 flex items-center gap-1">
-                    <AlertCircle className="h-3 w-3" />
-                    {idleMediaValidation.reason}
-                  </p>
-                )}
-                
-                {idleMediaValidation?.ok && (
+                {idleMediaUrl && (
                   <div className="mt-2">
                     <p className="text-xs text-green-600 mb-2 flex items-center gap-1">
                       <CheckCircle2 className="h-3 w-3" />
-                      Mídia válida - Preview:
+                      Upload realizado - Preview:
                     </p>
-                    <img 
-                      src={idleMediaUrl} 
-                      alt="Preview" 
-                      className="max-h-32 rounded border"
-                      onError={(e) => {
-                        e.currentTarget.style.display = 'none';
-                      }}
-                    />
+                    {idleMediaFile?.type.startsWith('video/') ? (
+                      <video src={idleMediaUrl} controls className="max-h-32 rounded border" />
+                    ) : (
+                      <img src={idleMediaUrl} alt="Preview" className="max-h-32 rounded border" />
+                    )}
                   </div>
                 )}
                 
                 <p className="text-xs text-muted-foreground mt-1">
-                  Cole a URL de uma imagem ou vídeo de CDN aprovado (Supabase, Cloudinary, CloudFront, S3)
+                  Arraste e solte ou clique para selecionar imagem ou vídeo
                 </p>
               </div>
             </div>
@@ -353,7 +335,7 @@ const CreateAvatar = () => {
         <Card className="mt-6">
           <CardHeader>
             <div className="flex justify-between items-center">
-              <CardTitle>Gatilhos de Mídia</CardTitle>
+              <CardTitle>Gatilhos de Mídia (Contextos)</CardTitle>
             </div>
           </CardHeader>
           <CardContent>
@@ -366,10 +348,15 @@ const CreateAvatar = () => {
                 {mediaTriggers.map((trigger, index) => (
                   <div key={index} className="flex justify-between items-start p-3 bg-muted rounded">
                     <div className="flex-1">
-                      <p className="font-medium text-sm text-muted-foreground">Contexto:</p>
-                      <p className="mb-1">{trigger.trigger_phrase}</p>
-                      <p className="text-xs text-muted-foreground">Mídia:</p>
-                      <p className="text-sm truncate">{trigger.media_url}</p>
+                      <p className="font-medium text-sm">Nome: {trigger.trigger_phrase}</p>
+                      <p className="text-sm text-muted-foreground mt-1">{trigger.description}</p>
+                      <div className="mt-2">
+                        {trigger.media_url.match(/\.(mp4|webm|mov)$/i) ? (
+                          <video src={trigger.media_url} controls className="max-h-24 rounded" />
+                        ) : (
+                          <img src={trigger.media_url} alt="Preview" className="max-h-24 rounded" />
+                        )}
+                      </div>
                     </div>
                     <Button 
                       variant="ghost" 
@@ -396,6 +383,7 @@ const CreateAvatar = () => {
                   Digite apenas letras, números e espaços. Será automaticamente formatado.
                 </p>
               </div>
+
               <div>
                 <Label htmlFor="trigger_description">Contexto (descrição)</Label>
                 <Textarea
@@ -409,90 +397,55 @@ const CreateAvatar = () => {
                   Descreva quando este contexto deve ser acionado. A IA interpretará semanticamente.
                 </p>
               </div>
+
               <div>
-                <Label htmlFor="trigger_media_url">URL da Mídia (Imagem ou Vídeo)</Label>
+                <Label htmlFor="trigger_media_file">Selecionar Mídia</Label>
                 <Input
-                  id="trigger_media_url"
-                  type="url"
-                  value={newTrigger.media_url}
-                  onChange={(e) => handleTriggerMediaUrlChange(e.target.value)}
-                  placeholder="https://exemplo.com/imagem-produto.jpg"
-                  className={triggerMediaValidation && !triggerMediaValidation.ok ? 'border-red-500' : ''}
+                  id="trigger_media_file"
+                  type="file"
+                  accept="image/*,video/*"
+                  onChange={handleTriggerFileSelect}
+                  disabled={uploadingTrigger}
                 />
                 
-                {validatingTrigger && (
+                {uploadingTrigger && (
                   <p className="text-xs text-blue-600 mt-1 flex items-center gap-1">
-                    <span className="animate-spin">⏳</span> Validando mídia...
+                    <span className="animate-spin">⏳</span> Fazendo upload...
                   </p>
                 )}
                 
-                {triggerMediaValidation && !triggerMediaValidation.ok && (
-                  <p className="text-xs text-red-500 mt-1 flex items-center gap-1">
-                    <AlertCircle className="h-3 w-3" />
-                    {triggerMediaValidation.reason}
-                  </p>
-                )}
-                
-                {triggerMediaValidation?.ok && (
+                {newTrigger.media_url && (
                   <div className="mt-2">
                     <p className="text-xs text-green-600 mb-2 flex items-center gap-1">
                       <CheckCircle2 className="h-3 w-3" />
-                      Mídia válida - Preview:
+                      Upload realizado - Preview:
                     </p>
-                    <img 
-                      src={newTrigger.media_url} 
-                      alt="Preview" 
-                      className="max-h-32 rounded border"
-                      onError={(e) => {
-                        e.currentTarget.style.display = 'none';
-                      }}
-                    />
+                    {triggerMediaFile?.type.startsWith('video/') ? (
+                      <video src={newTrigger.media_url} controls className="max-h-32 rounded border" />
+                    ) : (
+                      <img src={newTrigger.media_url} alt="Preview" className="max-h-32 rounded border" />
+                    )}
                   </div>
                 )}
                 
                 <p className="text-xs text-muted-foreground mt-1">
-                  URL da imagem ou vídeo de CDN aprovado (máx 25MB)
+                  Arraste e solte ou clique para selecionar imagem ou vídeo
                 </p>
               </div>
-              <div className="flex gap-2">
-                <Button 
-                  className="flex-1 bg-purple-600 hover:bg-purple-700 text-white"
-                  onClick={handleAddTrigger}
-                >
-                  Salvar Gatilho
-                </Button>
-                <Button 
-                  variant="outline" 
-                  onClick={() => setNewTrigger({ trigger_phrase: '', media_url: '', description: '' })}
-                >
-                  <Plus className="mr-2 h-4 w-4" />
-                  Novo Gatilho
-                </Button>
-              </div>
+
+              <Button onClick={handleAddTrigger} className="w-full">
+                <Plus className="mr-2 h-4 w-4" />
+                Adicionar Gatilho
+              </Button>
             </div>
           </CardContent>
         </Card>
 
-        <Card className="mt-6">
-          <CardHeader>
-            <CardTitle>Documentos de Treinamento</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-sm text-muted-foreground mb-4">
-              Faça upload de PDFs para enriquecer o conhecimento do avatar (será implementado em breve)
-            </p>
-            <Button variant="outline" disabled>
-              <Upload className="mr-2 h-4 w-4" />
-              Upload de PDFs (Em breve)
-            </Button>
-          </CardContent>
-        </Card>
-
-        <div className="flex justify-end gap-4 pt-6">
-          <Button variant="outline" onClick={() => navigate('/avatars')}>
+        <div className="mt-8 flex gap-4">
+          <Button onClick={() => navigate('/avatars')} variant="outline" className="flex-1">
             Cancelar
           </Button>
-          <Button onClick={handleCreate} disabled={creating}>
+          <Button onClick={handleCreate} disabled={creating} className="flex-1">
             {creating ? 'Criando...' : 'Criar Avatar'}
           </Button>
         </div>
