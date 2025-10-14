@@ -6,9 +6,10 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { useToast } from '@/hooks/use-toast';
-import { LogOut, Settings } from 'lucide-react';
+import { LogOut, Settings, Plus, Lock } from 'lucide-react';
 import type { Database } from '@/integrations/supabase/types';
 import euvatarLogo from '@/assets/euvatar-logo-white.png';
+import { UnlockPasswordDialog } from '@/components/avatar/UnlockPasswordDialog';
 
 type Avatar = Database['public']['Tables']['avatars']['Row'];
 type UserCredits = Database['public']['Tables']['user_credits']['Row'];
@@ -29,6 +30,7 @@ const Dashboard = () => {
   const [credits, setCredits] = useState<UserCredits | null>(null);
   const [avatarStats, setAvatarStats] = useState<AvatarStats[]>([]);
   const [loading, setLoading] = useState(true);
+  const [showUnlockDialog, setShowUnlockDialog] = useState(false);
 
   useEffect(() => {
     if (!user) {
@@ -101,6 +103,30 @@ const Dashboard = () => {
     navigate('/login');
   };
 
+  const handleUnlock = async (password: string): Promise<boolean> => {
+    try {
+      const { data, error } = await supabase.functions.invoke('manage-credentials', {
+        body: { action: 'unlock', password },
+      });
+
+      if (error) throw error;
+
+      if (data.success) {
+        setShowUnlockDialog(false);
+        toast({ title: 'Acesso autorizado!' });
+        navigate('/configure-credentials');
+        return true;
+      } else {
+        toast({ title: 'Senha incorreta', variant: 'destructive' });
+        return false;
+      }
+    } catch (error: any) {
+      console.error('Error unlocking:', error);
+      toast({ title: 'Erro ao verificar senha', variant: 'destructive' });
+      return false;
+    }
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -149,6 +175,25 @@ const Dashboard = () => {
                 Cada conversa de até 2,5 minutos consome 10 créditos. Configure o banco de dados na aba Cloud para começar.
               </p>
             </div>
+          </CardContent>
+        </Card>
+
+        {/* Protected: Configure New Avatar */}
+        <Card className="mb-8 border-primary/50 shadow-lg">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Lock className="h-5 w-5" />
+              Configurar Novo Euvatar
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm text-muted-foreground mb-4">
+              Configure as credenciais para criar um novo euvatar. Esta área é protegida por senha.
+            </p>
+            <Button onClick={() => setShowUnlockDialog(true)} className="w-full">
+              <Plus className="mr-2 h-4 w-4" />
+              Configurar Credenciais
+            </Button>
           </CardContent>
         </Card>
 
@@ -210,6 +255,12 @@ const Dashboard = () => {
             </Card>
           )}
         </div>
+
+        <UnlockPasswordDialog
+          open={showUnlockDialog}
+          onOpenChange={setShowUnlockDialog}
+          onUnlock={handleUnlock}
+        />
       </div>
     </div>
   );
