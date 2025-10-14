@@ -714,7 +714,7 @@ const AvatarDetails = () => {
                   Imagem ou vídeo exibido enquanto o euvatar não está em sessão ativa
                 </p>
                 <div className="space-y-4">
-                  {idleMediaUrl ? (
+                  {avatar?.idle_media_url ? (
                     <div className="space-y-3">
                       <div>
                         <p className="text-xs text-green-600 mb-2 flex items-center gap-1">
@@ -722,22 +722,31 @@ const AvatarDetails = () => {
                           Preview da mídia:
                         </p>
                         <div className="inline-block">
-                          {idleMediaFile?.type.startsWith('video/') ? (
-                            <video src={idleMediaUrl} controls className="max-h-32 rounded-lg border" />
+                          {avatar.idle_media_url.match(/\.(mp4|webm|mov)$/i) ? (
+                            <video src={avatar.idle_media_url} controls className="max-h-32 rounded-lg border" />
                           ) : (
-                            <img src={idleMediaUrl} alt="Preview" className="max-h-32 rounded-lg border" />
+                            <img src={avatar.idle_media_url} alt="Preview" className="max-h-32 rounded-lg border" />
                           )}
                         </div>
                       </div>
-                      <Button
-                        type="button"
-                        variant="destructive"
-                        onClick={handleRemoveIdleMedia}
-                        className="w-full"
-                      >
-                        <Trash2 className="mr-2 h-4 w-4" />
-                        Excluir Vídeo
-                      </Button>
+                      <Label htmlFor="idle_media_file" className="cursor-pointer">
+                        <Button
+                          type="button"
+                          className="w-full"
+                          disabled={uploadingIdle}
+                          onClick={() => document.getElementById('idle_media_file')?.click()}
+                        >
+                          <Upload className="mr-2 h-4 w-4" />
+                          {uploadingIdle ? 'Enviando...' : 'Adicionar ou alterar Mídia Idle'}
+                        </Button>
+                      </Label>
+                      <Input
+                        id="idle_media_file"
+                        type="file"
+                        accept="image/*,video/*"
+                        onChange={handleIdleFileSelect}
+                        className="hidden"
+                      />
                     </div>
                   ) : (
                     <div className="space-y-3">
@@ -765,7 +774,7 @@ const AvatarDetails = () => {
                     </div>
                   )}
                   
-                  {idleMediaUrl && (
+                  {idleMediaUrl && !avatar?.idle_media_url && (
                     <Button onClick={handleSave} disabled={saving} className="w-full">
                       <Save className="mr-2 h-4 w-4" />
                       {saving ? 'Salvando...' : 'Salvar Mídia Idle'}
