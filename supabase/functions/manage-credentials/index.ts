@@ -5,8 +5,8 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-// Internal password for unlocking credentials (should be set as secret)
-const INTERNAL_PASSWORD = Deno.env.get('EUVATAR_INTERNAL_PASSWORD') || 'euvatar2025';
+// Internal password for unlocking credentials
+const INTERNAL_PASSWORD = 'B4b4d0@15';
 
 // Simple encryption/decryption using base64 (in production, use proper encryption)
 function encrypt(text: string): string {
