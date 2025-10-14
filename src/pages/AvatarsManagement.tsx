@@ -162,8 +162,11 @@ const AvatarsManagement = () => {
               <CardContent className="pt-6">
                 <div className="text-center py-8">
                   <p className="text-muted-foreground mb-4">Nenhum avatar criado ainda</p>
-                  <Button onClick={() => navigate('/create-avatar')}>
-                    Criar Primeiro Avatar
+                  <p className="text-sm text-muted-foreground mb-6">
+                    Primeiro configure as credenciais do avatar
+                  </p>
+                  <Button onClick={() => navigate('/configure-credentials')}>
+                    Configurar Credenciais do Avatar
                   </Button>
                 </div>
               </CardContent>
@@ -207,7 +210,6 @@ const AvatarsManagement = () => {
                           variant="outline" 
                           size="sm"
                           onClick={() => navigate(`/avatar/${avatar.id}/settings`)}
-                          className="animate-pulse bg-primary/20 border-primary"
                         >
                           <Settings className="h-4 w-4" />
                         </Button>
