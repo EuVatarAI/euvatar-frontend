@@ -714,7 +714,7 @@ const AvatarDetails = () => {
                   Imagem ou vídeo exibido enquanto o euvatar não está em sessão ativa
                 </p>
                 <div className="space-y-4">
-                  {avatar?.idle_media_url ? (
+                  {idleMediaUrl || avatar?.idle_media_url ? (
                     <div className="space-y-3">
                       <div>
                         <p className="text-xs text-green-600 mb-2 flex items-center gap-1">
@@ -722,10 +722,10 @@ const AvatarDetails = () => {
                           Preview da mídia:
                         </p>
                         <div className="inline-block">
-                          {avatar.idle_media_url.match(/\.(mp4|webm|mov)$/i) ? (
-                            <video src={avatar.idle_media_url} controls className="max-h-32 rounded-lg border" />
+                          {(idleMediaUrl || avatar?.idle_media_url || '').match(/\.(mp4|webm|mov)$/i) ? (
+                            <video src={idleMediaUrl || avatar?.idle_media_url || ''} controls className="max-h-32 rounded-lg border" />
                           ) : (
-                            <img src={avatar.idle_media_url} alt="Preview" className="max-h-32 rounded-lg border" />
+                            <img src={idleMediaUrl || avatar?.idle_media_url || ''} alt="Preview" className="max-h-32 rounded-lg border" />
                           )}
                         </div>
                       </div>
@@ -774,7 +774,7 @@ const AvatarDetails = () => {
                     </div>
                   )}
                   
-                  {idleMediaUrl && !avatar?.idle_media_url && (
+                  {idleMediaUrl && idleMediaUrl !== avatar?.idle_media_url && (
                     <Button onClick={handleSave} disabled={saving} className="w-full">
                       <Save className="mr-2 h-4 w-4" />
                       {saving ? 'Salvando...' : 'Salvar Mídia Idle'}
