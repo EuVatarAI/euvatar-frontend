@@ -10,7 +10,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
-import { ArrowLeft, Plus, Trash2, CheckCircle2, Save, Upload, FileText } from 'lucide-react';
+import { ArrowLeft, Plus, Trash2, CheckCircle2, Save, Upload, FileText, X } from 'lucide-react';
 import { sanitizeContextName } from '@/utils/contextNameSanitizer';
 import avatarDemoImage from '@/assets/avatar-flavia-demo.png';
 
@@ -55,6 +55,7 @@ const AvatarDetails = () => {
   const [uploadingIdle, setUploadingIdle] = useState(false);
   const [uploadingTrigger, setUploadingTrigger] = useState(false);
   const [uploadingTraining, setUploadingTraining] = useState(false);
+  const [deletingIdle, setDeletingIdle] = useState(false);
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(true);
   const [trainingDocuments, setTrainingDocuments] = useState<any[]>([]);
@@ -322,6 +323,26 @@ const AvatarDetails = () => {
       title: 'Mídia removida',
       description: 'Mídia idle removida com sucesso.',
     });
+  };
+
+  const handleDeleteIdleMedia = async () => {
+    if (!confirm('Tem certeza que deseja excluir a mídia idle?')) return;
+    
+    setDeletingIdle(true);
+    const { error } = await supabase
+      .from('avatars')
+      .update({ idle_media_url: null })
+      .eq('id', id);
+
+    if (error) {
+      toast({ title: 'Erro ao excluir mídia', variant: 'destructive' });
+    } else {
+      setIdleMediaUrl('');
+      setIdleMediaFile(null);
+      fetchAvatarData();
+      toast({ title: 'Mídia idle excluída com sucesso!' });
+    }
+    setDeletingIdle(false);
   };
 
   const handleTrainingFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -733,7 +754,7 @@ const AvatarDetails = () => {
                           <CheckCircle2 className="h-3 w-3" />
                           Preview da mídia:
                         </p>
-                        <div className="inline-block">
+                        <div className="inline-block relative">
                           {(idleMediaUrl || avatar?.idle_media_url || '').match(/\.(mp4|webm|mov)$/i) ? (
                             <video 
                               key={idleMediaUrl || avatar?.idle_media_url}
@@ -749,6 +770,15 @@ const AvatarDetails = () => {
                               className="max-h-32 rounded-lg border" 
                             />
                           )}
+                          <Button
+                            size="icon"
+                            variant="destructive"
+                            className="absolute -top-2 -right-2 h-6 w-6 rounded-full"
+                            onClick={handleDeleteIdleMedia}
+                            disabled={deletingIdle}
+                          >
+                            <X className="h-3 w-3" />
+                          </Button>
                         </div>
                       </div>
                       <Label htmlFor="idle_media_file" className="cursor-pointer">
