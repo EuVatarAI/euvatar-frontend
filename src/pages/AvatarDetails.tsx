@@ -56,6 +56,8 @@ const AvatarDetails = () => {
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(true);
   const [trainingDocuments, setTrainingDocuments] = useState<any[]>([]);
+  const [trainingDocId, setTrainingDocId] = useState<string | null>(null);
+  const [trainedDocs, setTrainedDocs] = useState<Set<string>>(new Set());
   const [formData, setFormData] = useState({
     name: '',
     backstory: '',
@@ -384,8 +386,8 @@ const AvatarDetails = () => {
     }
   };
 
-  const handleTrainFromDocument = async (docName: string) => {
-    setSaving(true);
+  const handleTrainFromDocument = async (docId: string, docName: string) => {
+    setTrainingDocId(docId);
     try {
       // Add a note to the backstory about this specific training document
       const trainingNote = `\n\n[Treinado com o documento: ${docName}]`;
@@ -402,6 +404,7 @@ const AvatarDetails = () => {
       if (updateError) throw updateError;
 
       setFormData(prev => ({ ...prev, backstory: updatedBackstory }));
+      setTrainedDocs(prev => new Set(prev).add(docId));
 
       toast({
         title: 'Sucesso',
@@ -417,7 +420,7 @@ const AvatarDetails = () => {
         variant: 'destructive',
       });
     } finally {
-      setSaving(false);
+      setTrainingDocId(null);
     }
   };
 
@@ -562,30 +565,43 @@ const AvatarDetails = () => {
                     
                     {trainingDocuments.length > 0 && (
                       <div className="space-y-2">
-                        {trainingDocuments.map((doc) => (
-                          <div key={doc.id} className="flex items-center justify-between gap-2 p-2 bg-muted rounded">
-                            <div className="flex items-center gap-2 flex-1">
-                              <FileText className="h-4 w-4 text-muted-foreground" />
-                              <span className="text-sm">{doc.document_name}</span>
+                        {trainingDocuments.map((doc) => {
+                          const isTraining = trainingDocId === doc.id;
+                          const isTrained = trainedDocs.has(doc.id);
+                          
+                          return (
+                            <div key={doc.id} className="flex items-center justify-between gap-2 p-2 bg-muted rounded">
+                              <div className="flex items-center gap-2 flex-1">
+                                <FileText className="h-4 w-4 text-muted-foreground" />
+                                <span className="text-sm">{doc.document_name}</span>
+                              </div>
+                              <div className="flex gap-1">
+                                <Button
+                                  size="sm"
+                                  onClick={() => handleTrainFromDocument(doc.id, doc.document_name)}
+                                  disabled={isTraining || isTrained}
+                                  variant={isTrained ? "secondary" : "default"}
+                                >
+                                  {isTraining ? (
+                                    <span className="animate-spin">⏳</span>
+                                  ) : isTrained ? (
+                                    <CheckCircle2 className="h-4 w-4" />
+                                  ) : (
+                                    <Save className="h-4 w-4" />
+                                  )}
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => handleRemoveTrainingDocument(doc.id, doc.document_url)}
+                                  disabled={isTraining}
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              </div>
                             </div>
-                            <div className="flex gap-1">
-                              <Button
-                                size="sm"
-                                onClick={() => handleTrainFromDocument(doc.document_name)}
-                                disabled={saving}
-                              >
-                                <Save className="h-4 w-4" />
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => handleRemoveTrainingDocument(doc.id, doc.document_url)}
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
-                            </div>
-                          </div>
-                        ))}
+                          );
+                        })}
                       </div>
                     )}
                   </div>
