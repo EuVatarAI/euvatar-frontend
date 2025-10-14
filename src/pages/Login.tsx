@@ -4,7 +4,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
-import euvatar from "/lovable-uploads/63bf0e26-2b28-4b7d-be53-62600f82881c.png";
+import euvatarLogo from "@/assets/euvatar-logo-white.png";
 import { removeBackground, loadImage } from "@/utils/backgroundRemoval";
 
 interface LoginProps {
@@ -20,8 +20,8 @@ export const Login = ({ onLogin }: LoginProps) => {
   const { toast } = useToast();
 
   useEffect(() => {
-    // Use the original logo directly without processing
-    setProcessedLogo(euvatar);
+    // Use the Euvatar logo directly
+    setProcessedLogo(euvatarLogo);
   }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -50,7 +50,7 @@ export const Login = ({ onLogin }: LoginProps) => {
         <div className="text-center mb-4">
           <div className="flex justify-center">
             <img 
-              src={processedLogo || euvatar} 
+              src={processedLogo || euvatarLogo} 
               alt="Euvatar" 
               className="max-w-xs h-auto block" 
             />

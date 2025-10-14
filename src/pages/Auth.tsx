@@ -7,7 +7,7 @@ import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { Eye, EyeOff } from "lucide-react";
 import { createDemoUser } from "@/utils/createDemoUser";
-import euvatar from "/lovable-uploads/63bf0e26-2b28-4b7d-be53-62600f82881c.png";
+import euvatarLogo from "@/assets/euvatar-logo-white.png";
 
 interface AuthProps {
   onAuthSuccess: () => void;
@@ -78,7 +78,7 @@ export const Auth = ({ onAuthSuccess }: AuthProps) => {
         <div className="text-center mb-4">
           <div className="flex justify-center">
             <img 
-              src={euvatar} 
+              src={euvatarLogo} 
               alt="Euvatar" 
               className="max-w-xs h-auto block" 
             />

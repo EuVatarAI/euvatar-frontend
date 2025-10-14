@@ -8,6 +8,7 @@ import { Progress } from '@/components/ui/progress';
 import { useToast } from '@/hooks/use-toast';
 import { LogOut, Settings } from 'lucide-react';
 import type { Database } from '@/integrations/supabase/types';
+import euvatarLogo from '@/assets/euvatar-logo-white.png';
 
 type Avatar = Database['public']['Tables']['avatars']['Row'];
 type UserCredits = Database['public']['Tables']['user_credits']['Row'];
@@ -116,7 +117,10 @@ const Dashboard = () => {
     <div className="min-h-screen bg-background p-8">
       <div className="max-w-7xl mx-auto">
         <div className="flex justify-between items-center mb-8">
-          <h1 className="text-4xl font-bold">Gerenciamento de Euvatares</h1>
+          <div className="flex items-center gap-4">
+            <img src={euvatarLogo} alt="Euvatar" className="h-12" />
+            <h1 className="text-4xl font-bold">Gerenciamento de Euvatares</h1>
+          </div>
           <Button onClick={handleSignOut} variant="outline">
             <LogOut className="mr-2 h-4 w-4" />
             Sair

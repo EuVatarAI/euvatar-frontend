@@ -1,6 +1,7 @@
 import { Button } from "@/components/ui/button";
 import { LogOut, User } from "lucide-react";
 import { ResizableLogo } from "@/components/ResizableLogo";
+import euvatarLogo from "@/assets/euvatar-logo-white.png";
 interface HeaderProps {
   user?: {
     name: string;
@@ -16,7 +17,7 @@ export const Header = ({
       <div className="container flex h-16 items-center justify-between">
         <div className="flex items-center gap-3">
           <ResizableLogo 
-            src="/lovable-uploads/afab8cad-2c7f-4598-b7ce-f0d5c353db4c.png" 
+            src={euvatarLogo} 
             alt="Euvatar" 
           />
         </div>
