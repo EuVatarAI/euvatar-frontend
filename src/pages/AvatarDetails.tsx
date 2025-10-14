@@ -384,22 +384,11 @@ const AvatarDetails = () => {
     }
   };
 
-  const handleTrainFromDocuments = async () => {
-    if (trainingDocuments.length === 0) {
-      toast({
-        title: 'Aviso',
-        description: 'Adicione documentos antes de treinar.',
-        variant: 'destructive',
-      });
-      return;
-    }
-
+  const handleTrainFromDocument = async (docName: string) => {
     setSaving(true);
     try {
-      // Here you would typically process the documents and extract their content
-      // For now, we'll add a note to the backstory about the training documents
-      const docsList = trainingDocuments.map(doc => doc.document_name).join(', ');
-      const trainingNote = `\n\n[Treinado com os seguintes documentos: ${docsList}]`;
+      // Add a note to the backstory about this specific training document
+      const trainingNote = `\n\n[Treinado com o documento: ${docName}]`;
       
       const updatedBackstory = formData.backstory + trainingNote;
 
@@ -416,7 +405,7 @@ const AvatarDetails = () => {
 
       toast({
         title: 'Sucesso',
-        description: 'Avatar treinado com os documentos!',
+        description: `Avatar treinado com "${docName}"!`,
       });
 
       fetchAvatarData();
@@ -572,14 +561,21 @@ const AvatarDetails = () => {
                     />
                     
                     {trainingDocuments.length > 0 && (
-                      <>
-                        <div className="space-y-2">
-                          {trainingDocuments.map((doc) => (
-                            <div key={doc.id} className="flex items-center justify-between gap-2 p-2 bg-muted rounded">
-                              <div className="flex items-center gap-2 flex-1">
-                                <FileText className="h-4 w-4 text-muted-foreground" />
-                                <span className="text-sm">{doc.document_name}</span>
-                              </div>
+                      <div className="space-y-2">
+                        {trainingDocuments.map((doc) => (
+                          <div key={doc.id} className="flex items-center justify-between gap-2 p-2 bg-muted rounded">
+                            <div className="flex items-center gap-2 flex-1">
+                              <FileText className="h-4 w-4 text-muted-foreground" />
+                              <span className="text-sm">{doc.document_name}</span>
+                            </div>
+                            <div className="flex gap-1">
+                              <Button
+                                size="sm"
+                                onClick={() => handleTrainFromDocument(doc.document_name)}
+                                disabled={saving}
+                              >
+                                <Save className="h-4 w-4" />
+                              </Button>
                               <Button
                                 variant="ghost"
                                 size="sm"
@@ -588,18 +584,9 @@ const AvatarDetails = () => {
                                 <Trash2 className="h-4 w-4" />
                               </Button>
                             </div>
-                          ))}
-                        </div>
-                        <Button
-                          onClick={handleTrainFromDocuments}
-                          disabled={saving}
-                          className="w-full"
-                          variant="secondary"
-                        >
-                          <Save className="mr-2 h-4 w-4" />
-                          {saving ? 'Treinando...' : 'Treinar Avatar com Documentos'}
-                        </Button>
-                      </>
+                          </div>
+                        ))}
+                      </div>
                     )}
                   </div>
                 </div>
