@@ -721,11 +721,13 @@ const AvatarDetails = () => {
                           <CheckCircle2 className="h-3 w-3" />
                           Preview da mídia:
                         </p>
-                        {idleMediaFile?.type.startsWith('video/') ? (
-                          <video src={idleMediaUrl} controls className="w-full rounded-lg border" />
-                        ) : (
-                          <img src={idleMediaUrl} alt="Preview" className="w-full rounded-lg border" />
-                        )}
+                        <div className="inline-block">
+                          {idleMediaFile?.type.startsWith('video/') ? (
+                            <video src={idleMediaUrl} controls className="max-h-32 rounded-lg border" />
+                          ) : (
+                            <img src={idleMediaUrl} alt="Preview" className="max-h-32 rounded-lg border" />
+                          )}
+                        </div>
                       </div>
                       <Button
                         type="button"
