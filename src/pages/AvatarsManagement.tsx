@@ -199,18 +199,15 @@ const AvatarsManagement = () => {
         </div>
 
         {/* Avatars List */}
-        <div className="grid gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {avatars.length === 0 ? (
-            <Card>
+            <Card className="col-span-full">
               <CardContent className="pt-6">
                 <div className="text-center py-8">
                   <p className="text-muted-foreground mb-4">Nenhum euvatar criado ainda</p>
                   <p className="text-sm text-muted-foreground mb-6">
                     Primeiro configure as credenciais do euvatar
                   </p>
-                  <Button onClick={() => navigate('/configure-credentials')}>
-                    Configurar Credenciais do Euvatar
-                  </Button>
                 </div>
               </CardContent>
             </Card>
@@ -218,45 +215,46 @@ const AvatarsManagement = () => {
             avatars.map((avatar) => {
               const stats = avatarStats.find(s => s.avatarId === avatar.id);
               return (
-                <Card key={avatar.id} className="hover:shadow-lg transition-shadow">
-                  <CardContent className="pt-6">
-                    <div className="flex justify-between items-start">
-                      <div className="flex-1">
-                        <h3 className="text-xl font-semibold mb-2">{avatar.name}</h3>
-                        <p className="text-sm text-muted-foreground mb-4">
-                          {avatar.backstory?.substring(0, 100)}...
-                        </p>
-                        <div className="grid grid-cols-3 gap-4 mb-4">
-                          <div>
-                            <p className="text-xs text-muted-foreground">Web</p>
-                            <p className="text-lg font-semibold">{stats?.webUsage || 0}</p>
-                          </div>
-                          <div>
-                            <p className="text-xs text-muted-foreground">App</p>
-                            <p className="text-lg font-semibold">{stats?.appUsage || 0}</p>
-                          </div>
-                          <div>
-                            <p className="text-xs text-muted-foreground">Total</p>
-                            <p className="text-lg font-semibold">{stats?.totalUsage || 0}</p>
-                          </div>
+                <Card key={avatar.id} className="hover:shadow-lg transition-shadow flex flex-col">
+                  <CardHeader>
+                    <CardTitle className="text-lg">{avatar.name}</CardTitle>
+                  </CardHeader>
+                  <CardContent className="flex-1 flex flex-col justify-between">
+                    <div>
+                      <p className="text-sm text-muted-foreground mb-4 line-clamp-2">
+                        {avatar.backstory?.substring(0, 80)}...
+                      </p>
+                      <div className="grid grid-cols-3 gap-2 mb-4">
+                        <div className="text-center">
+                          <p className="text-xs text-muted-foreground">Web</p>
+                          <p className="text-sm font-semibold">{stats?.webUsage || 0}</p>
+                        </div>
+                        <div className="text-center">
+                          <p className="text-xs text-muted-foreground">App</p>
+                          <p className="text-sm font-semibold">{stats?.appUsage || 0}</p>
+                        </div>
+                        <div className="text-center">
+                          <p className="text-xs text-muted-foreground">Total</p>
+                          <p className="text-sm font-semibold">{stats?.totalUsage || 0}</p>
                         </div>
                       </div>
-                      <div className="flex gap-2">
-                        <Button 
-                          variant="outline" 
-                          size="sm"
-                          onClick={() => navigate(`/avatar/${avatar.id}`)}
-                        >
-                          Ver Detalhes
-                        </Button>
-                        <Button 
-                          variant="outline" 
-                          size="sm"
-                          onClick={() => navigate(`/avatar/${avatar.id}/settings`)}
-                        >
-                          <Settings className="h-4 w-4" />
-                        </Button>
-                      </div>
+                    </div>
+                    <div className="flex gap-2 mt-4">
+                      <Button 
+                        variant="outline" 
+                        size="sm"
+                        className="flex-1"
+                        onClick={() => navigate(`/avatar/${avatar.id}`)}
+                      >
+                        Ver Detalhes
+                      </Button>
+                      <Button 
+                        variant="outline" 
+                        size="sm"
+                        onClick={() => navigate(`/avatar/${avatar.id}/settings`)}
+                      >
+                        <Settings className="h-4 w-4" />
+                      </Button>
                     </div>
                   </CardContent>
                 </Card>
