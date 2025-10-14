@@ -8,8 +8,10 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
 import { ArrowLeft, Upload, Plus, Trash2 } from 'lucide-react';
+import { CredentialsTab } from '@/components/avatar/CredentialsTab';
 
 interface Avatar {
   id: string;
@@ -129,7 +131,13 @@ const AvatarSettings = () => {
           <h1 className="text-4xl font-bold">Configurações do Avatar</h1>
         </div>
 
-        <div className="space-y-6">
+        <Tabs defaultValue="general" className="space-y-6">
+          <TabsList className="grid w-full grid-cols-2">
+            <TabsTrigger value="general">Configurações Gerais</TabsTrigger>
+            <TabsTrigger value="credentials">Credenciais do Avatar</TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="general" className="space-y-6">
           <Card>
             <CardHeader>
               <CardTitle>Informações Básicas</CardTitle>
@@ -279,15 +287,20 @@ const AvatarSettings = () => {
             </CardContent>
           </Card>
 
-          <div className="flex justify-end gap-4">
-            <Button variant="outline" onClick={() => navigate(`/avatar/${id}`)}>
-              Cancelar
-            </Button>
-            <Button onClick={handleSave} disabled={saving}>
-              {saving ? 'Salvando...' : 'Salvar Configurações'}
-            </Button>
-          </div>
-        </div>
+            <div className="flex justify-end gap-4">
+              <Button variant="outline" onClick={() => navigate(`/avatar/${id}`)}>
+                Cancelar
+              </Button>
+              <Button onClick={handleSave} disabled={saving}>
+                {saving ? 'Salvando...' : 'Salvar Configurações'}
+              </Button>
+            </div>
+          </TabsContent>
+
+          <TabsContent value="credentials">
+            <CredentialsTab avatarId={id!} />
+          </TabsContent>
+        </Tabs>
       </div>
     </div>
   );

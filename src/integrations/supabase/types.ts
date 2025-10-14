@@ -14,6 +14,44 @@ export type Database = {
   }
   public: {
     Tables: {
+      avatar_credentials: {
+        Row: {
+          account_id: string
+          api_key: string
+          avatar_external_id: string
+          avatar_id: string
+          created_at: string
+          id: string
+          updated_at: string
+        }
+        Insert: {
+          account_id: string
+          api_key: string
+          avatar_external_id: string
+          avatar_id: string
+          created_at?: string
+          id?: string
+          updated_at?: string
+        }
+        Update: {
+          account_id?: string
+          api_key?: string
+          avatar_external_id?: string
+          avatar_id?: string
+          created_at?: string
+          id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "avatar_credentials_avatar_id_fkey"
+            columns: ["avatar_id"]
+            isOneToOne: true
+            referencedRelation: "avatars"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       avatars: {
         Row: {
           ai_model: string
@@ -137,6 +175,41 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "conversations_avatar_id_fkey"
+            columns: ["avatar_id"]
+            isOneToOne: false
+            referencedRelation: "avatars"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      credential_audit_logs: {
+        Row: {
+          action: string
+          avatar_id: string
+          details: Json | null
+          id: string
+          performed_at: string
+          performed_by: string | null
+        }
+        Insert: {
+          action: string
+          avatar_id: string
+          details?: Json | null
+          id?: string
+          performed_at?: string
+          performed_by?: string | null
+        }
+        Update: {
+          action?: string
+          avatar_id?: string
+          details?: Json | null
+          id?: string
+          performed_at?: string
+          performed_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "credential_audit_logs_avatar_id_fkey"
             columns: ["avatar_id"]
             isOneToOne: false
             referencedRelation: "avatars"
