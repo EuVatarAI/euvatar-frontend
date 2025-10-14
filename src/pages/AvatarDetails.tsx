@@ -167,18 +167,24 @@ const AvatarDetails = () => {
     const file = e.target.files?.[0];
     if (!file) return;
 
+    console.log('Arquivo selecionado:', file.name, file.type);
     setIdleMediaFile(file);
     setUploadingIdle(true);
 
     const url = await uploadMediaFile(file);
+    console.log('URL retornada do upload:', url);
+    
     if (url) {
       setIdleMediaUrl(url);
+      console.log('idleMediaUrl atualizado para:', url);
       toast({ title: 'Upload realizado com sucesso!' });
     } else {
       toast({ title: 'Erro ao fazer upload', variant: 'destructive' });
     }
 
     setUploadingIdle(false);
+    // Reset input para permitir re-upload do mesmo arquivo
+    e.target.value = '';
   };
 
   const handleTriggerFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -714,6 +720,12 @@ const AvatarDetails = () => {
                   Imagem ou vídeo exibido enquanto o euvatar não está em sessão ativa
                 </p>
                 <div className="space-y-4">
+                  {(() => {
+                    console.log('Renderizando mídia idle. idleMediaUrl:', idleMediaUrl, 'avatar?.idle_media_url:', avatar?.idle_media_url);
+                    const displayUrl = idleMediaUrl || avatar?.idle_media_url;
+                    console.log('URL a ser exibida:', displayUrl);
+                    return null;
+                  })()}
                   {idleMediaUrl || avatar?.idle_media_url ? (
                     <div className="space-y-3">
                       <div>
@@ -723,9 +735,19 @@ const AvatarDetails = () => {
                         </p>
                         <div className="inline-block">
                           {(idleMediaUrl || avatar?.idle_media_url || '').match(/\.(mp4|webm|mov)$/i) ? (
-                            <video src={idleMediaUrl || avatar?.idle_media_url || ''} controls className="max-h-32 rounded-lg border" />
+                            <video 
+                              key={idleMediaUrl || avatar?.idle_media_url}
+                              src={idleMediaUrl || avatar?.idle_media_url || ''} 
+                              controls 
+                              className="max-h-32 rounded-lg border" 
+                            />
                           ) : (
-                            <img src={idleMediaUrl || avatar?.idle_media_url || ''} alt="Preview" className="max-h-32 rounded-lg border" />
+                            <img 
+                              key={idleMediaUrl || avatar?.idle_media_url}
+                              src={idleMediaUrl || avatar?.idle_media_url || ''} 
+                              alt="Preview" 
+                              className="max-h-32 rounded-lg border" 
+                            />
                           )}
                         </div>
                       </div>
