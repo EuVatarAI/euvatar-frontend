@@ -186,23 +186,17 @@ const AvatarsManagement = () => {
         </Card>
 
         {/* Protected: Configure New Avatar */}
-        <Card className="mb-8 border-primary/50 shadow-lg">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Lock className="h-5 w-5" />
-              Configurar Novo Euvatar
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-sm text-muted-foreground mb-4">
-              Configure as credenciais para criar um novo euvatar. Esta área é protegida por senha.
-            </p>
-            <Button onClick={() => setShowUnlockDialog(true)} className="w-full">
-              <Plus className="mr-2 h-4 w-4" />
-              Configurar Credenciais
-            </Button>
-          </CardContent>
-        </Card>
+        <div className="mb-8 flex justify-end">
+          <Button 
+            onClick={() => setShowUnlockDialog(true)} 
+            variant="outline"
+            size="sm"
+            className="gap-2"
+          >
+            <Lock className="h-4 w-4" />
+            Configurar Novo Euvatar
+          </Button>
+        </div>
 
         {/* Avatars List */}
         <div className="grid gap-4">
