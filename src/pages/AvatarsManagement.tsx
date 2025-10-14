@@ -123,7 +123,7 @@ const AvatarsManagement = () => {
     <div className="min-h-screen bg-background p-8">
       <div className="max-w-7xl mx-auto">
         <div className="flex justify-between items-center mb-8">
-          <h1 className="text-4xl font-bold">Gerenciamento de Avatares</h1>
+          <h1 className="text-4xl font-bold">Gerenciamento de Euvatares</h1>
           <Button onClick={handleSignOut} variant="outline">
             <LogOut className="mr-2 h-4 w-4" />
             Sair
@@ -161,12 +161,12 @@ const AvatarsManagement = () => {
             <Card>
               <CardContent className="pt-6">
                 <div className="text-center py-8">
-                  <p className="text-muted-foreground mb-4">Nenhum avatar criado ainda</p>
+                  <p className="text-muted-foreground mb-4">Nenhum euvatar criado ainda</p>
                   <p className="text-sm text-muted-foreground mb-6">
-                    Primeiro configure as credenciais do avatar
+                    Primeiro configure as credenciais do euvatar
                   </p>
                   <Button onClick={() => navigate('/configure-credentials')}>
-                    Configurar Credenciais do Avatar
+                    Configurar Credenciais do Euvatar
                   </Button>
                 </div>
               </CardContent>

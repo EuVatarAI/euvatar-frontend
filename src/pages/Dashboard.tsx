@@ -116,7 +116,7 @@ const Dashboard = () => {
     <div className="min-h-screen bg-background p-8">
       <div className="max-w-7xl mx-auto">
         <div className="flex justify-between items-center mb-8">
-          <h1 className="text-4xl font-bold">Gerenciamento de Avatares</h1>
+          <h1 className="text-4xl font-bold">Gerenciamento de Euvatares</h1>
           <Button onClick={handleSignOut} variant="outline">
             <LogOut className="mr-2 h-4 w-4" />
             Sair
@@ -197,10 +197,10 @@ const Dashboard = () => {
             <Card className="col-span-full">
               <CardContent className="p-8 text-center">
                 <p className="text-muted-foreground mb-4">
-                  Nenhum avatar criado ainda.
+                  Nenhum euvatar criado ainda.
                 </p>
                 <Button onClick={() => navigate('/avatars')}>
-                  Criar Primeiro Avatar
+                  Criar Primeiro Euvatar
                 </Button>
               </CardContent>
             </Card>

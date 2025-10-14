@@ -103,7 +103,7 @@ const CreateAvatar = () => {
     if (!user) {
       toast({
         title: 'Erro',
-        description: 'Você precisa estar logado para criar um avatar.',
+        description: 'Você precisa estar logado para criar um euvatar.',
         variant: 'destructive',
       });
       return;
@@ -112,7 +112,7 @@ const CreateAvatar = () => {
     if (!formData.name) {
       toast({
         title: 'Erro',
-        description: 'O nome do avatar é obrigatório.',
+        description: 'O nome do euvatar é obrigatório.',
         variant: 'destructive',
       });
       return;
@@ -153,7 +153,7 @@ const CreateAvatar = () => {
 
       toast({
         title: 'Sucesso',
-        description: 'Avatar criado com sucesso!',
+        description: 'Euvatar criado com sucesso!',
       });
 
       navigate(`/avatar/${avatarData.id}`);
@@ -161,7 +161,7 @@ const CreateAvatar = () => {
       console.error('Error creating avatar:', error);
       toast({
         title: 'Erro',
-        description: 'Erro ao criar avatar. Tente novamente.',
+        description: 'Erro ao criar euvatar. Tente novamente.',
         variant: 'destructive',
       });
     } finally {
@@ -200,16 +200,16 @@ const CreateAvatar = () => {
           <Button onClick={() => navigate('/avatars')} variant="outline" size="icon">
             <ArrowLeft className="h-4 w-4" />
           </Button>
-          <h1 className="text-4xl font-bold">Criar Novo Avatar</h1>
+          <h1 className="text-4xl font-bold">Criar Novo Euvatar</h1>
         </div>
 
         <Card>
           <CardHeader>
-            <CardTitle>Informações do Avatar</CardTitle>
+            <CardTitle>Informações do Euvatar</CardTitle>
           </CardHeader>
           <CardContent className="space-y-6">
             <div>
-              <Label htmlFor="name">Nome do Avatar *</Label>
+              <Label htmlFor="name">Nome do Euvatar *</Label>
               <Input
                 id="name"
                 value={formData.name}
@@ -224,7 +224,7 @@ const CreateAvatar = () => {
                 id="backstory"
                 value={formData.backstory}
                 onChange={(e) => setFormData({ ...formData, backstory: e.target.value })}
-                placeholder="Descreva a personalidade, conhecimento e comportamento do avatar..."
+                placeholder="Descreva a personalidade, conhecimento e comportamento do euvatar..."
                 rows={6}
               />
             </div>
@@ -291,7 +291,7 @@ const CreateAvatar = () => {
           </CardHeader>
           <CardContent>
             <p className="text-sm text-muted-foreground mb-4">
-              Imagem ou vídeo exibido enquanto o avatar não está em sessão ativa
+              Imagem ou vídeo exibido enquanto o euvatar não está em sessão ativa
             </p>
             <div className="space-y-4">
               <div>
@@ -464,7 +464,7 @@ const CreateAvatar = () => {
             Cancelar
           </Button>
           <Button onClick={handleCreate} disabled={creating} className="flex-1">
-            {creating ? 'Criando...' : 'Criar Avatar'}
+            {creating ? 'Criando...' : 'Criar Euvatar'}
           </Button>
         </div>
       </div>

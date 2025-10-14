@@ -213,7 +213,7 @@ export function CredentialsTab({ avatarId }: CredentialsTabProps) {
             <div className="space-y-1">
               <div className="flex items-center gap-2">
                 <Shield className="h-5 w-5 text-warning" />
-                <CardTitle>Credenciais do Avatar</CardTitle>
+                <CardTitle>Credenciais do Euvatar</CardTitle>
               </div>
               <CardDescription>
                 Informações sensíveis do provedor externo. Editável apenas com senha interna da Euvatar.
@@ -271,7 +271,7 @@ export function CredentialsTab({ avatarId }: CredentialsTabProps) {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="avatar-external-id">ID do avatar</Label>
+              <Label htmlFor="avatar-external-id">ID do euvatar</Label>
               <Input
                 id="avatar-external-id"
                 value={credentials.avatarExternalId}
@@ -281,7 +281,7 @@ export function CredentialsTab({ avatarId }: CredentialsTabProps) {
                 className={!isUnlocked ? 'bg-muted cursor-not-allowed' : ''}
               />
               <p className="text-xs text-muted-foreground">
-                Identifica qual avatar será usado pela empresa
+                Identifica qual euvatar será usado pela empresa
               </p>
             </div>
           </div>

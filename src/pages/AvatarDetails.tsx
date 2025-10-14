@@ -131,7 +131,7 @@ const AvatarDetails = () => {
       console.error('Error fetching avatar data:', error);
       toast({
         title: 'Erro',
-        description: 'Erro ao carregar dados do avatar.',
+        description: 'Erro ao carregar dados do euvatar.',
         variant: 'destructive',
       });
       setLoading(false);
@@ -203,7 +203,7 @@ const AvatarDetails = () => {
     if (!formData.name) {
       toast({
         title: 'Erro',
-        description: 'O nome do avatar é obrigatório.',
+        description: 'O nome do euvatar é obrigatório.',
         variant: 'destructive',
       });
       return;
@@ -227,7 +227,7 @@ const AvatarDetails = () => {
 
       toast({
         title: 'Sucesso',
-        description: 'Avatar atualizado com sucesso!',
+        description: 'Euvatar atualizado com sucesso!',
       });
 
       fetchAvatarData();
@@ -235,7 +235,7 @@ const AvatarDetails = () => {
       console.error('Error updating avatar:', error);
       toast({
         title: 'Erro',
-        description: 'Erro ao atualizar avatar. Tente novamente.',
+        description: 'Erro ao atualizar euvatar. Tente novamente.',
         variant: 'destructive',
       });
     } finally {
@@ -418,7 +418,7 @@ const AvatarDetails = () => {
 
       toast({
         title: 'Sucesso',
-        description: `Avatar treinado com "${docName}"!`,
+        description: `Euvatar treinado com "${docName}"!`,
       });
 
       fetchAvatarData();
@@ -426,7 +426,7 @@ const AvatarDetails = () => {
       console.error('Error training avatar:', error);
       toast({
         title: 'Erro',
-        description: 'Erro ao treinar avatar.',
+        description: 'Erro ao treinar euvatar.',
         variant: 'destructive',
       });
     } finally {
@@ -464,13 +464,13 @@ const AvatarDetails = () => {
           <Button onClick={() => navigate('/avatars')} variant="outline" size="icon">
             <ArrowLeft className="h-4 w-4" />
           </Button>
-          <h1 className="text-4xl font-bold">{avatar?.name || 'Avatar'}</h1>
+          <h1 className="text-4xl font-bold">{avatar?.name || 'Euvatar'}</h1>
         </div>
 
         <Tabs defaultValue="overview" className="w-full">
           <TabsList className="grid w-full grid-cols-3">
             <TabsTrigger value="overview">Visão Geral</TabsTrigger>
-            <TabsTrigger value="edit">Editar Avatar</TabsTrigger>
+            <TabsTrigger value="edit">Editar Euvatar</TabsTrigger>
             <TabsTrigger value="media">Gatilhos de Mídia</TabsTrigger>
           </TabsList>
 
@@ -478,7 +478,7 @@ const AvatarDetails = () => {
             {idleMediaUrl && (
               <Card>
                 <CardHeader>
-                  <CardTitle>Preview do Avatar</CardTitle>
+                  <CardTitle>Preview do Euvatar</CardTitle>
                 </CardHeader>
                 <CardContent className="flex justify-center">
                   <div className="w-full max-w-xs">
@@ -505,7 +505,7 @@ const AvatarDetails = () => {
             {avatar?.backstory && (
               <Card>
                 <CardHeader>
-                  <CardTitle>Sobre o Avatar</CardTitle>
+                  <CardTitle>Sobre o Euvatar</CardTitle>
                 </CardHeader>
                 <CardContent>
                   <p className="text-muted-foreground">{avatar.backstory}</p>
@@ -559,11 +559,11 @@ const AvatarDetails = () => {
           <TabsContent value="edit" className="space-y-6 mt-6">
             <Card>
               <CardHeader>
-                <CardTitle>Informações do Avatar</CardTitle>
+                <CardTitle>Informações do Euvatar</CardTitle>
               </CardHeader>
               <CardContent className="space-y-6">
                 <div>
-                  <Label htmlFor="name">Nome do Avatar *</Label>
+                  <Label htmlFor="name">Nome do Euvatar *</Label>
                   <Input
                     id="name"
                     value={formData.name}
@@ -578,7 +578,7 @@ const AvatarDetails = () => {
                     id="backstory"
                     value={formData.backstory}
                     onChange={(e) => setFormData({ ...formData, backstory: e.target.value })}
-                    placeholder="Descreva a personalidade, conhecimento e comportamento do avatar..."
+                    placeholder="Descreva a personalidade, conhecimento e comportamento do euvatar..."
                     rows={6}
                   />
                   <div className="mt-3 space-y-3">
@@ -711,7 +711,7 @@ const AvatarDetails = () => {
               </CardHeader>
               <CardContent>
                 <p className="text-sm text-muted-foreground mb-4">
-                  Imagem ou vídeo exibido enquanto o avatar não está em sessão ativa
+                  Imagem ou vídeo exibido enquanto o euvatar não está em sessão ativa
                 </p>
                 <div className="space-y-4">
                   {idleMediaUrl ? (

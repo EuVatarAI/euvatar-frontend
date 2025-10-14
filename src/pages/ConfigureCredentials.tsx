@@ -97,15 +97,15 @@ const ConfigureCredentials = () => {
           <Button onClick={() => navigate('/avatars')} variant="outline" size="icon">
             <ArrowLeft className="h-4 w-4" />
           </Button>
-          <h1 className="text-4xl font-bold">Configurar Credenciais do Avatar</h1>
+          <h1 className="text-4xl font-bold">Configurar Credenciais do Euvatar</h1>
         </div>
 
         <Card>
           <CardHeader>
             <CardTitle>Credenciais Externas</CardTitle>
             <CardDescription>
-              Configure as credenciais necessárias para conectar seu avatar ao sistema externo.
-              Esta etapa é obrigatória antes de criar/editar o avatar.
+              Configure as credenciais necessárias para conectar seu euvatar ao sistema externo.
+              Esta etapa é obrigatória antes de criar/editar o euvatar.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
@@ -145,13 +145,13 @@ const ConfigureCredentials = () => {
                 </div>
 
                 <div>
-                  <Label htmlFor="avatarExternalId">Avatar External ID *</Label>
+                  <Label htmlFor="avatarExternalId">Euvatar External ID *</Label>
                   <Input
                     id="avatarExternalId"
                     type="text"
                     value={credentials.avatarExternalId}
                     onChange={(e) => setCredentials({ ...credentials, avatarExternalId: e.target.value })}
-                    placeholder="Digite o Avatar External ID"
+                    placeholder="Digite o Euvatar External ID"
                   />
                 </div>
 

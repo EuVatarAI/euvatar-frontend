@@ -71,7 +71,7 @@ const AvatarSettings = () => {
       console.error('Error fetching settings:', error);
       toast({
         title: 'Erro',
-        description: 'Erro ao carregar configurações do avatar.',
+        description: 'Erro ao carregar configurações do euvatar.',
         variant: 'destructive',
       });
       setLoading(false);
@@ -128,13 +128,13 @@ const AvatarSettings = () => {
           <Button onClick={() => navigate(`/avatar/${id}`)} variant="outline" size="icon">
             <ArrowLeft className="h-4 w-4" />
           </Button>
-          <h1 className="text-4xl font-bold">Configurações do Avatar</h1>
+          <h1 className="text-4xl font-bold">Configurações do Euvatar</h1>
         </div>
 
         <Tabs defaultValue="general" className="space-y-6">
           <TabsList className="grid w-full grid-cols-2">
             <TabsTrigger value="general">Configurações Gerais</TabsTrigger>
-            <TabsTrigger value="credentials">Credenciais do Avatar</TabsTrigger>
+            <TabsTrigger value="credentials">Credenciais do Euvatar</TabsTrigger>
           </TabsList>
 
           <TabsContent value="general" className="space-y-6">
@@ -144,12 +144,12 @@ const AvatarSettings = () => {
             </CardHeader>
             <CardContent className="space-y-4">
               <div>
-                <Label htmlFor="name">Nome do Avatar</Label>
+                <Label htmlFor="name">Nome do Euvatar</Label>
                 <Input 
                   id="name" 
                   value={avatar?.name || ''} 
                   onChange={(e) => setAvatar(prev => prev ? {...prev, name: e.target.value} : null)}
-                  placeholder="Avatar 1" 
+                  placeholder="Avatar 1"
                 />
               </div>
               <div>
@@ -158,7 +158,7 @@ const AvatarSettings = () => {
                   id="backstory" 
                   value={avatar?.backstory || ''} 
                   onChange={(e) => setAvatar(prev => prev ? {...prev, backstory: e.target.value} : null)}
-                  placeholder="Contexto e personalidade do avatar..." 
+                  placeholder="Contexto e personalidade do euvatar..." 
                   rows={6} 
                 />
               </div>
