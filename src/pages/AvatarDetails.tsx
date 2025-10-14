@@ -12,6 +12,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
 import { ArrowLeft, Plus, Trash2, CheckCircle2, Save, Upload, FileText } from 'lucide-react';
 import { sanitizeContextName } from '@/utils/contextNameSanitizer';
+import avatarDemoImage from '@/assets/avatar-flavia-demo.png';
 
 interface Avatar {
   id: string;
@@ -94,9 +95,11 @@ const AvatarDetails = () => {
         voice_model: avatarData.voice_model,
       });
       
-      // Load idle media URL if exists
+      // Load idle media URL if exists, or use demo image
       if (avatarData.idle_media_url) {
         setIdleMediaUrl(avatarData.idle_media_url);
+      } else {
+        setIdleMediaUrl(avatarDemoImage);
       }
 
       const { data: conversationsData, error: conversationsError } = await supabase
