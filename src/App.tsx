@@ -9,7 +9,6 @@ import AvatarsManagement from "./pages/AvatarsManagement";
 import AvatarDetails from "./pages/AvatarDetails";
 import AvatarSettings from "./pages/AvatarSettings";
 import CreateAvatar from "./pages/CreateAvatar";
-
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
