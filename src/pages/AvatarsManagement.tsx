@@ -207,6 +207,7 @@ const AvatarsManagement = () => {
                           variant="outline" 
                           size="sm"
                           onClick={() => navigate(`/avatar/${avatar.id}/settings`)}
+                          className="animate-pulse bg-primary/20 border-primary"
                         >
                           <Settings className="h-4 w-4" />
                         </Button>
