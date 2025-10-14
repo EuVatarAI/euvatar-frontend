@@ -10,7 +10,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
-import { ArrowLeft, Plus, Trash2, CheckCircle2, Save } from 'lucide-react';
+import { ArrowLeft, Plus, Trash2, CheckCircle2, Save, Upload, FileText } from 'lucide-react';
 import { sanitizeContextName } from '@/utils/contextNameSanitizer';
 
 interface Avatar {
@@ -52,8 +52,10 @@ const AvatarDetails = () => {
   const [triggerMediaFile, setTriggerMediaFile] = useState<File | null>(null);
   const [uploadingIdle, setUploadingIdle] = useState(false);
   const [uploadingTrigger, setUploadingTrigger] = useState(false);
+  const [uploadingTraining, setUploadingTraining] = useState(false);
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [trainingDocuments, setTrainingDocuments] = useState<any[]>([]);
   const [formData, setFormData] = useState({
     name: '',
     backstory: '',
@@ -104,6 +106,14 @@ const AvatarDetails = () => {
 
       if (triggersError) throw triggersError;
       setMediaTriggers((triggersData || []) as MediaTrigger[]);
+
+      const { data: docsData, error: docsError } = await supabase
+        .from('training_documents')
+        .select('*')
+        .eq('avatar_id', id);
+
+      if (docsError) throw docsError;
+      setTrainingDocuments((docsData || []) as any[]);
 
       setLoading(false);
     } catch (error: any) {
@@ -287,6 +297,60 @@ const AvatarDetails = () => {
     }
   };
 
+  const handleRemoveIdleMedia = () => {
+    setIdleMediaUrl('');
+    setIdleMediaFile(null);
+    toast({
+      title: 'Mídia removida',
+      description: 'Mídia idle removida com sucesso.',
+    });
+  };
+
+  const handleTrainingFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setUploadingTraining(true);
+    try {
+      const fileName = `${user?.id}/training/${Date.now()}-${file.name}`;
+      const { error: uploadError } = await supabase.storage
+        .from('avatar-media')
+        .upload(fileName, file);
+
+      if (uploadError) throw uploadError;
+
+      const { data: { publicUrl } } = supabase.storage
+        .from('avatar-media')
+        .getPublicUrl(fileName);
+
+      const { error: insertError } = await supabase
+        .from('training_documents')
+        .insert({
+          avatar_id: id,
+          document_url: publicUrl,
+          document_name: file.name,
+        });
+
+      if (insertError) throw insertError;
+
+      toast({
+        title: 'Sucesso',
+        description: 'Documento de treinamento adicionado!',
+      });
+
+      fetchAvatarData();
+    } catch (error: any) {
+      console.error('Error uploading training document:', error);
+      toast({
+        title: 'Erro',
+        description: 'Erro ao enviar documento.',
+        variant: 'destructive',
+      });
+    } finally {
+      setUploadingTraining(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -407,6 +471,36 @@ const AvatarDetails = () => {
                     placeholder="Descreva a personalidade, conhecimento e comportamento do avatar..."
                     rows={6}
                   />
+                  <div className="mt-3">
+                    <Label htmlFor="training-docs" className="cursor-pointer">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        disabled={uploadingTraining}
+                        onClick={() => document.getElementById('training-docs')?.click()}
+                      >
+                        <Upload className="mr-2 h-4 w-4" />
+                        {uploadingTraining ? 'Enviando...' : 'Adicionar Documentos de Treinamento'}
+                      </Button>
+                    </Label>
+                    <Input
+                      id="training-docs"
+                      type="file"
+                      accept=".pdf,.doc,.docx,.txt"
+                      onChange={handleTrainingFileSelect}
+                      className="hidden"
+                    />
+                  </div>
+                  {trainingDocuments.length > 0 && (
+                    <div className="mt-3 space-y-2">
+                      {trainingDocuments.map((doc, idx) => (
+                        <div key={idx} className="text-sm text-muted-foreground flex items-center gap-2 p-2 bg-muted rounded">
+                          <FileText className="h-4 w-4" />
+                          {doc.document_name}
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
 
                 <div>
@@ -479,40 +573,61 @@ const AvatarDetails = () => {
                   Imagem ou vídeo exibido enquanto o avatar não está em sessão ativa
                 </p>
                 <div className="space-y-4">
-                  <div>
-                    <Label htmlFor="idle_media_file">Selecionar Mídia Idle</Label>
-                    <Input
-                      id="idle_media_file"
-                      type="file"
-                      accept="image/*,video/*"
-                      onChange={handleIdleFileSelect}
-                      disabled={uploadingIdle}
-                    />
-                    
-                    {uploadingIdle && (
-                      <p className="text-xs text-blue-600 mt-1 flex items-center gap-1">
-                        <span className="animate-spin">⏳</span> Fazendo upload...
-                      </p>
-                    )}
-                    
-                    {idleMediaUrl && (
-                      <div className="mt-2">
+                  {idleMediaUrl ? (
+                    <div className="space-y-3">
+                      <div>
                         <p className="text-xs text-green-600 mb-2 flex items-center gap-1">
                           <CheckCircle2 className="h-3 w-3" />
-                          Upload realizado - Preview:
+                          Preview da mídia:
                         </p>
                         {idleMediaFile?.type.startsWith('video/') ? (
-                          <video src={idleMediaUrl} controls className="max-h-32 rounded border" />
+                          <video src={idleMediaUrl} controls className="w-full rounded-lg border" />
                         ) : (
-                          <img src={idleMediaUrl} alt="Preview" className="max-h-32 rounded border" />
+                          <img src={idleMediaUrl} alt="Preview" className="w-full rounded-lg border" />
                         )}
                       </div>
-                    )}
-                    
-                    <p className="text-xs text-muted-foreground mt-1">
-                      Arraste e solte ou clique para selecionar imagem ou vídeo
-                    </p>
-                  </div>
+                      <Button
+                        type="button"
+                        variant="destructive"
+                        onClick={handleRemoveIdleMedia}
+                        className="w-full"
+                      >
+                        <Trash2 className="mr-2 h-4 w-4" />
+                        Excluir Vídeo
+                      </Button>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      <Label htmlFor="idle_media_file" className="cursor-pointer">
+                        <Button
+                          type="button"
+                          className="w-full"
+                          disabled={uploadingIdle}
+                          onClick={() => document.getElementById('idle_media_file')?.click()}
+                        >
+                          <Upload className="mr-2 h-4 w-4" />
+                          {uploadingIdle ? 'Enviando...' : 'Enviar Vídeo Idle'}
+                        </Button>
+                      </Label>
+                      <Input
+                        id="idle_media_file"
+                        type="file"
+                        accept="image/*,video/*"
+                        onChange={handleIdleFileSelect}
+                        className="hidden"
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        Clique no botão acima para selecionar imagem ou vídeo
+                      </p>
+                    </div>
+                  )}
+                  
+                  {idleMediaUrl && (
+                    <Button onClick={handleSave} disabled={saving} className="w-full">
+                      <Save className="mr-2 h-4 w-4" />
+                      {saving ? 'Salvando...' : 'Salvar Mídia Idle'}
+                    </Button>
+                  )}
                 </div>
               </CardContent>
             </Card>
