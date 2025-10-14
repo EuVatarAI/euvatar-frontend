@@ -481,7 +481,7 @@ const AvatarDetails = () => {
                   <CardTitle>Preview do Avatar</CardTitle>
                 </CardHeader>
                 <CardContent className="flex justify-center">
-                  <div className="w-full max-w-md">
+                  <div className="w-full max-w-xs">
                     {idleMediaFile?.type.startsWith('video/') || idleMediaUrl.match(/\.(mp4|webm|mov)$/i) ? (
                       <video 
                         src={idleMediaUrl} 
