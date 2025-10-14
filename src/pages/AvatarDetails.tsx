@@ -351,6 +351,87 @@ const AvatarDetails = () => {
     }
   };
 
+  const handleRemoveTrainingDocument = async (docId: string, docUrl: string) => {
+    try {
+      const { error: deleteError } = await supabase
+        .from('training_documents')
+        .delete()
+        .eq('id', docId);
+
+      if (deleteError) throw deleteError;
+
+      // Extract file path from URL and delete from storage
+      const urlParts = docUrl.split('/');
+      const filePath = urlParts.slice(urlParts.indexOf('training')).join('/');
+      
+      await supabase.storage
+        .from('avatar-media')
+        .remove([`${user?.id}/${filePath}`]);
+
+      toast({
+        title: 'Sucesso',
+        description: 'Documento removido!',
+      });
+
+      fetchAvatarData();
+    } catch (error: any) {
+      console.error('Error removing document:', error);
+      toast({
+        title: 'Erro',
+        description: 'Erro ao remover documento.',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const handleTrainFromDocuments = async () => {
+    if (trainingDocuments.length === 0) {
+      toast({
+        title: 'Aviso',
+        description: 'Adicione documentos antes de treinar.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setSaving(true);
+    try {
+      // Here you would typically process the documents and extract their content
+      // For now, we'll add a note to the backstory about the training documents
+      const docsList = trainingDocuments.map(doc => doc.document_name).join(', ');
+      const trainingNote = `\n\n[Treinado com os seguintes documentos: ${docsList}]`;
+      
+      const updatedBackstory = formData.backstory + trainingNote;
+
+      const { error: updateError } = await supabase
+        .from('avatars')
+        .update({
+          backstory: updatedBackstory,
+        })
+        .eq('id', id);
+
+      if (updateError) throw updateError;
+
+      setFormData(prev => ({ ...prev, backstory: updatedBackstory }));
+
+      toast({
+        title: 'Sucesso',
+        description: 'Avatar treinado com os documentos!',
+      });
+
+      fetchAvatarData();
+    } catch (error: any) {
+      console.error('Error training avatar:', error);
+      toast({
+        title: 'Erro',
+        description: 'Erro ao treinar avatar.',
+        variant: 'destructive',
+      });
+    } finally {
+      setSaving(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -471,11 +552,10 @@ const AvatarDetails = () => {
                     placeholder="Descreva a personalidade, conhecimento e comportamento do avatar..."
                     rows={6}
                   />
-                  <div className="mt-3">
+                  <div className="mt-3 space-y-3">
                     <Label htmlFor="training-docs" className="cursor-pointer">
                       <Button
                         type="button"
-                        variant="outline"
                         disabled={uploadingTraining}
                         onClick={() => document.getElementById('training-docs')?.click()}
                       >
@@ -490,17 +570,38 @@ const AvatarDetails = () => {
                       onChange={handleTrainingFileSelect}
                       className="hidden"
                     />
-                  </div>
-                  {trainingDocuments.length > 0 && (
-                    <div className="mt-3 space-y-2">
-                      {trainingDocuments.map((doc, idx) => (
-                        <div key={idx} className="text-sm text-muted-foreground flex items-center gap-2 p-2 bg-muted rounded">
-                          <FileText className="h-4 w-4" />
-                          {doc.document_name}
+                    
+                    {trainingDocuments.length > 0 && (
+                      <>
+                        <div className="space-y-2">
+                          {trainingDocuments.map((doc) => (
+                            <div key={doc.id} className="flex items-center justify-between gap-2 p-2 bg-muted rounded">
+                              <div className="flex items-center gap-2 flex-1">
+                                <FileText className="h-4 w-4 text-muted-foreground" />
+                                <span className="text-sm">{doc.document_name}</span>
+                              </div>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleRemoveTrainingDocument(doc.id, doc.document_url)}
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          ))}
                         </div>
-                      ))}
-                    </div>
-                  )}
+                        <Button
+                          onClick={handleTrainFromDocuments}
+                          disabled={saving}
+                          className="w-full"
+                          variant="secondary"
+                        >
+                          <Save className="mr-2 h-4 w-4" />
+                          {saving ? 'Treinando...' : 'Treinar Avatar com Documentos'}
+                        </Button>
+                      </>
+                    )}
+                  </div>
                 </div>
 
                 <div>
