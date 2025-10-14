@@ -20,6 +20,7 @@ interface Avatar {
   language: string;
   ai_model: string;
   voice_model: string;
+  idle_media_url?: string | null;
 }
 
 interface MediaTrigger {
@@ -465,6 +466,33 @@ const AvatarDetails = () => {
           </TabsList>
 
           <TabsContent value="overview" className="space-y-6 mt-6">
+            {idleMediaUrl && (
+              <Card>
+                <CardHeader>
+                  <CardTitle>Preview do Avatar</CardTitle>
+                </CardHeader>
+                <CardContent className="flex justify-center">
+                  <div className="w-full max-w-md">
+                    {idleMediaFile?.type.startsWith('video/') || idleMediaUrl.match(/\.(mp4|webm|mov)$/i) ? (
+                      <video 
+                        src={idleMediaUrl} 
+                        autoPlay
+                        loop
+                        muted
+                        className="w-full rounded-lg border shadow-lg" 
+                      />
+                    ) : (
+                      <img 
+                        src={idleMediaUrl} 
+                        alt="Avatar Preview" 
+                        className="w-full rounded-lg border shadow-lg" 
+                      />
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
             {avatar?.backstory && (
               <Card>
                 <CardHeader>
