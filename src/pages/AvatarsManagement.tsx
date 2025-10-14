@@ -41,7 +41,7 @@ const AvatarsManagement = () => {
 
   useEffect(() => {
     if (!user) {
-      navigate('/login');
+      navigate('/');
       return;
     }
     fetchData();
@@ -105,7 +105,7 @@ const AvatarsManagement = () => {
 
   const handleSignOut = async () => {
     await signOut();
-    navigate('/login');
+    navigate('/');
   };
 
   if (loading) {
