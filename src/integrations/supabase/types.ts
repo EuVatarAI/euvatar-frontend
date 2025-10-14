@@ -58,6 +58,7 @@ export type Database = {
           backstory: string | null
           created_at: string
           id: string
+          idle_media_url: string | null
           language: string
           name: string
           updated_at: string
@@ -69,6 +70,7 @@ export type Database = {
           backstory?: string | null
           created_at?: string
           id?: string
+          idle_media_url?: string | null
           language?: string
           name: string
           updated_at?: string
@@ -80,6 +82,7 @@ export type Database = {
           backstory?: string | null
           created_at?: string
           id?: string
+          idle_media_url?: string | null
           language?: string
           name?: string
           updated_at?: string

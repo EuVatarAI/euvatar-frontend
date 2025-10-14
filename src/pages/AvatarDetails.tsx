@@ -93,6 +93,11 @@ const AvatarDetails = () => {
         ai_model: avatarData.ai_model,
         voice_model: avatarData.voice_model,
       });
+      
+      // Load idle media URL if exists
+      if (avatarData.idle_media_url) {
+        setIdleMediaUrl(avatarData.idle_media_url);
+      }
 
       const { data: conversationsData, error: conversationsError } = await supabase
         .from('conversations')
@@ -211,6 +216,7 @@ const AvatarDetails = () => {
           language: formData.language,
           ai_model: formData.ai_model,
           voice_model: formData.voice_model,
+          idle_media_url: idleMediaUrl || null,
         })
         .eq('id', id);
 
