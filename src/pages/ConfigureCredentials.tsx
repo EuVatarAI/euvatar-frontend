@@ -77,7 +77,8 @@ const ConfigureCredentials = () => {
 
       if (data.success) {
         toast({ title: 'Credenciais salvas com sucesso!' });
-        navigate(`/create-avatar?configured=true&avatarId=${avatarId}`);
+        const finalAvatarId = data.avatarId || avatarId;
+        navigate(`/avatar/${finalAvatarId}`);
       } else {
         toast({ title: data.error || 'Erro ao salvar', variant: 'destructive' });
       }

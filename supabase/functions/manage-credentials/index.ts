@@ -49,7 +49,8 @@ Deno.serve(async (req) => {
       });
     }
 
-    const { action, password, avatarId, credentials } = await req.json();
+    const body = await req.json();
+    const { action, password, avatarId, accountId, apiKey, avatarExternalId } = body;
 
     console.log(`Credential action: ${action} for avatar: ${avatarId} by user: ${user.id}`);
 
@@ -83,29 +84,61 @@ Deno.serve(async (req) => {
 
     // Save credentials action
     if (action === 'save') {
-      const { accountId, apiKey, avatarExternalId, unlockToken } = credentials;
-
-      if (!unlockToken) {
-        return new Response(JSON.stringify({ error: 'Token de desbloqueio necessário' }), {
-          status: 403,
+      if (!accountId || !apiKey || !avatarExternalId) {
+        return new Response(JSON.stringify({ error: 'Todos os campos são obrigatórios' }), {
+          status: 400,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         });
       }
 
-      // Verify user owns the avatar
-      const { data: avatar, error: avatarError } = await supabase
-        .from('avatars')
-        .select('id, user_id')
-        .eq('id', avatarId)
-        .eq('user_id', user.id)
-        .single();
+      let finalAvatarId = avatarId;
 
-      if (avatarError || !avatar) {
-        console.error('Avatar not found or unauthorized:', avatarError);
-        return new Response(JSON.stringify({ error: 'Avatar não encontrado' }), {
-          status: 404,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        });
+      // Se não houver avatarId, criar um avatar básico
+      if (!finalAvatarId) {
+        const supabaseAdmin = createClient(
+          Deno.env.get('SUPABASE_URL') ?? '',
+          Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+        );
+
+        const { data: newAvatar, error: createError } = await supabaseAdmin
+          .from('avatars')
+          .insert({
+            user_id: user.id,
+            name: 'Meu Avatar',
+            backstory: 'Avatar criado automaticamente',
+            language: 'pt-BR',
+            ai_model: 'gpt-4',
+            voice_model: 'default',
+          })
+          .select()
+          .single();
+
+        if (createError || !newAvatar) {
+          console.error('Error creating avatar:', createError);
+          return new Response(JSON.stringify({ error: 'Erro ao criar avatar' }), {
+            status: 500,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
+        }
+
+        finalAvatarId = newAvatar.id;
+        console.log('Avatar created with ID:', finalAvatarId);
+      } else {
+        // Verify user owns the avatar
+        const { data: avatar, error: avatarError } = await supabase
+          .from('avatars')
+          .select('id, user_id')
+          .eq('id', finalAvatarId)
+          .eq('user_id', user.id)
+          .single();
+
+        if (avatarError || !avatar) {
+          console.error('Avatar not found or unauthorized:', avatarError);
+          return new Response(JSON.stringify({ error: 'Avatar não encontrado' }), {
+            status: 404,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
+        }
       }
 
       // Validate credentials with external provider (mock validation)
@@ -139,7 +172,7 @@ Deno.serve(async (req) => {
       const { error: upsertError } = await supabaseAdmin
         .from('avatar_credentials')
         .upsert({
-          avatar_id: avatarId,
+          avatar_id: finalAvatarId,
           account_id: encryptedAccountId,
           api_key: encryptedApiKey,
           avatar_external_id: encryptedAvatarId,
@@ -156,7 +189,7 @@ Deno.serve(async (req) => {
 
       // Create audit log
       await supabaseAdmin.from('credential_audit_logs').insert({
-        avatar_id: avatarId,
+        avatar_id: finalAvatarId,
         action: 'credentials_updated',
         performed_by: user.id,
         details: {
@@ -166,7 +199,11 @@ Deno.serve(async (req) => {
 
       console.log('Credentials saved and audit log created');
       return new Response(
-        JSON.stringify({ success: true, message: 'Credenciais salvas com sucesso' }),
+        JSON.stringify({ 
+          success: true, 
+          message: 'Credenciais salvas com sucesso',
+          avatarId: finalAvatarId 
+        }),
         {
           status: 200,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
