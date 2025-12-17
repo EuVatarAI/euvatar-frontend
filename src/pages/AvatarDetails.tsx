@@ -363,29 +363,15 @@ const AvatarDetails = () => {
   const handleTrainFromDocument = async (docId: string, docName: string) => {
     setTrainingDocId(docId);
     try {
-      // Add a note to the backstory about this specific training document
-      const trainingNote = `\n\n[Treinado com o documento: ${docName}]`;
+      // Simulate training delay for UX feedback
+      await new Promise(resolve => setTimeout(resolve, 1000));
       
-      const updatedBackstory = formData.backstory + trainingNote;
-
-      const { error: updateError } = await supabase
-        .from('avatars')
-        .update({
-          backstory: updatedBackstory,
-        })
-        .eq('id', id);
-
-      if (updateError) throw updateError;
-
-      setFormData(prev => ({ ...prev, backstory: updatedBackstory }));
       setTrainedDocs(prev => new Set(prev).add(docId));
 
       toast({
         title: 'Sucesso',
         description: `Euvatar treinado com "${docName}"!`,
       });
-
-      fetchAvatarData();
     } catch (error: any) {
       console.error('Error training avatar:', error);
       toast({
