@@ -94,6 +94,7 @@ export type Database = {
         Row: {
           ai_model: string
           backstory: string | null
+          cover_image_url: string | null
           created_at: string
           id: string
           idle_media_url: string | null
@@ -106,6 +107,7 @@ export type Database = {
         Insert: {
           ai_model?: string
           backstory?: string | null
+          cover_image_url?: string | null
           created_at?: string
           id?: string
           idle_media_url?: string | null
@@ -118,6 +120,7 @@ export type Database = {
         Update: {
           ai_model?: string
           backstory?: string | null
+          cover_image_url?: string | null
           created_at?: string
           id?: string
           idle_media_url?: string | null

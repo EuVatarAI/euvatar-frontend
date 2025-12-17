@@ -18,6 +18,7 @@ interface Avatar {
   ai_model: string;
   voice_model: string;
   idle_media_url: string | null;
+  cover_image_url: string | null;
 }
 
 interface Credits {
@@ -217,10 +218,10 @@ const AvatarsManagement = () => {
               const stats = avatarStats.find(s => s.avatarId === avatar.id);
               return (
                 <Card key={avatar.id} className="hover:shadow-lg transition-shadow flex flex-col overflow-hidden">
-                  {avatar.idle_media_url ? (
+                  {avatar.cover_image_url ? (
                     <div className="aspect-video w-full overflow-hidden bg-muted">
                       <img 
-                        src={avatar.idle_media_url}
+                        src={avatar.cover_image_url}
                         alt={avatar.name}
                         className="w-full h-full object-cover"
                       />
@@ -231,7 +232,7 @@ const AvatarsManagement = () => {
                     </div>
                   )}
                   <CardHeader className="pb-2">
-                    <CardTitle className="text-lg">{avatar.name}</CardTitle>
+                    <CardTitle className="text-lg truncate" title={avatar.name}>{avatar.name}</CardTitle>
                   </CardHeader>
                   <CardContent className="flex-1 flex flex-col justify-between pt-0">
                     <div>
