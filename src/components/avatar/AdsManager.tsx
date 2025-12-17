@@ -53,9 +53,52 @@ export const AdsManager = ({ avatarId }: AdsManagerProps) => {
     }
   };
 
+  const getVideoDuration = (file: File): Promise<number> => {
+    return new Promise((resolve, reject) => {
+      const video = document.createElement('video');
+      video.preload = 'metadata';
+      video.onloadedmetadata = () => {
+        URL.revokeObjectURL(video.src);
+        resolve(video.duration);
+      };
+      video.onerror = () => reject(new Error('Erro ao carregar vídeo'));
+      video.src = URL.createObjectURL(file);
+    });
+  };
+
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+
+    // Validate video duration
+    try {
+      const duration = await getVideoDuration(file);
+      const maxDuration = parseInt(newAdDuration);
+
+      if (duration > 30) {
+        toast({ 
+          title: 'Vídeo muito longo', 
+          description: 'Seu vídeo deve ter até 30 segundos.',
+          variant: 'destructive' 
+        });
+        e.target.value = '';
+        return;
+      }
+
+      if (maxDuration === 15 && duration > 15) {
+        toast({ 
+          title: 'Duração incompatível', 
+          description: 'Selecione a opção 30 segundos.',
+          variant: 'destructive' 
+        });
+        e.target.value = '';
+        return;
+      }
+    } catch (error) {
+      toast({ title: 'Erro ao verificar vídeo', variant: 'destructive' });
+      e.target.value = '';
+      return;
+    }
 
     setUploading(true);
     try {
@@ -215,14 +258,14 @@ export const AdsManager = ({ avatarId }: AdsManagerProps) => {
               />
             </div>
             <div>
-              <Label htmlFor="ad-duration">Duração</Label>
+              <Label htmlFor="ad-duration">Duração Máxima</Label>
               <Select value={newAdDuration} onValueChange={setNewAdDuration}>
                 <SelectTrigger id="ad-duration">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="15">15 segundos</SelectItem>
-                  <SelectItem value="30">30 segundos</SelectItem>
+                  <SelectItem value="15">Até 15 segundos</SelectItem>
+                  <SelectItem value="30">Até 30 segundos</SelectItem>
                 </SelectContent>
               </Select>
             </div>
