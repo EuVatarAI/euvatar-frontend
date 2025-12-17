@@ -196,7 +196,7 @@ const Dashboard = () => {
                     {remainingCredits} de {totalCredits} créditos restantes
                   </span>
                   <span className="text-sm text-muted-foreground">
-                    {formatTime(minutesRemaining)} de 4h disponíveis
+                    {formatTime(minutesRemaining)} ({minutesRemaining}min) de 4h (240min)
                   </span>
                 </div>
                 <Progress value={creditsPercentage} />
@@ -204,10 +204,11 @@ const Dashboard = () => {
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4 pt-2">
                 <div className="text-center p-3 bg-muted/50 rounded-lg">
                   <p className="text-2xl font-bold">{remainingCredits}</p>
-                  <p className="text-xs text-muted-foreground">Créditos</p>
+                  <p className="text-xs text-muted-foreground">Créditos Restantes</p>
                 </div>
                 <div className="text-center p-3 bg-muted/50 rounded-lg">
                   <p className="text-2xl font-bold">{formatTime(minutesRemaining)}</p>
+                  <p className="text-sm text-muted-foreground">({minutesRemaining} min)</p>
                   <p className="text-xs text-muted-foreground">Tempo Restante</p>
                 </div>
                 <div className="text-center p-3 bg-muted/50 rounded-lg">
@@ -216,11 +217,12 @@ const Dashboard = () => {
                 </div>
                 <div className="text-center p-3 bg-muted/50 rounded-lg">
                   <p className="text-2xl font-bold">{formatTime(240 - minutesRemaining)}</p>
+                  <p className="text-sm text-muted-foreground">({240 - minutesRemaining} min)</p>
                   <p className="text-xs text-muted-foreground">Tempo Usado</p>
                 </div>
               </div>
               <p className="text-xs text-muted-foreground">
-                20 créditos = 5 minutos de uso. Plano inicial: 960 créditos (4 horas).
+                20 créditos = 5 minutos de uso. Plano inicial: 960 créditos (4 horas / 240 minutos).
               </p>
               {needsCredentialUpdate && (
                 <p className="text-xs text-orange-600 font-medium">
