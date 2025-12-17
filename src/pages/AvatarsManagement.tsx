@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { useToast } from '@/hooks/use-toast';
-import { LogOut, Settings, Plus, Lock, User } from 'lucide-react';
+import { LogOut, Settings, Lock, User, Clock } from 'lucide-react';
 import euvatarLogo from '@/assets/euvatar-logo-white.png';
 import { UnlockPasswordDialog } from '@/components/avatar/UnlockPasswordDialog';
 
@@ -21,16 +21,30 @@ interface Avatar {
   cover_image_url: string | null;
 }
 
-interface Credits {
-  total_credits: number;
-  used_credits: number;
+interface AvatarHeyGenUsage {
+  avatarId: string;
+  heygenAvatarId?: string;
+  totalSeconds: number;
+  totalMinutes: number;
+  heygenCredits: number;
+  euvatarCredits: number;
+  sessionCount: number;
 }
 
-interface AvatarStats {
-  avatarId: string;
-  webUsage: number;
-  appUsage: number;
-  totalUsage: number;
+interface HeyGenCredits {
+  euvatarCredits: number;
+  heygenCredits: number;
+  totalEuvatarCredits: number;
+  minutesRemaining: number;
+  totalMinutes: number;
+  hoursRemaining: number;
+  totalHours: number;
+  usedEuvatarCredits: number;
+  usedMinutes: number;
+  percentageRemaining: number;
+  error?: string;
+  needsCredentialUpdate?: boolean;
+  avatarUsage?: AvatarHeyGenUsage[];
 }
 
 const AvatarsManagement = () => {
@@ -38,8 +52,7 @@ const AvatarsManagement = () => {
   const { user, signOut } = useAuth();
   const { toast } = useToast();
   const [avatars, setAvatars] = useState<Avatar[]>([]);
-  const [credits, setCredits] = useState<Credits | null>(null);
-  const [avatarStats, setAvatarStats] = useState<AvatarStats[]>([]);
+  const [heygenCredits, setHeygenCredits] = useState<HeyGenCredits | null>(null);
   const [loading, setLoading] = useState(true);
   const [showUnlockDialog, setShowUnlockDialog] = useState(false);
 
@@ -62,39 +75,15 @@ const AvatarsManagement = () => {
       if (avatarsError) throw avatarsError;
       setAvatars(avatarsData || []);
 
-      // Fetch credits
-      const { data: creditsData, error: creditsError } = await supabase
-        .from('user_credits')
-        .select('*')
-        .eq('user_id', user?.id)
-        .maybeSingle();
+      // Fetch HeyGen credits via edge function
+      const { data: creditsData, error: creditsError } = await supabase.functions.invoke('get-heygen-credits');
+      
+      if (creditsError) {
+        console.error('Erro ao buscar créditos HeyGen:', creditsError);
+      } else {
+        setHeygenCredits(creditsData);
+      }
 
-      if (creditsError) throw creditsError;
-      setCredits(creditsData);
-
-      // Fetch conversations for stats
-      const { data: conversationsData, error: conversationsError } = await supabase
-        .from('conversations')
-        .select('*')
-        .eq('user_id', user?.id);
-
-      if (conversationsError) throw conversationsError;
-
-      // Calculate stats per avatar
-      const stats: AvatarStats[] = avatarsData?.map(avatar => {
-        const avatarConversations = conversationsData?.filter(c => c.avatar_id === avatar.id) || [];
-        const webUsage = avatarConversations.filter(c => c.platform === 'web').reduce((sum, c) => sum + c.credits_used, 0);
-        const appUsage = avatarConversations.filter(c => c.platform === 'app').reduce((sum, c) => sum + c.credits_used, 0);
-        
-        return {
-          avatarId: avatar.id,
-          webUsage,
-          appUsage,
-          totalUsage: webUsage + appUsage,
-        };
-      }) || [];
-
-      setAvatarStats(stats);
       setLoading(false);
     } catch (error: any) {
       console.error('Error fetching data:', error);
@@ -105,6 +94,15 @@ const AvatarsManagement = () => {
       });
       setLoading(false);
     }
+  };
+
+  const formatTime = (minutes: number) => {
+    const hours = Math.floor(minutes / 60);
+    const mins = minutes % 60;
+    if (hours > 0) {
+      return mins > 0 ? `${hours}h ${mins}min` : `${hours}h`;
+    }
+    return `${mins}min`;
   };
 
   const handleSignOut = async () => {
@@ -144,9 +142,12 @@ const AvatarsManagement = () => {
     );
   }
 
-  const remainingCredits = credits ? credits.total_credits - credits.used_credits : 1000;
-  const creditsPercentage = credits ? ((credits.total_credits - credits.used_credits) / credits.total_credits) * 100 : 100;
-  const remainingConversations = Math.floor(remainingCredits / 10);
+  const remainingCredits = heygenCredits?.euvatarCredits ?? 960;
+  const totalCredits = heygenCredits?.totalEuvatarCredits ?? 960;
+  const creditsPercentage = heygenCredits?.percentageRemaining ?? 100;
+  const minutesRemaining = heygenCredits?.minutesRemaining ?? 240;
+  const needsCredentialUpdate = heygenCredits?.needsCredentialUpdate;
+  const hasCredentialsConfigured = !heygenCredits?.error;
 
   return (
     <div className="min-h-screen bg-background p-8">
@@ -165,24 +166,57 @@ const AvatarsManagement = () => {
         {/* Credits Overview */}
         <Card className="mb-8">
           <CardHeader>
-            <CardTitle>Uso Geral de Créditos</CardTitle>
+            <CardTitle className="flex items-center gap-2">
+              <Clock className="h-5 w-5" />
+              Uso de Créditos
+            </CardTitle>
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
               <div>
                 <div className="flex justify-between mb-2">
                   <span className="text-sm font-medium">
-                    {remainingCredits} de {credits?.total_credits || 1000} créditos restantes
+                    {remainingCredits} de {totalCredits} créditos restantes
                   </span>
                   <span className="text-sm text-muted-foreground">
-                    ~{remainingConversations} conversas de 2,5min
+                    {formatTime(minutesRemaining)} ({minutesRemaining}min) de 4h (240min)
                   </span>
                 </div>
                 <Progress value={creditsPercentage} />
               </div>
-              <p className="text-sm text-muted-foreground">
-                Cada conversa de até 2,5 minutos consome 10 créditos.
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 pt-2">
+                <div className="text-center p-3 bg-muted/50 rounded-lg">
+                  <p className="text-2xl font-bold">{remainingCredits}</p>
+                  <p className="text-xs text-muted-foreground">Créditos Restantes</p>
+                </div>
+                <div className="text-center p-3 bg-muted/50 rounded-lg">
+                  <p className="text-2xl font-bold">{formatTime(minutesRemaining)}</p>
+                  <p className="text-sm text-muted-foreground">({minutesRemaining} min)</p>
+                  <p className="text-xs text-muted-foreground">Tempo Restante</p>
+                </div>
+                <div className="text-center p-3 bg-muted/50 rounded-lg">
+                  <p className="text-2xl font-bold">{totalCredits - remainingCredits}</p>
+                  <p className="text-xs text-muted-foreground">Créditos Usados</p>
+                </div>
+                <div className="text-center p-3 bg-muted/50 rounded-lg">
+                  <p className="text-2xl font-bold">{formatTime(240 - minutesRemaining)}</p>
+                  <p className="text-sm text-muted-foreground">({240 - minutesRemaining} min)</p>
+                  <p className="text-xs text-muted-foreground">Tempo Usado</p>
+                </div>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                20 créditos = 5 minutos de uso. Plano inicial: 960 créditos (4 horas / 240 minutos).
               </p>
+              {needsCredentialUpdate && (
+                <p className="text-xs text-orange-600 font-medium">
+                  ⚠️ A API key da HeyGen está inválida ou expirada. Atualize na aba Credenciais do euvatar.
+                </p>
+              )}
+              {!hasCredentialsConfigured && !needsCredentialUpdate && (
+                <p className="text-xs text-yellow-600">
+                  Configure as credenciais do euvatar para ver os créditos em tempo real.
+                </p>
+              )}
             </div>
           </CardContent>
         </Card>
@@ -215,7 +249,7 @@ const AvatarsManagement = () => {
             </Card>
           ) : (
             avatars.map((avatar) => {
-              const stats = avatarStats.find(s => s.avatarId === avatar.id);
+              const heygenUsage = heygenCredits?.avatarUsage?.find(u => u.avatarId === avatar.id);
               return (
                 <Card key={avatar.id} className="hover:shadow-lg transition-shadow flex flex-col overflow-hidden">
                   {avatar.cover_image_url ? (
@@ -239,20 +273,27 @@ const AvatarsManagement = () => {
                       <p className="text-sm text-muted-foreground mb-4 line-clamp-2">
                         {avatar.backstory?.substring(0, 80)}...
                       </p>
-                      <div className="grid grid-cols-3 gap-2 mb-4">
-                        <div className="text-center">
-                          <p className="text-xs text-muted-foreground">Web</p>
-                          <p className="text-sm font-semibold">{stats?.webUsage || 0}</p>
+                      {heygenUsage ? (
+                        <div className="grid grid-cols-3 gap-2 mb-4">
+                          <div className="text-center">
+                            <p className="text-xs text-muted-foreground">Tempo</p>
+                            <p className="text-sm font-semibold">{formatTime(heygenUsage.totalMinutes)}</p>
+                            <p className="text-xs text-muted-foreground">({heygenUsage.totalMinutes}min)</p>
+                          </div>
+                          <div className="text-center">
+                            <p className="text-xs text-muted-foreground">Créditos</p>
+                            <p className="text-sm font-semibold">{heygenUsage.euvatarCredits}</p>
+                          </div>
+                          <div className="text-center">
+                            <p className="text-xs text-muted-foreground">Sessões</p>
+                            <p className="text-sm font-semibold">{heygenUsage.sessionCount}</p>
+                          </div>
                         </div>
-                        <div className="text-center">
-                          <p className="text-xs text-muted-foreground">App</p>
-                          <p className="text-sm font-semibold">{stats?.appUsage || 0}</p>
+                      ) : (
+                        <div className="text-center p-3 bg-muted/30 rounded-lg mb-4">
+                          <p className="text-xs text-muted-foreground">Sem dados de uso ainda</p>
                         </div>
-                        <div className="text-center">
-                          <p className="text-xs text-muted-foreground">Total</p>
-                          <p className="text-sm font-semibold">{stats?.totalUsage || 0}</p>
-                        </div>
-                      </div>
+                      )}
                     </div>
                     <div className="flex gap-2 mt-4">
                       <Button 
