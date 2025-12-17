@@ -311,6 +311,7 @@ export const AdsManager = ({ avatarId }: AdsManagerProps) => {
                 src={pendingAd.previewUrl}
                 className="w-full h-full object-contain"
                 muted
+                autoPlay
                 onPlay={() => setPreviewPlaying(true)}
                 onPause={() => setPreviewPlaying(false)}
                 controls
@@ -371,6 +372,7 @@ export const AdsManager = ({ avatarId }: AdsManagerProps) => {
                 src={ads[currentPlayingIndex]?.media_url}
                 className="w-full h-full object-contain"
                 muted
+                autoPlay
                 onEnded={handleVideoEnded}
                 onPlay={() => setIsPlaying(true)}
                 onPause={() => setIsPlaying(false)}
