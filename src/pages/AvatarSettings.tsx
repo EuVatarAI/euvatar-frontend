@@ -20,6 +20,7 @@ interface Avatar {
   language: string;
   ai_model: string;
   voice_model: string;
+  idle_media_url: string | null;
 }
 
 interface MediaTrigger {
@@ -37,6 +38,7 @@ const AvatarSettings = () => {
   const [mediaTriggers, setMediaTriggers] = useState<MediaTrigger[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [uploadingCover, setUploadingCover] = useState(false);
 
   useEffect(() => {
     if (!user) {
@@ -91,6 +93,7 @@ const AvatarSettings = () => {
           language: avatar.language,
           ai_model: avatar.ai_model,
           voice_model: avatar.voice_model,
+          idle_media_url: avatar.idle_media_url,
         })
         .eq('id', id)
         .eq('user_id', user?.id);
@@ -110,6 +113,43 @@ const AvatarSettings = () => {
       });
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleCoverUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !id) return;
+
+    setUploadingCover(true);
+    try {
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${id}/cover.${fileExt}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from('avatar-media')
+        .upload(fileName, file, { upsert: true });
+
+      if (uploadError) throw uploadError;
+
+      const { data: { publicUrl } } = supabase.storage
+        .from('avatar-media')
+        .getPublicUrl(fileName);
+
+      setAvatar(prev => prev ? { ...prev, idle_media_url: publicUrl } : null);
+
+      toast({
+        title: 'Upload concluído',
+        description: 'Clique em Salvar para confirmar a imagem de capa.',
+      });
+    } catch (error: any) {
+      console.error('Error uploading cover:', error);
+      toast({
+        title: 'Erro',
+        description: 'Erro ao fazer upload da imagem.',
+        variant: 'destructive',
+      });
+    } finally {
+      setUploadingCover(false);
     }
   };
 
@@ -223,16 +263,38 @@ const AvatarSettings = () => {
 
           <Card>
             <CardHeader>
-              <CardTitle>Mídia Idle</CardTitle>
+              <CardTitle>Imagem de Capa</CardTitle>
             </CardHeader>
             <CardContent>
               <p className="text-sm text-muted-foreground mb-4">
-                Imagem ou vídeo exibido antes do usuário iniciar uma conversa
+                Imagem exibida no card do euvatar e antes do usuário iniciar uma conversa
               </p>
-              <Button variant="outline">
-                <Upload className="mr-2 h-4 w-4" />
-                Upload de Mídia Idle
-              </Button>
+              {avatar?.idle_media_url && (
+                <div className="mb-4 rounded-lg overflow-hidden border">
+                  <img 
+                    src={avatar.idle_media_url} 
+                    alt="Capa do euvatar" 
+                    className="w-full max-w-xs h-auto object-cover"
+                  />
+                </div>
+              )}
+              <div>
+                <input
+                  type="file"
+                  id="cover-upload"
+                  accept="image/*"
+                  onChange={handleCoverUpload}
+                  className="hidden"
+                />
+                <Button 
+                  variant="outline" 
+                  onClick={() => document.getElementById('cover-upload')?.click()}
+                  disabled={uploadingCover}
+                >
+                  <Upload className="mr-2 h-4 w-4" />
+                  {uploadingCover ? 'Enviando...' : avatar?.idle_media_url ? 'Trocar Imagem' : 'Upload de Imagem'}
+                </Button>
+              </div>
             </CardContent>
           </Card>
 
