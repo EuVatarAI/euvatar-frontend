@@ -70,6 +70,25 @@ serve(async (req) => {
     if (!heygenResponse.ok) {
       const errorText = await heygenResponse.text();
       console.error("Erro na API HeyGen:", heygenResponse.status, errorText);
+      
+      // Se for 401, a API key está inválida
+      if (heygenResponse.status === 401) {
+        return new Response(JSON.stringify({ 
+          error: "API key da HeyGen inválida ou expirada",
+          needsCredentialUpdate: true,
+          euvatarCredits: 0,
+          heygenCredits: 0,
+          totalEuvatarCredits: 960,
+          minutesRemaining: 0,
+          totalMinutes: 240,
+          hoursRemaining: 0,
+          totalHours: 4,
+        }), {
+          status: 200, // Retorna 200 para o frontend tratar como estado conhecido
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      
       return new Response(JSON.stringify({ 
         error: "Erro ao buscar créditos da HeyGen",
         details: errorText 

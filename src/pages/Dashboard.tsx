@@ -34,6 +34,7 @@ interface HeyGenCredits {
   usedMinutes: number;
   percentageRemaining: number;
   error?: string;
+  needsCredentialUpdate?: boolean;
 }
 
 const Dashboard = () => {
@@ -154,6 +155,7 @@ const Dashboard = () => {
   const minutesRemaining = heygenCredits?.minutesRemaining ?? 240;
   const hoursRemaining = heygenCredits?.hoursRemaining ?? 4;
   const hasCredentialsConfigured = !heygenCredits?.error;
+  const needsCredentialUpdate = heygenCredits?.needsCredentialUpdate;
 
   const formatTime = (minutes: number) => {
     const hours = Math.floor(minutes / 60);
@@ -220,7 +222,12 @@ const Dashboard = () => {
               <p className="text-xs text-muted-foreground">
                 20 créditos = 5 minutos de uso. Plano inicial: 960 créditos (4 horas).
               </p>
-              {!hasCredentialsConfigured && (
+              {needsCredentialUpdate && (
+                <p className="text-xs text-orange-600 font-medium">
+                  ⚠️ A API key da HeyGen está inválida ou expirada. Atualize na aba Credenciais do euvatar.
+                </p>
+              )}
+              {!hasCredentialsConfigured && !needsCredentialUpdate && (
                 <p className="text-xs text-yellow-600">
                   Configure as credenciais do euvatar para ver os créditos em tempo real.
                 </p>
