@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
-import { Upload, Trash2, GripVertical, Play, Pause } from 'lucide-react';
+import { Upload, Trash2, GripVertical, Play, Pause, Save } from 'lucide-react';
 
 interface Ad {
   id: string;
@@ -30,6 +30,8 @@ export const AdsManager = ({ avatarId }: AdsManagerProps) => {
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
   const [currentPlayingIndex, setCurrentPlayingIndex] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [hasOrderChanges, setHasOrderChanges] = useState(false);
+  const videoRef = useRef<HTMLVideoElement>(null);
 
   useEffect(() => {
     fetchAds();
@@ -176,10 +178,12 @@ export const AdsManager = ({ avatarId }: AdsManagerProps) => {
     setDraggedIndex(index);
   };
 
-  const handleDragEnd = async () => {
+  const handleDragEnd = () => {
     setDraggedIndex(null);
-    
-    // Update display_order in database
+    setHasOrderChanges(true);
+  };
+
+  const saveOrder = async () => {
     try {
       const updates = ads.map((ad, index) => 
         supabase
@@ -189,10 +193,11 @@ export const AdsManager = ({ avatarId }: AdsManagerProps) => {
       );
       
       await Promise.all(updates);
-      toast({ title: 'Ordem atualizada!' });
+      setHasOrderChanges(false);
+      toast({ title: 'Ordem salva!' });
     } catch (error) {
       console.error('Error updating order:', error);
-      toast({ title: 'Erro ao atualizar ordem', variant: 'destructive' });
+      toast({ title: 'Erro ao salvar ordem', variant: 'destructive' });
       fetchAds();
     }
   };
@@ -200,6 +205,17 @@ export const AdsManager = ({ avatarId }: AdsManagerProps) => {
   const handleVideoEnded = () => {
     const nextIndex = (currentPlayingIndex + 1) % ads.length;
     setCurrentPlayingIndex(nextIndex);
+  };
+
+  const togglePlay = () => {
+    if (videoRef.current) {
+      if (isPlaying) {
+        videoRef.current.pause();
+      } else {
+        videoRef.current.play();
+      }
+      setIsPlaying(!isPlaying);
+    }
   };
 
   if (loading) {
@@ -216,22 +232,24 @@ export const AdsManager = ({ avatarId }: AdsManagerProps) => {
             <Button
               variant="outline"
               size="sm"
-              onClick={() => setIsPlaying(!isPlaying)}
+              onClick={togglePlay}
             >
-              {isPlaying ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
+              {isPlaying ? <Pause className="h-4 w-4 mr-1" /> : <Play className="h-4 w-4 mr-1" />}
               {isPlaying ? 'Pausar' : 'Reproduzir'}
             </Button>
           </CardHeader>
           <CardContent>
             <div className="aspect-[9/16] max-w-xs mx-auto bg-black rounded-lg overflow-hidden">
               <video
+                ref={videoRef}
                 key={ads[currentPlayingIndex]?.id}
                 src={ads[currentPlayingIndex]?.media_url}
                 className="w-full h-full object-contain"
-                autoPlay={isPlaying}
                 muted
                 onEnded={handleVideoEnded}
-                controls={false}
+                onPlay={() => setIsPlaying(true)}
+                onPause={() => setIsPlaying(false)}
+                controls
               />
             </div>
             <p className="text-center text-sm text-muted-foreground mt-2">
@@ -344,6 +362,12 @@ export const AdsManager = ({ avatarId }: AdsManagerProps) => {
           <p className="text-xs text-muted-foreground mt-4">
             Arraste para reordenar. Os anúncios rodam em loop contínuo.
           </p>
+          {hasOrderChanges && (
+            <Button onClick={saveOrder} className="w-full mt-4">
+              <Save className="mr-2 h-4 w-4" />
+              Salvar Ordem
+            </Button>
+          )}
         </CardContent>
       </Card>
     </div>
