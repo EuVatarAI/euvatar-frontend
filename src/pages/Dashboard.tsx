@@ -22,6 +22,16 @@ interface AvatarStats {
   totalUsage: number;
 }
 
+interface AvatarHeyGenUsage {
+  avatarId: string;
+  heygenAvatarId?: string;
+  totalSeconds: number;
+  totalMinutes: number;
+  heygenCredits: number;
+  euvatarCredits: number;
+  sessionCount: number;
+}
+
 interface HeyGenCredits {
   euvatarCredits: number;
   heygenCredits: number;
@@ -35,6 +45,7 @@ interface HeyGenCredits {
   percentageRemaining: number;
   error?: string;
   needsCredentialUpdate?: boolean;
+  avatarUsage?: AvatarHeyGenUsage[];
 }
 
 const Dashboard = () => {
@@ -262,6 +273,8 @@ const Dashboard = () => {
           {avatars.length > 0 ? (
             avatars.map((avatar) => {
               const stats = avatarStats.find(s => s.avatarId === avatar.id);
+              const heygenUsage = heygenCredits?.avatarUsage?.find(u => u.avatarId === avatar.id);
+              
               return (
                 <Card 
                   key={avatar.id} 
@@ -300,18 +313,37 @@ const Dashboard = () => {
                   </CardHeader>
                   <CardContent>
                     <div className="space-y-2">
-                      <div className="flex justify-between text-sm">
-                        <span className="text-muted-foreground">Web:</span>
-                        <span>{stats?.webUsage || 0} créditos</span>
-                      </div>
-                      <div className="flex justify-between text-sm">
-                        <span className="text-muted-foreground">App:</span>
-                        <span>{stats?.appUsage || 0} créditos</span>
-                      </div>
-                      <div className="flex justify-between text-sm font-medium pt-2 border-t">
-                        <span>Total:</span>
-                        <span>{stats?.totalUsage || 0} créditos</span>
-                      </div>
+                      {heygenUsage ? (
+                        <>
+                          <div className="flex justify-between text-sm">
+                            <span className="text-muted-foreground">Tempo usado:</span>
+                            <span className="font-medium">{formatTime(heygenUsage.totalMinutes)} ({heygenUsage.totalMinutes}min)</span>
+                          </div>
+                          <div className="flex justify-between text-sm">
+                            <span className="text-muted-foreground">Créditos usados:</span>
+                            <span>{heygenUsage.euvatarCredits}</span>
+                          </div>
+                          <div className="flex justify-between text-sm">
+                            <span className="text-muted-foreground">Sessões:</span>
+                            <span>{heygenUsage.sessionCount}</span>
+                          </div>
+                        </>
+                      ) : (
+                        <>
+                          <div className="flex justify-between text-sm">
+                            <span className="text-muted-foreground">Web:</span>
+                            <span>{stats?.webUsage || 0} créditos</span>
+                          </div>
+                          <div className="flex justify-between text-sm">
+                            <span className="text-muted-foreground">App:</span>
+                            <span>{stats?.appUsage || 0} créditos</span>
+                          </div>
+                          <div className="flex justify-between text-sm font-medium pt-2 border-t">
+                            <span>Total:</span>
+                            <span>{stats?.totalUsage || 0} créditos</span>
+                          </div>
+                        </>
+                      )}
                     </div>
                   </CardContent>
                 </Card>
