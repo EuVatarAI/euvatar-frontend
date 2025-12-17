@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
@@ -12,6 +12,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
 import { ArrowLeft, Plus, Trash2, CheckCircle2, Save, Upload, FileText, X } from 'lucide-react';
 import { sanitizeContextName } from '@/utils/contextNameSanitizer';
+import { CredentialsTab } from '@/components/avatar/CredentialsTab';
 import avatarDemoImage from '@/assets/avatar-flavia-demo.png';
 
 interface Avatar {
@@ -42,6 +43,7 @@ interface Conversation {
 
 const AvatarDetails = () => {
   const { id } = useParams<{ id: string }>();
+  const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const { user } = useAuth();
   const { toast } = useToast();
@@ -494,11 +496,12 @@ const AvatarDetails = () => {
           <h1 className="text-4xl font-bold">{avatar?.name || 'Euvatar'}</h1>
         </div>
 
-        <Tabs defaultValue="overview" className="w-full">
-          <TabsList className="grid w-full grid-cols-3">
+        <Tabs defaultValue={searchParams.get('tab') || 'overview'} className="w-full">
+          <TabsList className="grid w-full grid-cols-4">
             <TabsTrigger value="overview">Visão Geral</TabsTrigger>
             <TabsTrigger value="edit">Editar Euvatar</TabsTrigger>
             <TabsTrigger value="media">Gatilhos de Mídia</TabsTrigger>
+            <TabsTrigger value="credentials">Credenciais</TabsTrigger>
           </TabsList>
 
           <TabsContent value="overview" className="space-y-6 mt-6">
@@ -961,6 +964,10 @@ const AvatarDetails = () => {
                 </div>
               </CardContent>
             </Card>
+          </TabsContent>
+
+          <TabsContent value="credentials" className="mt-6">
+            <CredentialsTab avatarId={id!} />
           </TabsContent>
         </Tabs>
       </div>
