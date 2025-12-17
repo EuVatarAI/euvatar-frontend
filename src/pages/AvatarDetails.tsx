@@ -66,6 +66,13 @@ const AvatarDetails = () => {
     ai_model: 'gpt-4',
     voice_model: 'alloy',
   });
+  const [originalFormData, setOriginalFormData] = useState({
+    name: '',
+    backstory: '',
+    language: 'pt-BR',
+    ai_model: 'gpt-4',
+    voice_model: 'alloy',
+  });
 
   useEffect(() => {
     if (!user) {
@@ -86,14 +93,15 @@ const AvatarDetails = () => {
 
       if (avatarError) throw avatarError;
       setAvatar(avatarData);
-      setFormData({
+      const formDataFromDb = {
         name: avatarData.name,
         backstory: avatarData.backstory || '',
         language: avatarData.language,
         ai_model: avatarData.ai_model,
         voice_model: avatarData.voice_model,
-      });
-      
+      };
+      setFormData(formDataFromDb);
+      setOriginalFormData(formDataFromDb);
 
       const { data: conversationsData, error: conversationsError } = await supabase
         .from('conversations')
@@ -392,6 +400,8 @@ const AvatarDetails = () => {
     );
   }
 
+  const hasChanges = JSON.stringify(formData) !== JSON.stringify(originalFormData);
+
   const webUsage = conversations.filter(c => c.platform === 'web').reduce((sum, c) => sum + c.credits_used, 0);
   const appUsage = conversations.filter(c => c.platform === 'app').reduce((sum, c) => sum + c.credits_used, 0);
   const totalUsage = webUsage + appUsage;
@@ -624,7 +634,7 @@ const AvatarDetails = () => {
                   </Select>
                 </div>
 
-                <Button onClick={handleSave} disabled={saving} className="w-full">
+                <Button onClick={handleSave} disabled={saving || !hasChanges} className="w-full">
                   <Save className="mr-2 h-4 w-4" />
                   {saving ? 'Salvando...' : 'Salvar Alterações'}
                 </Button>
