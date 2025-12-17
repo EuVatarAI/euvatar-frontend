@@ -379,6 +379,53 @@ export type Database = {
           },
         ]
       }
+      training_docs: {
+        Row: {
+          avatar_id: string | null
+          created_at: string | null
+          enabled: boolean | null
+          excerpt: string | null
+          id: string
+          keywords: string | null
+          media_type: string | null
+          title: string
+          updated_at: string | null
+          url: string
+        }
+        Insert: {
+          avatar_id?: string | null
+          created_at?: string | null
+          enabled?: boolean | null
+          excerpt?: string | null
+          id?: string
+          keywords?: string | null
+          media_type?: string | null
+          title: string
+          updated_at?: string | null
+          url: string
+        }
+        Update: {
+          avatar_id?: string | null
+          created_at?: string | null
+          enabled?: boolean | null
+          excerpt?: string | null
+          id?: string
+          keywords?: string | null
+          media_type?: string | null
+          title?: string
+          updated_at?: string | null
+          url?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "training_docs_avatar_id_fkey"
+            columns: ["avatar_id"]
+            isOneToOne: false
+            referencedRelation: "avatars"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       training_documents: {
         Row: {
           avatar_id: string
@@ -438,15 +485,33 @@ export type Database = {
         }
         Relationships: []
       }
+      users: {
+        Row: {
+          created_at: string | null
+          email: string | null
+          id: string
+          name: string
+        }
+        Insert: {
+          created_at?: string | null
+          email?: string | null
+          id?: string
+          name: string
+        }
+        Update: {
+          created_at?: string | null
+          email?: string | null
+          id?: string
+          name?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      get_current_user_organization_id: {
-        Args: Record<PropertyKey, never>
-        Returns: string
-      }
+      get_current_user_organization_id: { Args: never; Returns: string }
       user_can_manage_organization: {
         Args: { _org_id: string }
         Returns: boolean
