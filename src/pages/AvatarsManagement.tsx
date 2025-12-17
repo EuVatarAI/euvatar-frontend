@@ -265,7 +265,7 @@ const AvatarsManagement = () => {
                       <Button 
                         variant="outline" 
                         size="sm"
-                        onClick={() => navigate(`/avatar/${avatar.id}/settings`)}
+                        onClick={() => navigate(`/avatar/${avatar.id}?tab=edit`)}
                       >
                         <Settings className="h-4 w-4" />
                       </Button>
