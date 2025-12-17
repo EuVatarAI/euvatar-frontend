@@ -10,7 +10,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
-import { ArrowLeft, Plus, Trash2, CheckCircle2, Save, Upload, FileText } from 'lucide-react';
+import { ArrowLeft, Plus, Trash2, CheckCircle2, Save, Upload, FileText, ImageIcon } from 'lucide-react';
 import { sanitizeContextName } from '@/utils/contextNameSanitizer';
 import { CredentialsTab } from '@/components/avatar/CredentialsTab';
 import { AdsManager } from '@/components/avatar/AdsManager';
@@ -23,6 +23,7 @@ interface Avatar {
   ai_model: string;
   voice_model: string;
   idle_media_url?: string | null;
+  cover_image_url?: string | null;
 }
 
 interface MediaTrigger {
@@ -54,6 +55,8 @@ const AvatarDetails = () => {
   const [triggerMediaFile, setTriggerMediaFile] = useState<File | null>(null);
   const [uploadingTrigger, setUploadingTrigger] = useState(false);
   const [uploadingTraining, setUploadingTraining] = useState(false);
+  const [uploadingCover, setUploadingCover] = useState(false);
+  const [coverImageUrl, setCoverImageUrl] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(true);
   const [trainingDocuments, setTrainingDocuments] = useState<any[]>([]);
@@ -99,6 +102,7 @@ const AvatarDetails = () => {
 
       if (avatarError) throw avatarError;
       setAvatar(avatarData);
+      setCoverImageUrl(avatarData.cover_image_url || null);
       const formDataFromDb = {
         name: avatarData.name,
         backstory: stripTrainingNotes(avatarData.backstory || ''),
@@ -186,6 +190,30 @@ const AvatarDetails = () => {
     }
 
     setUploadingTrigger(false);
+  };
+
+  const handleCoverImageSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setUploadingCover(true);
+    const url = await uploadMediaFile(file);
+    if (url) {
+      setCoverImageUrl(url);
+      // Save immediately to database
+      try {
+        await supabase
+          .from('avatars')
+          .update({ cover_image_url: url })
+          .eq('id', id);
+        toast({ title: 'Imagem de capa atualizada!' });
+      } catch (error) {
+        toast({ title: 'Erro ao salvar imagem', variant: 'destructive' });
+      }
+    } else {
+      toast({ title: 'Erro ao fazer upload', variant: 'destructive' });
+    }
+    setUploadingCover(false);
   };
 
   const handleSave = async () => {
@@ -504,6 +532,42 @@ const AvatarDetails = () => {
                 <CardTitle>Informações do Euvatar</CardTitle>
               </CardHeader>
               <CardContent className="space-y-6">
+                {/* Cover Image Upload */}
+                <div>
+                  <Label>Imagem de Capa</Label>
+                  <div className="mt-2 flex items-start gap-4">
+                    <div className="w-40 aspect-video bg-muted rounded-lg overflow-hidden border flex items-center justify-center">
+                      {coverImageUrl ? (
+                        <img src={coverImageUrl} alt="Capa" className="w-full h-full object-cover" />
+                      ) : (
+                        <ImageIcon className="h-10 w-10 text-muted-foreground" />
+                      )}
+                    </div>
+                    <div className="flex flex-col gap-2">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        disabled={uploadingCover}
+                        onClick={() => document.getElementById('cover-image')?.click()}
+                      >
+                        <Upload className="mr-2 h-4 w-4" />
+                        {uploadingCover ? 'Enviando...' : 'Alterar Imagem'}
+                      </Button>
+                      <p className="text-xs text-muted-foreground">
+                        Recomendado: 16:9, mínimo 400x225px
+                      </p>
+                    </div>
+                  </div>
+                  <Input
+                    id="cover-image"
+                    type="file"
+                    accept="image/*"
+                    onChange={handleCoverImageSelect}
+                    className="hidden"
+                  />
+                </div>
+
                 <div>
                   <Label htmlFor="name">Nome do Euvatar *</Label>
                   <Input
