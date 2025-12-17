@@ -20,6 +20,15 @@ interface AdsManagerProps {
   avatarId: string;
 }
 
+interface PendingAd {
+  file: File;
+  previewUrl: string;
+  name: string;
+  duration: number;
+  storagePath: string;
+  publicUrl: string;
+}
+
 export const AdsManager = ({ avatarId }: AdsManagerProps) => {
   const { toast } = useToast();
   const [ads, setAds] = useState<Ad[]>([]);
@@ -31,11 +40,23 @@ export const AdsManager = ({ avatarId }: AdsManagerProps) => {
   const [currentPlayingIndex, setCurrentPlayingIndex] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
   const [hasOrderChanges, setHasOrderChanges] = useState(false);
+  const [pendingAd, setPendingAd] = useState<PendingAd | null>(null);
+  const [savingAd, setSavingAd] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
+  const previewVideoRef = useRef<HTMLVideoElement>(null);
+  const [previewPlaying, setPreviewPlaying] = useState(false);
 
   useEffect(() => {
     fetchAds();
   }, [avatarId]);
+
+  useEffect(() => {
+    return () => {
+      if (pendingAd?.previewUrl) {
+        URL.revokeObjectURL(pendingAd.previewUrl);
+      }
+    };
+  }, [pendingAd]);
 
   const fetchAds = async () => {
     try {
@@ -105,41 +126,94 @@ export const AdsManager = ({ avatarId }: AdsManagerProps) => {
     setUploading(true);
     try {
       const fileExt = file.name.split('.').pop();
-      const fileName = `${avatarId}/ads/${Date.now()}.${fileExt}`;
+      const storagePath = `${avatarId}/ads/${Date.now()}.${fileExt}`;
 
       const { error: uploadError } = await supabase.storage
         .from('avatar-media')
-        .upload(fileName, file);
+        .upload(storagePath, file);
 
       if (uploadError) throw uploadError;
 
       const { data: { publicUrl } } = supabase.storage
         .from('avatar-media')
-        .getPublicUrl(fileName);
+        .getPublicUrl(storagePath);
 
-      const maxOrder = ads.length > 0 ? Math.max(...ads.map(a => a.display_order)) : -1;
-
-      const { error: insertError } = await supabase
-        .from('avatar_ads')
-        .insert({
-          avatar_id: avatarId,
-          media_url: publicUrl,
-          duration: parseInt(newAdDuration),
-          display_order: maxOrder + 1,
-          name: newAdName || file.name,
-        });
-
-      if (insertError) throw insertError;
-
+      const previewUrl = URL.createObjectURL(file);
+      
+      setPendingAd({
+        file,
+        previewUrl,
+        name: newAdName || file.name,
+        duration: parseInt(newAdDuration),
+        storagePath,
+        publicUrl,
+      });
+      
       setNewAdName('');
-      toast({ title: 'Anúncio adicionado!' });
-      fetchAds();
     } catch (error: any) {
       console.error('Error uploading ad:', error);
       toast({ title: 'Erro ao fazer upload', variant: 'destructive' });
     } finally {
       setUploading(false);
       e.target.value = '';
+    }
+  };
+
+  const savePendingAd = async () => {
+    if (!pendingAd) return;
+    
+    setSavingAd(true);
+    try {
+      const maxOrder = ads.length > 0 ? Math.max(...ads.map(a => a.display_order)) : -1;
+
+      const { error: insertError } = await supabase
+        .from('avatar_ads')
+        .insert({
+          avatar_id: avatarId,
+          media_url: pendingAd.publicUrl,
+          duration: pendingAd.duration,
+          display_order: maxOrder + 1,
+          name: pendingAd.name,
+        });
+
+      if (insertError) throw insertError;
+
+      URL.revokeObjectURL(pendingAd.previewUrl);
+      setPendingAd(null);
+      toast({ title: 'Anúncio salvo!' });
+      fetchAds();
+    } catch (error: any) {
+      console.error('Error saving ad:', error);
+      toast({ title: 'Erro ao salvar anúncio', variant: 'destructive' });
+    } finally {
+      setSavingAd(false);
+    }
+  };
+
+  const cancelPendingAd = async () => {
+    if (!pendingAd) return;
+    
+    // Delete from storage
+    try {
+      await supabase.storage
+        .from('avatar-media')
+        .remove([pendingAd.storagePath]);
+    } catch (error) {
+      console.error('Error deleting from storage:', error);
+    }
+    
+    URL.revokeObjectURL(pendingAd.previewUrl);
+    setPendingAd(null);
+  };
+
+  const togglePreviewPlay = () => {
+    if (previewVideoRef.current) {
+      if (previewPlaying) {
+        previewVideoRef.current.pause();
+      } else {
+        previewVideoRef.current.play();
+      }
+      setPreviewPlaying(!previewPlaying);
     }
   };
 
@@ -224,8 +298,59 @@ export const AdsManager = ({ avatarId }: AdsManagerProps) => {
 
   return (
     <div className="space-y-6">
+      {/* Pending Ad Preview */}
+      {pendingAd && (
+        <Card className="border-primary">
+          <CardHeader>
+            <CardTitle>Preview do Anúncio</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="aspect-[9/16] max-w-xs mx-auto bg-black rounded-lg overflow-hidden">
+              <video
+                ref={previewVideoRef}
+                src={pendingAd.previewUrl}
+                className="w-full h-full object-contain"
+                muted
+                onPlay={() => setPreviewPlaying(true)}
+                onPause={() => setPreviewPlaying(false)}
+                controls
+              />
+            </div>
+            <p className="text-center text-sm text-muted-foreground">
+              {pendingAd.name} - {pendingAd.duration}s
+            </p>
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                onClick={togglePreviewPlay}
+                className="flex-1"
+              >
+                {previewPlaying ? <Pause className="h-4 w-4 mr-1" /> : <Play className="h-4 w-4 mr-1" />}
+                {previewPlaying ? 'Pausar' : 'Reproduzir'}
+              </Button>
+              <Button
+                variant="destructive"
+                onClick={cancelPendingAd}
+                className="flex-1"
+              >
+                <Trash2 className="h-4 w-4 mr-1" />
+                Excluir
+              </Button>
+            </div>
+            <Button
+              onClick={savePendingAd}
+              disabled={savingAd}
+              className="w-full"
+            >
+              <Save className="h-4 w-4 mr-1" />
+              {savingAd ? 'Salvando...' : 'Salvar Anúncio'}
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Preview Player */}
-      {ads.length > 0 && (
+      {ads.length > 0 && !pendingAd && (
         <Card>
           <CardHeader className="flex flex-row items-center justify-between">
             <CardTitle>Preview dos Anúncios</CardTitle>
@@ -259,7 +384,8 @@ export const AdsManager = ({ avatarId }: AdsManagerProps) => {
         </Card>
       )}
 
-      {/* Upload Form */}
+      {/* Upload Form - hidden when pending ad exists */}
+      {!pendingAd && (
       <Card>
         <CardHeader>
           <CardTitle>Adicionar Anúncio</CardTitle>
@@ -311,6 +437,7 @@ export const AdsManager = ({ avatarId }: AdsManagerProps) => {
           </p>
         </CardContent>
       </Card>
+      )}
 
       {/* Ads List */}
       <Card>
