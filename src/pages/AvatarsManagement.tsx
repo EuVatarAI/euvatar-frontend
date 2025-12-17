@@ -226,8 +226,8 @@ const AvatarsManagement = () => {
                       />
                     </div>
                   ) : (
-                    <div className="aspect-video w-full bg-muted flex items-center justify-center">
-                      <User className="h-16 w-16 text-muted-foreground/50" />
+                    <div className="aspect-video w-full bg-gradient-to-br from-primary/20 to-primary/5 flex items-center justify-center border-b">
+                      <User className="h-20 w-20 text-primary/40" />
                     </div>
                   )}
                   <CardHeader className="pb-2">
