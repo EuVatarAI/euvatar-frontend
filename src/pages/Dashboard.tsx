@@ -6,12 +6,14 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { useToast } from '@/hooks/use-toast';
-import { LogOut, Settings, Plus, Lock } from 'lucide-react';
+import { LogOut, Settings, Plus, Lock, User } from 'lucide-react';
 import type { Database } from '@/integrations/supabase/types';
 import euvatarLogo from '@/assets/euvatar-logo-white.png';
 import { UnlockPasswordDialog } from '@/components/avatar/UnlockPasswordDialog';
 
-type Avatar = Database['public']['Tables']['avatars']['Row'];
+type Avatar = Database['public']['Tables']['avatars']['Row'] & {
+  cover_image_url?: string | null;
+};
 type UserCredits = Database['public']['Tables']['user_credits']['Row'];
 type Conversation = Database['public']['Tables']['conversations']['Row'];
 
@@ -205,12 +207,27 @@ const Dashboard = () => {
               return (
                 <Card 
                   key={avatar.id} 
-                  className="cursor-pointer hover:shadow-lg transition-shadow"
+                  className="cursor-pointer hover:shadow-lg transition-shadow overflow-hidden"
                   onClick={() => navigate(`/avatar/${avatar.id}`)}
                 >
-                  <CardHeader>
-                    <div className="flex justify-between items-start">
-                      <CardTitle>{avatar.name}</CardTitle>
+                  {avatar.cover_image_url ? (
+                    <div className="aspect-video w-full overflow-hidden bg-muted">
+                      <img
+                        src={avatar.cover_image_url}
+                        alt={`Capa do euvatar ${avatar.name}`}
+                        className="w-full h-full object-cover"
+                        loading="lazy"
+                      />
+                    </div>
+                  ) : (
+                    <div className="aspect-video w-full bg-gradient-to-br from-primary/20 to-primary/5 flex items-center justify-center border-b">
+                      <User className="h-16 w-16 text-primary/40" />
+                    </div>
+                  )}
+
+                  <CardHeader className="pb-2">
+                    <div className="flex justify-between items-start gap-2">
+                      <CardTitle className="truncate" title={avatar.name}>{avatar.name}</CardTitle>
                       <Button
                         size="icon"
                         variant="ghost"
