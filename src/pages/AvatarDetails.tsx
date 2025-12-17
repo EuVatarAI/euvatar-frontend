@@ -74,6 +74,12 @@ const AvatarDetails = () => {
     voice_model: 'alloy',
   });
 
+  const stripTrainingNotes = (text: string) => {
+    // Remove legacy markers like: [Treinado com o documento: arquivo.pdf]
+    return text
+      .replace(/\n?\n?\[Treinado com o documento:[^\]]+\]/g, '')
+      .trimEnd();
+  };
   useEffect(() => {
     if (!user) {
       navigate('/login');
@@ -95,7 +101,7 @@ const AvatarDetails = () => {
       setAvatar(avatarData);
       const formDataFromDb = {
         name: avatarData.name,
-        backstory: avatarData.backstory || '',
+        backstory: stripTrainingNotes(avatarData.backstory || ''),
         language: avatarData.language,
         ai_model: avatarData.ai_model,
         voice_model: avatarData.voice_model,
@@ -198,7 +204,7 @@ const AvatarDetails = () => {
         .from('avatars')
         .update({
           name: formData.name,
-          backstory: formData.backstory,
+          backstory: stripTrainingNotes(formData.backstory),
           language: formData.language,
           ai_model: formData.ai_model,
           voice_model: formData.voice_model,
