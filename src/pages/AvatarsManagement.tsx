@@ -18,6 +18,7 @@ interface Avatar {
   ai_model: string;
   voice_model: string;
   idle_media_url: string | null;
+  cover_image: string | null;
 }
 
 interface Credits {
@@ -52,14 +53,24 @@ const AvatarsManagement = () => {
 
   const fetchData = async () => {
     try {
-      // Fetch avatars
+      // Fetch avatars with first context image as fallback
       const { data: avatarsData, error: avatarsError } = await supabase
         .from('avatars')
-        .select('*')
+        .select(`
+          *,
+          contexts (media_url)
+        `)
         .eq('user_id', user?.id);
 
       if (avatarsError) throw avatarsError;
-      setAvatars(avatarsData || []);
+      
+      // Map avatars with cover image (idle_media_url or first context image)
+      const avatarsWithCover = avatarsData?.map(avatar => ({
+        ...avatar,
+        cover_image: avatar.idle_media_url || avatar.contexts?.[0]?.media_url || null,
+      })) || [];
+      
+      setAvatars(avatarsWithCover);
 
       // Fetch credits
       const { data: creditsData, error: creditsError } = await supabase
@@ -217,10 +228,10 @@ const AvatarsManagement = () => {
               const stats = avatarStats.find(s => s.avatarId === avatar.id);
               return (
                 <Card key={avatar.id} className="hover:shadow-lg transition-shadow flex flex-col overflow-hidden">
-                  {avatar.idle_media_url ? (
+                  {avatar.cover_image ? (
                     <div className="aspect-video w-full overflow-hidden bg-muted">
                       <img 
-                        src={avatar.idle_media_url} 
+                        src={avatar.cover_image} 
                         alt={avatar.name}
                         className="w-full h-full object-cover"
                       />
