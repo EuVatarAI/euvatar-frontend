@@ -314,7 +314,6 @@ export const AdsManager = ({ avatarId }: AdsManagerProps) => {
                 autoPlay
                 onPlay={() => setPreviewPlaying(true)}
                 onPause={() => setPreviewPlaying(false)}
-                controls
               />
             </div>
             <p className="text-center text-sm text-muted-foreground">
@@ -376,7 +375,6 @@ export const AdsManager = ({ avatarId }: AdsManagerProps) => {
                 onEnded={handleVideoEnded}
                 onPlay={() => setIsPlaying(true)}
                 onPause={() => setIsPlaying(false)}
-                controls
               />
             </div>
             <p className="text-center text-sm text-muted-foreground mt-2">
