@@ -14,6 +14,44 @@ export type Database = {
   }
   public: {
     Tables: {
+      avatar_ads: {
+        Row: {
+          avatar_id: string
+          created_at: string
+          display_order: number
+          duration: number
+          id: string
+          media_url: string
+          name: string | null
+        }
+        Insert: {
+          avatar_id: string
+          created_at?: string
+          display_order?: number
+          duration?: number
+          id?: string
+          media_url: string
+          name?: string | null
+        }
+        Update: {
+          avatar_id?: string
+          created_at?: string
+          display_order?: number
+          duration?: number
+          id?: string
+          media_url?: string
+          name?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "avatar_ads_avatar_id_fkey"
+            columns: ["avatar_id"]
+            isOneToOne: false
+            referencedRelation: "avatars"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       avatar_credentials: {
         Row: {
           account_id: string

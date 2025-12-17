@@ -10,10 +10,10 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
-import { ArrowLeft, Plus, Trash2, CheckCircle2, Save, Upload, FileText, X } from 'lucide-react';
+import { ArrowLeft, Plus, Trash2, CheckCircle2, Save, Upload, FileText } from 'lucide-react';
 import { sanitizeContextName } from '@/utils/contextNameSanitizer';
 import { CredentialsTab } from '@/components/avatar/CredentialsTab';
-import avatarDemoImage from '@/assets/avatar-flavia-demo.png';
+import { AdsManager } from '@/components/avatar/AdsManager';
 
 interface Avatar {
   id: string;
@@ -51,13 +51,9 @@ const AvatarDetails = () => {
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [mediaTriggers, setMediaTriggers] = useState<MediaTrigger[]>([]);
   const [newTrigger, setNewTrigger] = useState<MediaTrigger>({ trigger_phrase: '', media_url: '', description: '' });
-  const [idleMediaUrl, setIdleMediaUrl] = useState('');
-  const [idleMediaFile, setIdleMediaFile] = useState<File | null>(null);
   const [triggerMediaFile, setTriggerMediaFile] = useState<File | null>(null);
-  const [uploadingIdle, setUploadingIdle] = useState(false);
   const [uploadingTrigger, setUploadingTrigger] = useState(false);
   const [uploadingTraining, setUploadingTraining] = useState(false);
-  const [deletingIdle, setDeletingIdle] = useState(false);
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(true);
   const [trainingDocuments, setTrainingDocuments] = useState<any[]>([]);
@@ -98,12 +94,6 @@ const AvatarDetails = () => {
         voice_model: avatarData.voice_model,
       });
       
-      // Load idle media URL if exists, or use demo image
-      if (avatarData.idle_media_url) {
-        setIdleMediaUrl(avatarData.idle_media_url);
-      } else {
-        setIdleMediaUrl(avatarDemoImage);
-      }
 
       const { data: conversationsData, error: conversationsError } = await supabase
         .from('conversations')
@@ -166,30 +156,6 @@ const AvatarDetails = () => {
     return urlData.publicUrl;
   };
 
-  const handleIdleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    console.log('Arquivo selecionado:', file.name, file.type);
-    setIdleMediaFile(file);
-    setUploadingIdle(true);
-
-    const url = await uploadMediaFile(file);
-    console.log('URL retornada do upload:', url);
-    
-    if (url) {
-      setIdleMediaUrl(url);
-      console.log('idleMediaUrl atualizado para:', url);
-      toast({ title: 'Upload realizado com sucesso!' });
-    } else {
-      toast({ title: 'Erro ao fazer upload', variant: 'destructive' });
-    }
-
-    setUploadingIdle(false);
-    // Reset input para permitir re-upload do mesmo arquivo
-    e.target.value = '';
-  };
-
   const handleTriggerFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -228,7 +194,6 @@ const AvatarDetails = () => {
           language: formData.language,
           ai_model: formData.ai_model,
           voice_model: formData.voice_model,
-          idle_media_url: idleMediaUrl || null,
         })
         .eq('id', id);
 
@@ -317,36 +282,6 @@ const AvatarDetails = () => {
       });
     }
   };
-
-  const handleRemoveIdleMedia = () => {
-    setIdleMediaUrl('');
-    setIdleMediaFile(null);
-    toast({
-      title: 'Mídia removida',
-      description: 'Mídia idle removida com sucesso.',
-    });
-  };
-
-  const handleDeleteIdleMedia = async () => {
-    if (!confirm('Tem certeza que deseja excluir a mídia idle?')) return;
-    
-    setDeletingIdle(true);
-    const { error } = await supabase
-      .from('avatars')
-      .update({ idle_media_url: null })
-      .eq('id', id);
-
-    if (error) {
-      toast({ title: 'Erro ao excluir mídia', variant: 'destructive' });
-    } else {
-      setIdleMediaUrl('');
-      setIdleMediaFile(null);
-      fetchAvatarData();
-      toast({ title: 'Mídia idle excluída com sucesso!' });
-    }
-    setDeletingIdle(false);
-  };
-
   const handleTrainingFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -497,40 +432,15 @@ const AvatarDetails = () => {
         </div>
 
         <Tabs defaultValue={searchParams.get('tab') || 'overview'} className="w-full">
-          <TabsList className="grid w-full grid-cols-4">
+          <TabsList className="grid w-full grid-cols-5">
             <TabsTrigger value="overview">Visão Geral</TabsTrigger>
             <TabsTrigger value="edit">Editar Euvatar</TabsTrigger>
+            <TabsTrigger value="ads">Anúncios</TabsTrigger>
             <TabsTrigger value="media">Gatilhos de Mídia</TabsTrigger>
             <TabsTrigger value="credentials">Credenciais</TabsTrigger>
           </TabsList>
 
           <TabsContent value="overview" className="space-y-6 mt-6">
-            {idleMediaUrl && (
-              <Card>
-                <CardHeader>
-                  <CardTitle>Preview do Euvatar</CardTitle>
-                </CardHeader>
-                <CardContent className="flex justify-center">
-                  <div className="w-full max-w-xs">
-                    {idleMediaFile?.type.startsWith('video/') || idleMediaUrl.match(/\.(mp4|webm|mov)$/i) ? (
-                      <video 
-                        src={idleMediaUrl} 
-                        autoPlay
-                        loop
-                        muted
-                        className="w-full rounded-lg border shadow-lg" 
-                      />
-                    ) : (
-                      <img 
-                        src={idleMediaUrl} 
-                        alt="Avatar Preview" 
-                        className="w-full rounded-lg border shadow-lg" 
-                      />
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
-            )}
 
             {avatar?.backstory && (
               <Card>
@@ -735,109 +645,10 @@ const AvatarDetails = () => {
               </CardContent>
             </Card>
 
-            <Card>
-              <CardHeader>
-                <CardTitle>Mídia Idle</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-sm text-muted-foreground mb-4">
-                  Imagem ou vídeo exibido enquanto o euvatar não está em sessão ativa
-                </p>
-                <div className="space-y-4">
-                  {(() => {
-                    console.log('Renderizando mídia idle. idleMediaUrl:', idleMediaUrl, 'avatar?.idle_media_url:', avatar?.idle_media_url);
-                    const displayUrl = idleMediaUrl || avatar?.idle_media_url;
-                    console.log('URL a ser exibida:', displayUrl);
-                    return null;
-                  })()}
-                  {idleMediaUrl || avatar?.idle_media_url ? (
-                    <div className="space-y-3">
-                      <div>
-                        <p className="text-xs text-green-600 mb-2 flex items-center gap-1">
-                          <CheckCircle2 className="h-3 w-3" />
-                          Preview da mídia:
-                        </p>
-                        <div className="inline-block relative">
-                          {(idleMediaUrl || avatar?.idle_media_url || '').match(/\.(mp4|webm|mov)$/i) ? (
-                            <video 
-                              key={idleMediaUrl || avatar?.idle_media_url}
-                              src={idleMediaUrl || avatar?.idle_media_url || ''} 
-                              controls 
-                              className="max-h-32 rounded-lg border" 
-                            />
-                          ) : (
-                            <img 
-                              key={idleMediaUrl || avatar?.idle_media_url}
-                              src={idleMediaUrl || avatar?.idle_media_url || ''} 
-                              alt="Preview" 
-                              className="max-h-32 rounded-lg border" 
-                            />
-                          )}
-                          <Button
-                            size="icon"
-                            variant="destructive"
-                            className="absolute -top-2 -right-2 h-6 w-6 rounded-full"
-                            onClick={handleDeleteIdleMedia}
-                            disabled={deletingIdle}
-                          >
-                            <X className="h-3 w-3" />
-                          </Button>
-                        </div>
-                      </div>
-                      <Label htmlFor="idle_media_file" className="cursor-pointer">
-                        <Button
-                          type="button"
-                          className="w-full"
-                          disabled={uploadingIdle}
-                          onClick={() => document.getElementById('idle_media_file')?.click()}
-                        >
-                          <Upload className="mr-2 h-4 w-4" />
-                          {uploadingIdle ? 'Enviando...' : 'Adicionar ou alterar Mídia Idle'}
-                        </Button>
-                      </Label>
-                      <Input
-                        id="idle_media_file"
-                        type="file"
-                        accept="image/*,video/*"
-                        onChange={handleIdleFileSelect}
-                        className="hidden"
-                      />
-                    </div>
-                  ) : (
-                    <div className="space-y-3">
-                      <Label htmlFor="idle_media_file" className="cursor-pointer">
-                        <Button
-                          type="button"
-                          className="w-full"
-                          disabled={uploadingIdle}
-                          onClick={() => document.getElementById('idle_media_file')?.click()}
-                        >
-                          <Upload className="mr-2 h-4 w-4" />
-                          {uploadingIdle ? 'Enviando...' : 'Enviar Vídeo Idle'}
-                        </Button>
-                      </Label>
-                      <Input
-                        id="idle_media_file"
-                        type="file"
-                        accept="image/*,video/*"
-                        onChange={handleIdleFileSelect}
-                        className="hidden"
-                      />
-                      <p className="text-xs text-muted-foreground">
-                        Clique no botão acima para selecionar imagem ou vídeo
-                      </p>
-                    </div>
-                  )}
-                  
-                  {idleMediaUrl && idleMediaUrl !== avatar?.idle_media_url && (
-                    <Button onClick={handleSave} disabled={saving} className="w-full">
-                      <Save className="mr-2 h-4 w-4" />
-                      {saving ? 'Salvando...' : 'Salvar Mídia Idle'}
-                    </Button>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
+          </TabsContent>
+
+          <TabsContent value="ads" className="mt-6">
+            <AdsManager avatarId={id!} />
           </TabsContent>
 
           <TabsContent value="media" className="space-y-6 mt-6">
