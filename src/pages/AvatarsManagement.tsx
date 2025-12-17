@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { useToast } from '@/hooks/use-toast';
-import { LogOut, Settings, Plus, Lock } from 'lucide-react';
+import { LogOut, Settings, Plus, Lock, User } from 'lucide-react';
 import euvatarLogo from '@/assets/euvatar-logo-white.png';
 import { UnlockPasswordDialog } from '@/components/avatar/UnlockPasswordDialog';
 
@@ -17,6 +17,7 @@ interface Avatar {
   language: string;
   ai_model: string;
   voice_model: string;
+  idle_media_url: string | null;
 }
 
 interface Credits {
@@ -215,11 +216,24 @@ const AvatarsManagement = () => {
             avatars.map((avatar) => {
               const stats = avatarStats.find(s => s.avatarId === avatar.id);
               return (
-                <Card key={avatar.id} className="hover:shadow-lg transition-shadow flex flex-col">
-                  <CardHeader>
+                <Card key={avatar.id} className="hover:shadow-lg transition-shadow flex flex-col overflow-hidden">
+                  {avatar.idle_media_url ? (
+                    <div className="aspect-video w-full overflow-hidden bg-muted">
+                      <img 
+                        src={avatar.idle_media_url} 
+                        alt={avatar.name}
+                        className="w-full h-full object-cover"
+                      />
+                    </div>
+                  ) : (
+                    <div className="aspect-video w-full bg-muted flex items-center justify-center">
+                      <User className="h-16 w-16 text-muted-foreground/50" />
+                    </div>
+                  )}
+                  <CardHeader className="pb-2">
                     <CardTitle className="text-lg">{avatar.name}</CardTitle>
                   </CardHeader>
-                  <CardContent className="flex-1 flex flex-col justify-between">
+                  <CardContent className="flex-1 flex flex-col justify-between pt-0">
                     <div>
                       <p className="text-sm text-muted-foreground mb-4 line-clamp-2">
                         {avatar.backstory?.substring(0, 80)}...
