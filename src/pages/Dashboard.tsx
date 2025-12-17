@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { useToast } from '@/hooks/use-toast';
-import { LogOut, Settings, Plus, Lock, User } from 'lucide-react';
+import { LogOut, Settings, Plus, Lock, User, Clock } from 'lucide-react';
 import type { Database } from '@/integrations/supabase/types';
 import euvatarLogo from '@/assets/euvatar-logo-white.png';
 import { UnlockPasswordDialog } from '@/components/avatar/UnlockPasswordDialog';
@@ -14,8 +14,6 @@ import { UnlockPasswordDialog } from '@/components/avatar/UnlockPasswordDialog';
 type Avatar = Database['public']['Tables']['avatars']['Row'] & {
   cover_image_url?: string | null;
 };
-type UserCredits = Database['public']['Tables']['user_credits']['Row'];
-type Conversation = Database['public']['Tables']['conversations']['Row'];
 
 interface AvatarStats {
   avatarId: string;
@@ -24,12 +22,26 @@ interface AvatarStats {
   totalUsage: number;
 }
 
+interface HeyGenCredits {
+  euvatarCredits: number;
+  heygenCredits: number;
+  totalEuvatarCredits: number;
+  minutesRemaining: number;
+  totalMinutes: number;
+  hoursRemaining: number;
+  totalHours: number;
+  usedEuvatarCredits: number;
+  usedMinutes: number;
+  percentageRemaining: number;
+  error?: string;
+}
+
 const Dashboard = () => {
   const navigate = useNavigate();
   const { user, signOut } = useAuth();
   const { toast } = useToast();
   const [avatars, setAvatars] = useState<Avatar[]>([]);
-  const [credits, setCredits] = useState<UserCredits | null>(null);
+  const [heygenCredits, setHeygenCredits] = useState<HeyGenCredits | null>(null);
   const [avatarStats, setAvatarStats] = useState<AvatarStats[]>([]);
   const [loading, setLoading] = useState(true);
   const [showUnlockDialog, setShowUnlockDialog] = useState(false);
@@ -53,15 +65,14 @@ const Dashboard = () => {
       if (avatarsError) throw avatarsError;
       setAvatars(avatarsData || []);
 
-      // Fetch credits
-      const { data: creditsData, error: creditsError } = await supabase
-        .from('user_credits')
-        .select('*')
-        .eq('user_id', user?.id)
-        .maybeSingle();
-
-      if (creditsError) throw creditsError;
-      setCredits(creditsData);
+      // Fetch HeyGen credits via edge function
+      const { data: creditsData, error: creditsError } = await supabase.functions.invoke('get-heygen-credits');
+      
+      if (creditsError) {
+        console.error('Erro ao buscar créditos HeyGen:', creditsError);
+      } else {
+        setHeygenCredits(creditsData);
+      }
 
       // Fetch conversations stats per avatar
       if (avatarsData && avatarsData.length > 0) {
@@ -137,9 +148,21 @@ const Dashboard = () => {
     );
   }
 
-  const remainingCredits = credits ? credits.total_credits - credits.used_credits : 1000;
-  const creditsPercentage = credits ? ((credits.total_credits - credits.used_credits) / credits.total_credits) * 100 : 100;
-  const remainingConversations = Math.floor(remainingCredits / 10);
+  const remainingCredits = heygenCredits?.euvatarCredits ?? 960;
+  const totalCredits = heygenCredits?.totalEuvatarCredits ?? 960;
+  const creditsPercentage = heygenCredits?.percentageRemaining ?? 100;
+  const minutesRemaining = heygenCredits?.minutesRemaining ?? 240;
+  const hoursRemaining = heygenCredits?.hoursRemaining ?? 4;
+  const hasCredentialsConfigured = !heygenCredits?.error;
+
+  const formatTime = (minutes: number) => {
+    const hours = Math.floor(minutes / 60);
+    const mins = minutes % 60;
+    if (hours > 0) {
+      return mins > 0 ? `${hours}h ${mins}min` : `${hours}h`;
+    }
+    return `${mins}min`;
+  };
 
   return (
     <div className="min-h-screen bg-background p-8">
@@ -158,24 +181,50 @@ const Dashboard = () => {
         {/* Credits Overview */}
         <Card className="mb-8">
           <CardHeader>
-            <CardTitle>Uso Geral de Créditos</CardTitle>
+            <CardTitle className="flex items-center gap-2">
+              <Clock className="h-5 w-5" />
+              Uso de Créditos
+            </CardTitle>
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
               <div>
                 <div className="flex justify-between mb-2">
                   <span className="text-sm font-medium">
-                    {remainingCredits} de 1000 créditos restantes
+                    {remainingCredits} de {totalCredits} créditos restantes
                   </span>
                   <span className="text-sm text-muted-foreground">
-                    ~{remainingConversations} conversas de 2,5min
+                    {formatTime(minutesRemaining)} de 4h disponíveis
                   </span>
                 </div>
                 <Progress value={creditsPercentage} />
               </div>
-              <p className="text-sm text-muted-foreground">
-                Cada conversa de até 2,5 minutos consome 10 créditos. Configure o banco de dados na aba Cloud para começar.
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 pt-2">
+                <div className="text-center p-3 bg-muted/50 rounded-lg">
+                  <p className="text-2xl font-bold">{remainingCredits}</p>
+                  <p className="text-xs text-muted-foreground">Créditos</p>
+                </div>
+                <div className="text-center p-3 bg-muted/50 rounded-lg">
+                  <p className="text-2xl font-bold">{formatTime(minutesRemaining)}</p>
+                  <p className="text-xs text-muted-foreground">Tempo Restante</p>
+                </div>
+                <div className="text-center p-3 bg-muted/50 rounded-lg">
+                  <p className="text-2xl font-bold">{totalCredits - remainingCredits}</p>
+                  <p className="text-xs text-muted-foreground">Créditos Usados</p>
+                </div>
+                <div className="text-center p-3 bg-muted/50 rounded-lg">
+                  <p className="text-2xl font-bold">{formatTime(240 - minutesRemaining)}</p>
+                  <p className="text-xs text-muted-foreground">Tempo Usado</p>
+                </div>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                20 créditos = 5 minutos de uso. Plano inicial: 960 créditos (4 horas).
               </p>
+              {!hasCredentialsConfigured && (
+                <p className="text-xs text-yellow-600">
+                  Configure as credenciais do euvatar para ver os créditos em tempo real.
+                </p>
+              )}
             </div>
           </CardContent>
         </Card>
