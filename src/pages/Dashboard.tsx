@@ -15,13 +15,6 @@ type Avatar = Database['public']['Tables']['avatars']['Row'] & {
   cover_image_url?: string | null;
 };
 
-interface AvatarStats {
-  avatarId: string;
-  webUsage: number;
-  appUsage: number;
-  totalUsage: number;
-}
-
 interface AvatarHeyGenUsage {
   avatarId: string;
   heygenAvatarId?: string;
@@ -54,7 +47,6 @@ const Dashboard = () => {
   const { toast } = useToast();
   const [avatars, setAvatars] = useState<Avatar[]>([]);
   const [heygenCredits, setHeygenCredits] = useState<HeyGenCredits | null>(null);
-  const [avatarStats, setAvatarStats] = useState<AvatarStats[]>([]);
   const [loading, setLoading] = useState(true);
   const [showUnlockDialog, setShowUnlockDialog] = useState(false);
 
@@ -81,34 +73,9 @@ const Dashboard = () => {
       const { data: creditsData, error: creditsError } = await supabase.functions.invoke('get-heygen-credits');
       
       if (creditsError) {
-        console.error('Erro ao buscar créditos HeyGen:', creditsError);
+        console.error('Erro ao buscar créditos:', creditsError);
       } else {
         setHeygenCredits(creditsData);
-      }
-
-      // Fetch conversations stats per avatar
-      if (avatarsData && avatarsData.length > 0) {
-        const statsPromises = avatarsData.map(async (avatar) => {
-          const { data: conversations } = await supabase
-            .from('conversations')
-            .select('platform, credits_used')
-            .eq('avatar_id', avatar.id);
-
-          const webUsage = conversations?.filter(c => c.platform === 'web')
-            .reduce((sum, c) => sum + c.credits_used, 0) || 0;
-          const appUsage = conversations?.filter(c => c.platform === 'app')
-            .reduce((sum, c) => sum + c.credits_used, 0) || 0;
-
-          return {
-            avatarId: avatar.id,
-            webUsage,
-            appUsage,
-            totalUsage: webUsage + appUsage
-          };
-        });
-
-        const stats = await Promise.all(statsPromises);
-        setAvatarStats(stats);
       }
 
       setLoading(false);
@@ -237,7 +204,7 @@ const Dashboard = () => {
               </p>
               {needsCredentialUpdate && (
                 <p className="text-xs text-orange-600 font-medium">
-                  ⚠️ A API key da HeyGen está inválida ou expirada. Atualize na aba Credenciais do euvatar.
+                  ⚠️ A API key do Euvatar está inválida ou expirada. Atualize na aba Credenciais do euvatar.
                 </p>
               )}
               {!hasCredentialsConfigured && !needsCredentialUpdate && (
@@ -272,8 +239,10 @@ const Dashboard = () => {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
           {avatars.length > 0 ? (
             avatars.map((avatar) => {
-              const stats = avatarStats.find(s => s.avatarId === avatar.id);
-              const heygenUsage = heygenCredits?.avatarUsage?.find(u => u.avatarId === avatar.id);
+              const usage = heygenCredits?.avatarUsage?.find(u => u.avatarId === avatar.id);
+              const totalMinutes = usage?.totalMinutes ?? 0;
+              const euvatarCredits = usage?.euvatarCredits ?? 0;
+              const sessionCount = usage?.sessionCount ?? 0;
               
               return (
                 <Card 
@@ -313,37 +282,18 @@ const Dashboard = () => {
                   </CardHeader>
                   <CardContent>
                     <div className="space-y-2">
-                      {heygenUsage ? (
-                        <>
-                          <div className="flex justify-between text-sm">
-                            <span className="text-muted-foreground">Tempo usado:</span>
-                            <span className="font-medium">{formatTime(heygenUsage.totalMinutes)} ({heygenUsage.totalMinutes}min)</span>
-                          </div>
-                          <div className="flex justify-between text-sm">
-                            <span className="text-muted-foreground">Créditos usados:</span>
-                            <span>{heygenUsage.euvatarCredits}</span>
-                          </div>
-                          <div className="flex justify-between text-sm">
-                            <span className="text-muted-foreground">Sessões:</span>
-                            <span>{heygenUsage.sessionCount}</span>
-                          </div>
-                        </>
-                      ) : (
-                        <>
-                          <div className="flex justify-between text-sm">
-                            <span className="text-muted-foreground">Web:</span>
-                            <span>{stats?.webUsage || 0} créditos</span>
-                          </div>
-                          <div className="flex justify-between text-sm">
-                            <span className="text-muted-foreground">App:</span>
-                            <span>{stats?.appUsage || 0} créditos</span>
-                          </div>
-                          <div className="flex justify-between text-sm font-medium pt-2 border-t">
-                            <span>Total:</span>
-                            <span>{stats?.totalUsage || 0} créditos</span>
-                          </div>
-                        </>
-                      )}
+                      <div className="flex justify-between text-sm">
+                        <span className="text-muted-foreground">Tempo usado:</span>
+                        <span className="font-medium">{formatTime(totalMinutes)} ({totalMinutes}min)</span>
+                      </div>
+                      <div className="flex justify-between text-sm">
+                        <span className="text-muted-foreground">Créditos usados:</span>
+                        <span>{euvatarCredits}</span>
+                      </div>
+                      <div className="flex justify-between text-sm">
+                        <span className="text-muted-foreground">Sessões:</span>
+                        <span>{sessionCount}</span>
+                      </div>
                     </div>
                   </CardContent>
                 </Card>

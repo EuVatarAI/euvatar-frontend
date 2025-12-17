@@ -209,7 +209,7 @@ const AvatarsManagement = () => {
               </p>
               {needsCredentialUpdate && (
                 <p className="text-xs text-orange-600 font-medium">
-                  ⚠️ A API key da HeyGen está inválida ou expirada. Atualize na aba Credenciais do euvatar.
+                  ⚠️ A API key do Euvatar está inválida ou expirada. Atualize na aba Credenciais do euvatar.
                 </p>
               )}
               {!hasCredentialsConfigured && !needsCredentialUpdate && (
@@ -249,7 +249,11 @@ const AvatarsManagement = () => {
             </Card>
           ) : (
             avatars.map((avatar) => {
-              const heygenUsage = heygenCredits?.avatarUsage?.find(u => u.avatarId === avatar.id);
+              const usage = heygenCredits?.avatarUsage?.find(u => u.avatarId === avatar.id);
+              const totalMinutes = usage?.totalMinutes ?? 0;
+              const euvatarCredits = usage?.euvatarCredits ?? 0;
+              const sessionCount = usage?.sessionCount ?? 0;
+              
               return (
                 <Card key={avatar.id} className="hover:shadow-lg transition-shadow flex flex-col overflow-hidden">
                   {avatar.cover_image_url ? (
@@ -273,27 +277,21 @@ const AvatarsManagement = () => {
                       <p className="text-sm text-muted-foreground mb-4 line-clamp-2">
                         {avatar.backstory?.substring(0, 80)}...
                       </p>
-                      {heygenUsage ? (
-                        <div className="grid grid-cols-3 gap-2 mb-4">
-                          <div className="text-center">
-                            <p className="text-xs text-muted-foreground">Tempo</p>
-                            <p className="text-sm font-semibold">{formatTime(heygenUsage.totalMinutes)}</p>
-                            <p className="text-xs text-muted-foreground">({heygenUsage.totalMinutes}min)</p>
-                          </div>
-                          <div className="text-center">
-                            <p className="text-xs text-muted-foreground">Créditos</p>
-                            <p className="text-sm font-semibold">{heygenUsage.euvatarCredits}</p>
-                          </div>
-                          <div className="text-center">
-                            <p className="text-xs text-muted-foreground">Sessões</p>
-                            <p className="text-sm font-semibold">{heygenUsage.sessionCount}</p>
-                          </div>
+                      <div className="grid grid-cols-3 gap-2 mb-4">
+                        <div className="text-center">
+                          <p className="text-xs text-muted-foreground">Tempo</p>
+                          <p className="text-sm font-semibold">{formatTime(totalMinutes)}</p>
+                          <p className="text-xs text-muted-foreground">({totalMinutes}min)</p>
                         </div>
-                      ) : (
-                        <div className="text-center p-3 bg-muted/30 rounded-lg mb-4">
-                          <p className="text-xs text-muted-foreground">Sem dados de uso ainda</p>
+                        <div className="text-center">
+                          <p className="text-xs text-muted-foreground">Créditos</p>
+                          <p className="text-sm font-semibold">{euvatarCredits}</p>
                         </div>
-                      )}
+                        <div className="text-center">
+                          <p className="text-xs text-muted-foreground">Sessões</p>
+                          <p className="text-sm font-semibold">{sessionCount}</p>
+                        </div>
+                      </div>
                     </div>
                     <div className="flex gap-2 mt-4">
                       <Button 
