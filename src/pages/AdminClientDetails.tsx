@@ -51,6 +51,8 @@ interface AdminClient {
   setup_paid_at: string | null;
   setup_stripe_link: string | null;
   heygen_api_key: string | null;
+  heygen_avatar_id: string | null;
+  heygen_interactive_avatar_id: string | null;
   heygen_api_key_valid: boolean;
   credits_balance: number;
   credits_used_this_month: number;
@@ -98,12 +100,12 @@ interface EventAddition {
 const SETUP_PRICE = 1550000; // R$ 15.500,00 in cents
 const EVENT_HOUR_PRICE = 35000; // R$ 350,00 per hour in cents
 const EVENT_BLOCK_HOURS = 4;
-const CREDITS_PER_HOUR = 240;
+const CREDITS_PER_HOUR = 12; // 1 crédito do fornecedor = 5 minutos
 
 const planConfigs = {
-  plano_4h: { hours: 4, pricePerHour: 35000, monthly: 140000, quarterly: 420000, credits: 960 },
-  plano_7h: { hours: 7, pricePerHour: 30000, monthly: 210000, quarterly: 630000, credits: 1680 },
-  plano_20h: { hours: 20, pricePerHour: 25000, monthly: 500000, quarterly: 1500000, credits: 4800 },
+  plano_4h: { hours: 4, pricePerHour: 35000, monthly: 140000, quarterly: 420000, credits: 48 },
+  plano_7h: { hours: 7, pricePerHour: 30000, monthly: 210000, quarterly: 630000, credits: 84 },
+  plano_20h: { hours: 20, pricePerHour: 25000, monthly: 500000, quarterly: 1500000, credits: 240 },
 };
 
 const creditsToHours = (credits: number): string => {
@@ -132,6 +134,8 @@ export const AdminClientDetails = () => {
   const [modality, setModality] = useState<string>("");
   const [currentPlan, setCurrentPlan] = useState<string>("");
   const [heygenApiKey, setHeygenApiKey] = useState("");
+  const [heygenAvatarId, setHeygenAvatarId] = useState("");
+  const [heygenInteractiveAvatarId, setHeygenInteractiveAvatarId] = useState("");
   const [planStartDate, setPlanStartDate] = useState("");
   
   // Add avatar dialog
@@ -172,6 +176,8 @@ export const AdminClientDetails = () => {
       setModality(clientData.modality || "");
       setCurrentPlan(clientData.current_plan || "");
       setHeygenApiKey(clientData.heygen_api_key || "");
+      setHeygenAvatarId(clientData.heygen_avatar_id || "");
+      setHeygenInteractiveAvatarId(clientData.heygen_interactive_avatar_id || "");
       setPlanStartDate(clientData.plan_start_date || "");
 
       // Fetch avatars
@@ -234,6 +240,8 @@ export const AdminClientDetails = () => {
           modality: (modality || null) as 'evento' | 'plano_trimestral' | null,
           current_plan: (currentPlan || null) as 'plano_4h' | 'plano_7h' | 'plano_20h' | null,
           heygen_api_key: heygenApiKey || null,
+          heygen_avatar_id: heygenAvatarId || null,
+          heygen_interactive_avatar_id: heygenInteractiveAvatarId || null,
           plan_start_date: planStartDate || null,
           plan_expiration_date: expirationDate,
         })
@@ -276,8 +284,8 @@ export const AdminClientDetails = () => {
         client_id: client.id,
         payment_type: 'setup',
         amount_cents: SETUP_PRICE,
-        description: 'Setup inicial - inclui 4 horas (960 créditos)',
-        credits_to_add: 960,
+        description: 'Setup inicial - inclui 4 horas (48 créditos)',
+        credits_to_add: 48, // 4 hours × 12 credits
         status: 'pendente',
       });
 
@@ -634,46 +642,56 @@ export const AdminClientDetails = () => {
               </Card>
 
               {/* HeyGen Integration */}
-              <Card>
+              <Card className="md:col-span-2">
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
                     <Key className="h-5 w-5" />
                     Integração HeyGen
                   </CardTitle>
+                  <CardDescription>
+                    1 crédito = 5 minutos | 12 créditos = 1 hora
+                  </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  <div className="space-y-2">
-                    <Label>API Key</Label>
-                    <div className="relative">
-                      <Input
-                        type={showApiKey ? "text" : "password"}
-                        value={heygenApiKey}
-                        onChange={(e) => setHeygenApiKey(e.target.value)}
-                        placeholder="Cole a API Key aqui"
-                        className="pr-10"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setShowApiKey(!showApiKey)}
-                        className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                      >
-                        {showApiKey ? <EyeOff size={20} /> : <Eye size={20} />}
-                      </button>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="space-y-2">
+                      <Label>API Key da Conta</Label>
+                      <div className="relative">
+                        <Input
+                          type={showApiKey ? "text" : "password"}
+                          value={heygenApiKey}
+                          onChange={(e) => setHeygenApiKey(e.target.value)}
+                          placeholder="Cole a API Key aqui"
+                          className="pr-10"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowApiKey(!showApiKey)}
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                        >
+                          {showApiKey ? <EyeOff size={20} /> : <Eye size={20} />}
+                        </button>
+                      </div>
+                      <Badge variant={client.heygen_api_key_valid ? "default" : "secondary"} className="mt-1">
+                        {client.heygen_api_key_valid ? "Válida" : "Não validada"}
+                      </Badge>
                     </div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Badge variant={client.heygen_api_key_valid ? "default" : "secondary"}>
-                      {client.heygen_api_key_valid ? "Válida" : "Não validada"}
-                    </Badge>
-                  </div>
-                  <Separator />
-                  <div className="p-3 bg-muted rounded-lg text-sm">
-                    <p className="font-medium mb-2">Conversão de Consumo:</p>
-                    <ul className="text-muted-foreground space-y-1">
-                      <li>• 1 crédito HeyGen = 5 minutos</li>
-                      <li>• 5 minutos = 20 créditos Euvatar</li>
-                      <li>• 1 crédito HeyGen = 20 créditos Euvatar</li>
-                    </ul>
+                    <div className="space-y-2">
+                      <Label>Avatar ID</Label>
+                      <Input
+                        value={heygenAvatarId}
+                        onChange={(e) => setHeygenAvatarId(e.target.value)}
+                        placeholder="ID do avatar HeyGen"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Interactive Avatar ID</Label>
+                      <Input
+                        value={heygenInteractiveAvatarId}
+                        onChange={(e) => setHeygenInteractiveAvatarId(e.target.value)}
+                        placeholder="ID do avatar interativo"
+                      />
+                    </div>
                   </div>
                 </CardContent>
               </Card>
