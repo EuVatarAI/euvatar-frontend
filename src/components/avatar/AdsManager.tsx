@@ -18,6 +18,7 @@ interface Ad {
 
 interface AdsManagerProps {
   avatarId: string;
+  avatarOrientation: string;
 }
 
 interface PendingAd {
@@ -29,7 +30,7 @@ interface PendingAd {
   publicUrl: string;
 }
 
-export const AdsManager = ({ avatarId }: AdsManagerProps) => {
+export const AdsManager = ({ avatarId, avatarOrientation }: AdsManagerProps) => {
   const { toast } = useToast();
   const [ads, setAds] = useState<Ad[]>([]);
   const [loading, setLoading] = useState(true);
@@ -298,6 +299,34 @@ export const AdsManager = ({ avatarId }: AdsManagerProps) => {
 
   return (
     <div className="space-y-6">
+      {/* Format Requirement Banner */}
+      <Card className={`border-2 ${avatarOrientation === 'horizontal' ? 'border-blue-500 bg-blue-500/10' : 'border-purple-500 bg-purple-500/10'}`}>
+        <CardContent className="py-4">
+          <div className="flex items-center gap-3">
+            <div className={`p-2 rounded-lg ${avatarOrientation === 'horizontal' ? 'bg-blue-500' : 'bg-purple-500'}`}>
+              {avatarOrientation === 'horizontal' ? (
+                <svg className="h-6 w-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <rect x="2" y="6" width="20" height="12" rx="2" strokeWidth="2" />
+                </svg>
+              ) : (
+                <svg className="h-6 w-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <rect x="6" y="2" width="12" height="20" rx="2" strokeWidth="2" />
+                </svg>
+              )}
+            </div>
+            <div>
+              <p className="font-semibold text-foreground">
+                Formato exigido: {avatarOrientation === 'horizontal' ? 'Horizontal (16:9)' : 'Vertical (9:16)'}
+              </p>
+              <p className="text-sm text-muted-foreground">
+                O avatar HeyGen configurado é {avatarOrientation === 'horizontal' ? 'horizontal' : 'vertical'}. 
+                Os vídeos de anúncio devem seguir o mesmo formato.
+              </p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
       {/* Pending Ad Preview */}
       {pendingAd && (
         <Card className="border-primary">
@@ -305,7 +334,7 @@ export const AdsManager = ({ avatarId }: AdsManagerProps) => {
             <CardTitle>Preview do Anúncio</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="aspect-[9/16] max-w-xs mx-auto bg-black rounded-lg overflow-hidden">
+            <div className={`${avatarOrientation === 'horizontal' ? 'aspect-video max-w-lg' : 'aspect-[9/16] max-w-xs'} mx-auto bg-black rounded-lg overflow-hidden`}>
               <video
                 ref={previewVideoRef}
                 src={pendingAd.previewUrl}
@@ -364,7 +393,7 @@ export const AdsManager = ({ avatarId }: AdsManagerProps) => {
             </Button>
           </CardHeader>
           <CardContent>
-            <div className="aspect-[9/16] max-w-xs mx-auto bg-black rounded-lg overflow-hidden">
+            <div className={`${avatarOrientation === 'horizontal' ? 'aspect-video max-w-lg' : 'aspect-[9/16] max-w-xs'} mx-auto bg-black rounded-lg overflow-hidden`}>
               <video
                 ref={videoRef}
                 key={ads[currentPlayingIndex]?.id}

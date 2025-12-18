@@ -220,6 +220,7 @@ export type Database = {
       avatars: {
         Row: {
           ai_model: string
+          avatar_orientation: string | null
           backstory: string | null
           cover_image_url: string | null
           created_at: string
@@ -233,6 +234,7 @@ export type Database = {
         }
         Insert: {
           ai_model?: string
+          avatar_orientation?: string | null
           backstory?: string | null
           cover_image_url?: string | null
           created_at?: string
@@ -246,6 +248,7 @@ export type Database = {
         }
         Update: {
           ai_model?: string
+          avatar_orientation?: string | null
           backstory?: string | null
           cover_image_url?: string | null
           created_at?: string

@@ -26,6 +26,7 @@ interface Avatar {
   voice_model: string;
   idle_media_url?: string | null;
   cover_image_url?: string | null;
+  avatar_orientation?: string | null;
 }
 
 interface MediaTrigger {
@@ -874,11 +875,11 @@ const AvatarDetails = () => {
           </TabsContent>
 
           <TabsContent value="buttons" className="mt-6">
-            <ButtonsManager avatarId={id!} />
+            <ButtonsManager avatarId={id!} avatarOrientation={avatar?.avatar_orientation || 'vertical'} />
           </TabsContent>
 
           <TabsContent value="ads" className="mt-6">
-            <AdsManager avatarId={id!} />
+            <AdsManager avatarId={id!} avatarOrientation={avatar?.avatar_orientation || 'vertical'} />
           </TabsContent>
 
           <TabsContent value="media" className="space-y-6 mt-6">
