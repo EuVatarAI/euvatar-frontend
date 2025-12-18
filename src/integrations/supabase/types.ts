@@ -52,6 +52,62 @@ export type Database = {
           },
         ]
       }
+      avatar_buttons: {
+        Row: {
+          action_type: string
+          avatar_id: string
+          color: string
+          created_at: string
+          display_order: number
+          enabled: boolean
+          external_url: string | null
+          id: string
+          label: string
+          position_x: number
+          position_y: number
+          size: string
+          updated_at: string
+        }
+        Insert: {
+          action_type: string
+          avatar_id: string
+          color?: string
+          created_at?: string
+          display_order?: number
+          enabled?: boolean
+          external_url?: string | null
+          id?: string
+          label: string
+          position_x?: number
+          position_y?: number
+          size?: string
+          updated_at?: string
+        }
+        Update: {
+          action_type?: string
+          avatar_id?: string
+          color?: string
+          created_at?: string
+          display_order?: number
+          enabled?: boolean
+          external_url?: string | null
+          id?: string
+          label?: string
+          position_x?: number
+          position_y?: number
+          size?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "avatar_buttons_avatar_id_fkey"
+            columns: ["avatar_id"]
+            isOneToOne: false
+            referencedRelation: "avatars"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       avatar_credentials: {
         Row: {
           account_id: string
