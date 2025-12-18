@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
@@ -10,7 +10,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
-import { ArrowLeft, Plus, Trash2, CheckCircle2, Save, Upload, FileText, ImageIcon, Clock, ExternalLink, Link, Copy, Check } from 'lucide-react';
+import { ArrowLeft, Plus, Trash2, CheckCircle2, Save, Upload, FileText, ImageIcon, Clock, ExternalLink, Link, Copy, Check, AlertTriangle } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 import { sanitizeContextName } from '@/utils/contextNameSanitizer';
 import { CredentialsTab } from '@/components/avatar/CredentialsTab';
@@ -18,6 +18,16 @@ import { AdsManager } from '@/components/avatar/AdsManager';
 import { ButtonsManager } from '@/components/avatar/ButtonsManager';
 import { AvatarStreamingPreview } from '@/components/avatar/AvatarStreamingPreview';
 import { AppLayout } from '@/components/layout/AppLayout';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 
 interface Avatar {
   id: string;
@@ -87,6 +97,8 @@ const AvatarDetails = () => {
   });
   const [organizationSlug, setOrganizationSlug] = useState('');
   const [copiedLink, setCopiedLink] = useState(false);
+  const [showUnsavedDialog, setShowUnsavedDialog] = useState(false);
+  const [pendingNavigation, setPendingNavigation] = useState<string | null>(null);
 
   const stripTrainingNotes = (text: string) => {
     // Remove legacy markers like: [Treinado com o documento: arquivo.pdf]
@@ -94,6 +106,45 @@ const AvatarDetails = () => {
       .replace(/\n?\n?\[Treinado com o documento:[^\]]+\]/g, '')
       .trimEnd();
   };
+
+  const hasChanges = JSON.stringify(formData) !== JSON.stringify(originalFormData);
+
+  // Safe navigation that checks for unsaved changes
+  const safeNavigate = useCallback((path: string) => {
+    if (hasChanges) {
+      setPendingNavigation(path);
+      setShowUnsavedDialog(true);
+    } else {
+      navigate(path);
+    }
+  }, [hasChanges, navigate]);
+
+  const handleConfirmLeave = () => {
+    setShowUnsavedDialog(false);
+    if (pendingNavigation) {
+      navigate(pendingNavigation);
+      setPendingNavigation(null);
+    }
+  };
+
+  const handleCancelLeave = () => {
+    setShowUnsavedDialog(false);
+    setPendingNavigation(null);
+  };
+
+  // Warn about unsaved changes when closing/refreshing browser
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (hasChanges) {
+        e.preventDefault();
+        e.returnValue = '';
+        return '';
+      }
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [hasChanges]);
   useEffect(() => {
     if (!user) {
       navigate('/login');
@@ -501,8 +552,6 @@ const AvatarDetails = () => {
     );
   }
 
-  const hasChanges = JSON.stringify(formData) !== JSON.stringify(originalFormData);
-
   const webUsage = conversations.filter(c => c.platform === 'web').reduce((sum, c) => sum + c.credits_used, 0);
   const appUsage = conversations.filter(c => c.platform === 'app').reduce((sum, c) => sum + c.credits_used, 0);
   const totalUsage = webUsage + appUsage;
@@ -535,11 +584,19 @@ const AvatarDetails = () => {
         </Button>
       }
     >
-      <div className="flex items-center gap-4 mb-8">
-        <Button onClick={() => navigate('/avatars')} variant="outline" size="icon">
-          <ArrowLeft className="h-4 w-4" />
-        </Button>
-        <h1 className="text-4xl font-bold">{avatar?.name || 'Euvatar'}</h1>
+      <div className="flex items-center justify-between mb-8">
+        <div className="flex items-center gap-4">
+          <Button onClick={() => safeNavigate('/avatars')} variant="outline" size="icon">
+            <ArrowLeft className="h-4 w-4" />
+          </Button>
+          <h1 className="text-4xl font-bold">{avatar?.name || 'Euvatar'}</h1>
+        </div>
+        {hasChanges && (
+          <div className="flex items-center gap-2 text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/30 px-4 py-2 rounded-lg border border-amber-200 dark:border-amber-800">
+            <AlertTriangle className="h-4 w-4" />
+            <span className="text-sm font-medium">Alterações não salvas</span>
+          </div>
+        )}
       </div>
 
         <Tabs defaultValue={searchParams.get('tab') || 'overview'} className="w-full">
@@ -1132,6 +1189,29 @@ const AvatarDetails = () => {
             <CredentialsTab avatarId={id!} />
           </TabsContent>
         </Tabs>
+
+        {/* Unsaved changes dialog */}
+        <AlertDialog open={showUnsavedDialog} onOpenChange={setShowUnsavedDialog}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle className="flex items-center gap-2">
+                <AlertTriangle className="h-5 w-5 text-amber-500" />
+                Alterações não salvas
+              </AlertDialogTitle>
+              <AlertDialogDescription>
+                Você tem alterações que não foram salvas. Se sair agora, essas alterações serão perdidas.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel onClick={handleCancelLeave}>
+                Continuar editando
+              </AlertDialogCancel>
+              <AlertDialogAction onClick={handleConfirmLeave} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                Sair sem salvar
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
     </AppLayout>
   );
 };
