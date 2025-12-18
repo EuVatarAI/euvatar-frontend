@@ -329,6 +329,32 @@ export const AdminClientDetails = () => {
     }
   };
 
+  const handleCancelPayment = async (paymentId: string) => {
+    try {
+      const { error } = await supabase
+        .from('client_payments')
+        .delete()
+        .eq('id', paymentId);
+
+      if (error) throw error;
+
+      toast({
+        title: "Cobrança cancelada!",
+        description: "A cobrança foi removida com sucesso.",
+      });
+
+      fetchClientData();
+    } catch (error: any) {
+      toast({
+        title: "Erro",
+        description: error.message,
+        variant: "destructive",
+      });
+    }
+  };
+
+  const pendingSetupPayment = payments.find(p => p.payment_type === 'setup' && p.status === 'pendente');
+
   const handleGeneratePlanPayment = async () => {
     if (!client || !currentPlan) return;
 
@@ -1034,11 +1060,58 @@ export const AdminClientDetails = () => {
                       {client.setup_paid ? "Pago" : "Pendente"}
                     </Badge>
                   </div>
-                  {!client.setup_paid && (
+                  {!client.setup_paid && !pendingSetupPayment && (
                     <Button onClick={handleGenerateSetupPayment} className="w-full">
                       <CreditCard className="h-4 w-4 mr-2" />
                       Gerar Cobrança do Setup
                     </Button>
+                  )}
+                  {!client.setup_paid && pendingSetupPayment && (
+                    <div className="space-y-3">
+                      <div className="p-4 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-lg">
+                        <p className="text-sm font-medium text-amber-800 dark:text-amber-200 mb-2">
+                          Cobrança gerada em {new Date(pendingSetupPayment.created_at).toLocaleDateString('pt-BR')}
+                        </p>
+                        {pendingSetupPayment.stripe_link ? (
+                          <a 
+                            href={pendingSetupPayment.stripe_link} 
+                            target="_blank" 
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-2 text-primary hover:underline font-medium"
+                          >
+                            <ExternalLink className="h-4 w-4" />
+                            Acessar link de pagamento
+                          </a>
+                        ) : (
+                          <p className="text-sm text-muted-foreground">
+                            Link Stripe será gerado quando a integração estiver pronta.
+                          </p>
+                        )}
+                      </div>
+                      <div className="flex gap-2">
+                        {pendingSetupPayment.stripe_link && (
+                          <Button 
+                            variant="outline" 
+                            className="flex-1"
+                            onClick={() => {
+                              navigator.clipboard.writeText(pendingSetupPayment.stripe_link!);
+                              toast({ title: "Link copiado!" });
+                            }}
+                          >
+                            <Copy className="h-4 w-4 mr-2" />
+                            Copiar Link
+                          </Button>
+                        )}
+                        <Button 
+                          variant="destructive" 
+                          className={pendingSetupPayment.stripe_link ? "" : "w-full"}
+                          onClick={() => handleCancelPayment(pendingSetupPayment.id)}
+                        >
+                          <XCircle className="h-4 w-4 mr-2" />
+                          Cancelar Cobrança
+                        </Button>
+                      </div>
+                    </div>
                   )}
                 </CardContent>
               </Card>
@@ -1087,8 +1160,9 @@ export const AdminClientDetails = () => {
                         <TableHead>Valor</TableHead>
                         <TableHead>Créditos</TableHead>
                         <TableHead>Status</TableHead>
+                        <TableHead>Link</TableHead>
                         <TableHead>Data</TableHead>
-                        <TableHead></TableHead>
+                        <TableHead>Ações</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -1104,18 +1178,43 @@ export const AdminClientDetails = () => {
                             </Badge>
                           </TableCell>
                           <TableCell>
+                            {payment.stripe_link ? (
+                              <a 
+                                href={payment.stripe_link} 
+                                target="_blank" 
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center gap-1 text-primary hover:underline text-sm"
+                              >
+                                <ExternalLink className="h-3 w-3" />
+                                Acessar
+                              </a>
+                            ) : (
+                              <span className="text-muted-foreground text-sm">-</span>
+                            )}
+                          </TableCell>
+                          <TableCell>
                             {new Date(payment.created_at).toLocaleDateString('pt-BR')}
                           </TableCell>
                           <TableCell>
                             {payment.status === 'pendente' && (
-                              <Button 
-                                size="sm" 
-                                variant="outline"
-                                onClick={() => handleMarkAsPaid(payment.id, payment.credits_to_add)}
-                              >
-                                <CheckCircle2 className="h-4 w-4 mr-1" />
-                                Marcar Pago
-                              </Button>
+                              <div className="flex gap-1">
+                                <Button 
+                                  size="sm" 
+                                  variant="outline"
+                                  onClick={() => handleMarkAsPaid(payment.id, payment.credits_to_add)}
+                                >
+                                  <CheckCircle2 className="h-4 w-4 mr-1" />
+                                  Pago
+                                </Button>
+                                <Button 
+                                  size="sm" 
+                                  variant="ghost"
+                                  className="text-destructive hover:text-destructive"
+                                  onClick={() => handleCancelPayment(payment.id)}
+                                >
+                                  <XCircle className="h-4 w-4" />
+                                </Button>
+                              </div>
                             )}
                           </TableCell>
                         </TableRow>
