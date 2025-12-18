@@ -283,16 +283,9 @@ export default function EuvatarPublic() {
 
   return (
     <div className="min-h-screen bg-black relative overflow-hidden">
-      {/* Idle Video / Button Video */}
+      {/* Idle Video - always playing in background */}
       <div className="absolute inset-0 flex items-center justify-center">
-        {buttonVideoUrl ? (
-          <video
-            src={buttonVideoUrl}
-            className="max-w-full max-h-full object-contain"
-            autoPlay
-            onEnded={handleButtonVideoEnd}
-          />
-        ) : avatar.idle_media_url ? (
+        {avatar.idle_media_url ? (
           <video
             ref={videoRef}
             src={avatar.idle_media_url}
@@ -309,7 +302,42 @@ export default function EuvatarPublic() {
         )}
       </div>
 
-      {/* Buttons overlay - only show when not playing button video */}
+      {/* Button Video Overlay - No controls */}
+      {buttonVideoUrl && (
+        <div className="absolute inset-0 z-20 flex items-center justify-center bg-black">
+          <video
+            src={buttonVideoUrl}
+            className="max-w-full max-h-full object-contain"
+            autoPlay
+            playsInline
+            onEnded={handleButtonVideoEnd}
+          />
+        </div>
+      )}
+
+      {/* External Link Square Popup Overlay */}
+      {externalPopupOpen && externalUrl && (
+        <div className="absolute inset-0 z-20 flex items-center justify-center bg-black/60">
+          <div className="relative w-[85%] max-w-2xl aspect-square bg-white rounded-lg overflow-hidden shadow-2xl">
+            <iframe
+              src={externalUrl}
+              className="w-full h-full border-0"
+              title="Conteúdo externo"
+              sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
+            />
+            <Button
+              variant="destructive"
+              size="sm"
+              className="absolute top-2 right-2 z-30"
+              onClick={closeAllPopups}
+            >
+              <X className="h-4 w-4" />
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {/* Buttons overlay - only show when not in any overlay mode */}
       {!buttonVideoUrl && !externalPopupOpen && (
         <div className="absolute inset-0 pointer-events-none">
           <div className="relative w-full h-full pointer-events-auto">
@@ -317,30 +345,6 @@ export default function EuvatarPublic() {
           </div>
         </div>
       )}
-
-      {/* External Link Popup */}
-      <Dialog open={externalPopupOpen} onOpenChange={(open) => {
-        if (!open) closeAllPopups();
-      }}>
-        <DialogContent className="max-w-4xl h-[80vh] p-0 overflow-hidden">
-          <div className="relative w-full h-full">
-            <Button
-              variant="ghost"
-              size="icon"
-              className="absolute top-2 right-2 z-10 bg-background/80 hover:bg-background"
-              onClick={closeAllPopups}
-            >
-              <X className="h-4 w-4" />
-            </Button>
-            <iframe
-              src={externalUrl}
-              className="w-full h-full border-0"
-              title="Conteúdo externo"
-              sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
-            />
-          </div>
-        </DialogContent>
-      </Dialog>
 
       {/* Inactivity Warning Dialog */}
       <Dialog open={showInactivityWarning} onOpenChange={() => {}}>

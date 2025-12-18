@@ -409,33 +409,46 @@ export const ButtonsManager = ({ avatarId }: ButtonsManagerProps) => {
             onMouseUp={!testPopupUrl && !testVideoUrl ? handlePreviewMouseUp : undefined}
             onMouseLeave={!testPopupUrl && !testVideoUrl ? handlePreviewMouseUp : undefined}
           >
-            {/* Test Link Preview */}
-            {testPopupUrl ? (
-              <div className="absolute inset-0 z-20">
-                <iframe
-                  src={testPopupUrl}
-                  className="w-full h-full border-0"
-                  title="Teste de Link Externo"
-                  sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
-                />
-                <Button
-                  variant="destructive"
-                  size="sm"
-                  className="absolute top-2 right-2 z-30"
-                  onClick={() => setTestPopupUrl(null)}
-                >
-                  <X className="h-4 w-4 mr-1" />
-                  Fechar Teste
-                </Button>
+            {/* Background Video always playing */}
+            <video
+              src={SAMPLE_VIDEOS[videoOrientation]}
+              className="w-full h-full object-cover"
+              autoPlay
+              loop
+              muted
+              playsInline
+            />
+
+            {/* Test Link Preview - Square popup overlay */}
+            {testPopupUrl && (
+              <div className="absolute inset-0 z-20 flex items-center justify-center bg-black/60">
+                <div className="relative w-[85%] aspect-square bg-white rounded-lg overflow-hidden shadow-2xl">
+                  <iframe
+                    src={testPopupUrl}
+                    className="w-full h-full border-0"
+                    title="Teste de Link Externo"
+                    sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
+                  />
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    className="absolute top-2 right-2 z-30"
+                    onClick={() => setTestPopupUrl(null)}
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
+                </div>
               </div>
-            ) : testVideoUrl ? (
-              /* Test Video Preview */
+            )}
+
+            {/* Test Video Preview - No controls, just media */}
+            {testVideoUrl && (
               <div className="absolute inset-0 z-20 flex items-center justify-center bg-black">
                 <video
                   src={testVideoUrl}
                   className="max-w-full max-h-full object-contain"
                   autoPlay
-                  controls
+                  playsInline
                   onEnded={() => setTestVideoUrl(null)}
                 />
                 <Button
@@ -444,22 +457,14 @@ export const ButtonsManager = ({ avatarId }: ButtonsManagerProps) => {
                   className="absolute top-2 right-2 z-30"
                   onClick={() => setTestVideoUrl(null)}
                 >
-                  <X className="h-4 w-4 mr-1" />
-                  Fechar Teste
+                  <X className="h-4 w-4" />
                 </Button>
               </div>
-            ) : (
-              /* Normal Preview */
+            )}
+
+            {/* Show buttons only when not testing */}
+            {!testPopupUrl && !testVideoUrl && (
               <>
-                <video
-                  src={SAMPLE_VIDEOS[videoOrientation]}
-                  className="w-full h-full object-cover"
-                  autoPlay
-                  loop
-                  muted
-                  playsInline
-                />
-                
                 {/* Show current editing/new button */}
                 <div className="absolute inset-0 pointer-events-none">
                   {renderButtonPreview(currentButton as any, true)}
