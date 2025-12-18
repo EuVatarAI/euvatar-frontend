@@ -56,11 +56,13 @@ export type Database = {
         Row: {
           action_type: string
           avatar_id: string
+          border_style: string
           color: string
           created_at: string
           display_order: number
           enabled: boolean
           external_url: string | null
+          font_family: string
           id: string
           label: string
           position_x: number
@@ -71,11 +73,13 @@ export type Database = {
         Insert: {
           action_type: string
           avatar_id: string
+          border_style?: string
           color?: string
           created_at?: string
           display_order?: number
           enabled?: boolean
           external_url?: string | null
+          font_family?: string
           id?: string
           label: string
           position_x?: number
@@ -86,11 +90,13 @@ export type Database = {
         Update: {
           action_type?: string
           avatar_id?: string
+          border_style?: string
           color?: string
           created_at?: string
           display_order?: number
           enabled?: boolean
           external_url?: string | null
+          font_family?: string
           id?: string
           label?: string
           position_x?: number

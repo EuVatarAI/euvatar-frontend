@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -7,7 +7,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { useToast } from '@/hooks/use-toast';
-import { Plus, Trash2, Play, Upload, ExternalLink, GripVertical, Save, Pencil } from 'lucide-react';
+import { Plus, Trash2, Play, Upload, ExternalLink, GripVertical, Save, Pencil, Monitor, Smartphone } from 'lucide-react';
 
 interface AvatarButton {
   id: string;
@@ -20,6 +20,8 @@ interface AvatarButton {
   position_y: number;
   display_order: number;
   enabled: boolean;
+  border_style: 'square' | 'rounded' | 'pill';
+  font_family: string;
 }
 
 interface ButtonsManagerProps {
@@ -32,26 +34,46 @@ const ACTION_LABELS = {
   external_link: 'Link Externo',
 };
 
-const SIZE_LABELS = {
-  small: 'Pequeno',
-  medium: 'Médio',
-  large: 'Grande',
+const SIZE_CONFIG = {
+  small: { padding: 'px-3 py-1.5', fontSize: 'text-sm' },
+  medium: { padding: 'px-5 py-2.5', fontSize: 'text-base' },
+  large: { padding: 'px-7 py-3.5', fontSize: 'text-lg' },
 };
 
-const SIZE_CLASSES = {
-  small: 'px-3 py-1 text-sm',
-  medium: 'px-4 py-2 text-base',
-  large: 'px-6 py-3 text-lg',
+const BORDER_CONFIG = {
+  square: 'rounded-none',
+  rounded: 'rounded-lg',
+  pill: 'rounded-full',
+};
+
+const FONTS = [
+  { value: 'Inter', label: 'Inter' },
+  { value: 'Roboto', label: 'Roboto' },
+  { value: 'Open Sans', label: 'Open Sans' },
+  { value: 'Poppins', label: 'Poppins' },
+  { value: 'Montserrat', label: 'Montserrat' },
+  { value: 'Playfair Display', label: 'Playfair Display' },
+  { value: 'Oswald', label: 'Oswald' },
+  { value: 'Lato', label: 'Lato' },
+];
+
+// Sample video URLs for preview
+const SAMPLE_VIDEOS = {
+  vertical: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerJoyrides.mp4',
+  horizontal: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4',
 };
 
 export const ButtonsManager = ({ avatarId }: ButtonsManagerProps) => {
   const { toast } = useToast();
+  const previewRef = useRef<HTMLDivElement>(null);
   const [buttons, setButtons] = useState<AvatarButton[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [editingId, setEditingId] = useState<string | null>(null);
+  const [videoOrientation, setVideoOrientation] = useState<'vertical' | 'horizontal'>('vertical');
   const [hasOrderChanges, setHasOrderChanges] = useState(false);
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
+  const [editingButton, setEditingButton] = useState<Partial<AvatarButton> | null>(null);
+  const [isDraggingButton, setIsDraggingButton] = useState(false);
   
   const [newButton, setNewButton] = useState<{
     label: string;
@@ -59,16 +81,29 @@ export const ButtonsManager = ({ avatarId }: ButtonsManagerProps) => {
     external_url: string;
     size: 'small' | 'medium' | 'large';
     color: string;
+    border_style: 'square' | 'rounded' | 'pill';
+    font_family: string;
+    position_x: number;
+    position_y: number;
   }>({
-    label: '',
+    label: 'Conversar',
     action_type: 'session_start',
     external_url: '',
     size: 'medium',
     color: '#6366f1',
+    border_style: 'rounded',
+    font_family: 'Inter',
+    position_x: 50,
+    position_y: 85,
   });
 
   useEffect(() => {
     fetchButtons();
+    // Load Google Fonts
+    const link = document.createElement('link');
+    link.href = 'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Roboto:wght@400;500;700&family=Open+Sans:wght@400;600;700&family=Poppins:wght@400;500;600;700&family=Montserrat:wght@400;500;600;700&family=Playfair+Display:wght@400;700&family=Oswald:wght@400;500;600;700&family=Lato:wght@400;700&display=swap';
+    link.rel = 'stylesheet';
+    document.head.appendChild(link);
   }, [avatarId]);
 
   const fetchButtons = async () => {
@@ -89,7 +124,7 @@ export const ButtonsManager = ({ avatarId }: ButtonsManagerProps) => {
     }
   };
 
-  const handleAddButton = async () => {
+  const handleSaveNewButton = async () => {
     if (!newButton.label) {
       toast({ title: 'Digite o texto do botão', variant: 'destructive' });
       return;
@@ -113,24 +148,32 @@ export const ButtonsManager = ({ avatarId }: ButtonsManagerProps) => {
           external_url: newButton.action_type === 'external_link' ? newButton.external_url : null,
           size: newButton.size,
           color: newButton.color,
+          border_style: newButton.border_style,
+          font_family: newButton.font_family,
+          position_x: newButton.position_x,
+          position_y: newButton.position_y,
           display_order: maxOrder + 1,
         });
 
       if (error) throw error;
 
       setNewButton({
-        label: '',
+        label: 'Conversar',
         action_type: 'session_start',
         external_url: '',
         size: 'medium',
         color: '#6366f1',
+        border_style: 'rounded',
+        font_family: 'Inter',
+        position_x: 50,
+        position_y: 85,
       });
 
-      toast({ title: 'Botão adicionado!' });
+      toast({ title: 'Botão salvo!' });
       fetchButtons();
     } catch (error: any) {
-      console.error('Error adding button:', error);
-      toast({ title: 'Erro ao adicionar botão', variant: 'destructive' });
+      console.error('Error saving button:', error);
+      toast({ title: 'Erro ao salvar botão', variant: 'destructive' });
     } finally {
       setSaving(false);
     }
@@ -146,12 +189,16 @@ export const ButtonsManager = ({ avatarId }: ButtonsManagerProps) => {
           external_url: button.external_url,
           size: button.size,
           color: button.color,
+          border_style: button.border_style,
+          font_family: button.font_family,
+          position_x: button.position_x,
+          position_y: button.position_y,
           enabled: button.enabled,
         })
         .eq('id', button.id);
 
       if (error) throw error;
-      setEditingId(null);
+      setEditingButton(null);
       toast({ title: 'Botão atualizado!' });
       fetchButtons();
     } catch (error: any) {
@@ -189,6 +236,34 @@ export const ButtonsManager = ({ avatarId }: ButtonsManagerProps) => {
       fetchButtons();
     } catch (error: any) {
       console.error('Error toggling button:', error);
+    }
+  };
+
+  const handlePreviewMouseDown = (e: React.MouseEvent) => {
+    if (!previewRef.current) return;
+    setIsDraggingButton(true);
+    updateButtonPosition(e);
+  };
+
+  const handlePreviewMouseMove = (e: React.MouseEvent) => {
+    if (!isDraggingButton || !previewRef.current) return;
+    updateButtonPosition(e);
+  };
+
+  const handlePreviewMouseUp = () => {
+    setIsDraggingButton(false);
+  };
+
+  const updateButtonPosition = (e: React.MouseEvent) => {
+    if (!previewRef.current) return;
+    const rect = previewRef.current.getBoundingClientRect();
+    const x = Math.max(5, Math.min(95, ((e.clientX - rect.left) / rect.width) * 100));
+    const y = Math.max(5, Math.min(95, ((e.clientY - rect.top) / rect.height) * 100));
+    
+    if (editingButton) {
+      setEditingButton({ ...editingButton, position_x: Math.round(x), position_y: Math.round(y) });
+    } else {
+      setNewButton({ ...newButton, position_x: Math.round(x), position_y: Math.round(y) });
     }
   };
 
@@ -246,57 +321,127 @@ export const ButtonsManager = ({ avatarId }: ButtonsManagerProps) => {
     }
   };
 
+  const renderButtonPreview = (btn: typeof newButton | AvatarButton, isEditing = false) => {
+    const sizeConfig = SIZE_CONFIG[btn.size];
+    const borderConfig = BORDER_CONFIG[btn.border_style];
+    
+    return (
+      <button
+        className={`font-medium transition-all shadow-lg ${sizeConfig.padding} ${sizeConfig.fontSize} ${borderConfig}`}
+        style={{
+          backgroundColor: btn.color,
+          color: 'white',
+          fontFamily: btn.font_family,
+          position: 'absolute',
+          left: `${btn.position_x}%`,
+          top: `${btn.position_y}%`,
+          transform: 'translate(-50%, -50%)',
+          cursor: isEditing ? 'move' : 'pointer',
+          whiteSpace: 'nowrap',
+        }}
+      >
+        {btn.label || 'Texto do Botão'}
+      </button>
+    );
+  };
+
+  const currentButton = editingButton || newButton;
+
   if (loading) {
     return <div className="text-center py-8">Carregando...</div>;
   }
 
   return (
     <div className="space-y-6">
-      {/* Preview */}
+      {/* Video Orientation Selector */}
+      <div className="flex justify-center gap-2">
+        <Button
+          variant={videoOrientation === 'vertical' ? 'default' : 'outline'}
+          size="sm"
+          onClick={() => setVideoOrientation('vertical')}
+        >
+          <Smartphone className="h-4 w-4 mr-2" />
+          Vertical
+        </Button>
+        <Button
+          variant={videoOrientation === 'horizontal' ? 'default' : 'outline'}
+          size="sm"
+          onClick={() => setVideoOrientation('horizontal')}
+        >
+          <Monitor className="h-4 w-4 mr-2" />
+          Horizontal
+        </Button>
+      </div>
+
+      {/* Live Preview */}
       <Card>
         <CardHeader>
-          <CardTitle>Preview dos Botões</CardTitle>
+          <CardTitle>Preview em Tempo Real</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="relative aspect-video bg-muted rounded-lg overflow-hidden">
-            <div className="absolute inset-0 flex items-center justify-center text-muted-foreground">
-              Área do vídeo idle
+          <div 
+            className={`mx-auto bg-black rounded-lg overflow-hidden relative ${
+              videoOrientation === 'vertical' ? 'aspect-[9/16] max-w-xs' : 'aspect-video max-w-2xl'
+            }`}
+            ref={previewRef}
+            onMouseDown={handlePreviewMouseDown}
+            onMouseMove={handlePreviewMouseMove}
+            onMouseUp={handlePreviewMouseUp}
+            onMouseLeave={handlePreviewMouseUp}
+          >
+            <video
+              src={SAMPLE_VIDEOS[videoOrientation]}
+              className="w-full h-full object-cover"
+              autoPlay
+              loop
+              muted
+              playsInline
+            />
+            
+            {/* Show current editing/new button */}
+            <div className="absolute inset-0 pointer-events-none">
+              {renderButtonPreview(currentButton as any, true)}
             </div>
-            <div className="absolute inset-0 flex flex-wrap items-end justify-center gap-2 p-4">
-              {buttons.filter(b => b.enabled).map((button) => (
-                <button
-                  key={button.id}
-                  className={`rounded-lg font-medium transition-all ${SIZE_CLASSES[button.size]}`}
-                  style={{ backgroundColor: button.color, color: 'white' }}
-                >
-                  {button.label}
-                </button>
-              ))}
-            </div>
+            
+            {/* Show saved buttons (dimmed when editing) */}
+            {buttons.filter(b => b.enabled && (!editingButton || b.id !== editingButton.id)).map((btn) => (
+              <div key={btn.id} className={`absolute inset-0 pointer-events-none ${editingButton ? 'opacity-30' : ''}`}>
+                {renderButtonPreview(btn)}
+              </div>
+            ))}
           </div>
+          <p className="text-xs text-muted-foreground text-center mt-2">
+            Clique e arraste para posicionar o botão
+          </p>
         </CardContent>
       </Card>
 
-      {/* Add Button Form */}
+      {/* Button Editor */}
       <Card>
         <CardHeader>
-          <CardTitle>Adicionar Botão</CardTitle>
+          <CardTitle>{editingButton ? 'Editar Botão' : 'Novo Botão'}</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
             <div>
               <Label>Texto do Botão</Label>
               <Input
-                value={newButton.label}
-                onChange={(e) => setNewButton({ ...newButton, label: e.target.value })}
+                value={currentButton.label}
+                onChange={(e) => editingButton 
+                  ? setEditingButton({ ...editingButton, label: e.target.value })
+                  : setNewButton({ ...newButton, label: e.target.value })
+                }
                 placeholder="Ex: Conversar"
               />
             </div>
             <div>
               <Label>Ação</Label>
               <Select 
-                value={newButton.action_type} 
-                onValueChange={(v) => setNewButton({ ...newButton, action_type: v as any })}
+                value={currentButton.action_type} 
+                onValueChange={(v: any) => editingButton
+                  ? setEditingButton({ ...editingButton, action_type: v })
+                  : setNewButton({ ...newButton, action_type: v })
+                }
               >
                 <SelectTrigger>
                   <SelectValue />
@@ -310,23 +455,29 @@ export const ButtonsManager = ({ avatarId }: ButtonsManagerProps) => {
             </div>
           </div>
 
-          {newButton.action_type === 'external_link' && (
+          {currentButton.action_type === 'external_link' && (
             <div>
               <Label>URL do Link</Label>
               <Input
-                value={newButton.external_url}
-                onChange={(e) => setNewButton({ ...newButton, external_url: e.target.value })}
+                value={currentButton.external_url || ''}
+                onChange={(e) => editingButton
+                  ? setEditingButton({ ...editingButton, external_url: e.target.value })
+                  : setNewButton({ ...newButton, external_url: e.target.value })
+                }
                 placeholder="https://exemplo.com"
               />
             </div>
           )}
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-3 gap-4">
             <div>
               <Label>Tamanho</Label>
               <Select 
-                value={newButton.size} 
-                onValueChange={(v) => setNewButton({ ...newButton, size: v as any })}
+                value={currentButton.size} 
+                onValueChange={(v: any) => editingButton
+                  ? setEditingButton({ ...editingButton, size: v })
+                  : setNewButton({ ...newButton, size: v })
+                }
               >
                 <SelectTrigger>
                   <SelectValue />
@@ -339,34 +490,127 @@ export const ButtonsManager = ({ avatarId }: ButtonsManagerProps) => {
               </Select>
             </div>
             <div>
+              <Label>Formato</Label>
+              <Select 
+                value={currentButton.border_style} 
+                onValueChange={(v: any) => editingButton
+                  ? setEditingButton({ ...editingButton, border_style: v })
+                  : setNewButton({ ...newButton, border_style: v })
+                }
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="square">Quadrado</SelectItem>
+                  <SelectItem value="rounded">Arredondado</SelectItem>
+                  <SelectItem value="pill">Pill (Totalmente Redondo)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label>Fonte</Label>
+              <Select 
+                value={currentButton.font_family} 
+                onValueChange={(v) => editingButton
+                  ? setEditingButton({ ...editingButton, font_family: v })
+                  : setNewButton({ ...newButton, font_family: v })
+                }
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {FONTS.map((font) => (
+                    <SelectItem key={font.value} value={font.value} style={{ fontFamily: font.value }}>
+                      {font.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-3 gap-4">
+            <div>
               <Label>Cor</Label>
               <div className="flex gap-2">
                 <Input
                   type="color"
-                  value={newButton.color}
-                  onChange={(e) => setNewButton({ ...newButton, color: e.target.value })}
+                  value={currentButton.color}
+                  onChange={(e) => editingButton
+                    ? setEditingButton({ ...editingButton, color: e.target.value })
+                    : setNewButton({ ...newButton, color: e.target.value })
+                  }
                   className="w-12 h-10 p-1 cursor-pointer"
                 />
                 <Input
-                  value={newButton.color}
-                  onChange={(e) => setNewButton({ ...newButton, color: e.target.value })}
+                  value={currentButton.color}
+                  onChange={(e) => editingButton
+                    ? setEditingButton({ ...editingButton, color: e.target.value })
+                    : setNewButton({ ...newButton, color: e.target.value })
+                  }
                   placeholder="#6366f1"
                 />
               </div>
             </div>
+            <div>
+              <Label>Posição X (%)</Label>
+              <Input
+                type="number"
+                min={5}
+                max={95}
+                value={currentButton.position_x}
+                onChange={(e) => editingButton
+                  ? setEditingButton({ ...editingButton, position_x: parseInt(e.target.value) || 50 })
+                  : setNewButton({ ...newButton, position_x: parseInt(e.target.value) || 50 })
+                }
+              />
+            </div>
+            <div>
+              <Label>Posição Y (%)</Label>
+              <Input
+                type="number"
+                min={5}
+                max={95}
+                value={currentButton.position_y}
+                onChange={(e) => editingButton
+                  ? setEditingButton({ ...editingButton, position_y: parseInt(e.target.value) || 85 })
+                  : setNewButton({ ...newButton, position_y: parseInt(e.target.value) || 85 })
+                }
+              />
+            </div>
           </div>
 
-          <Button onClick={handleAddButton} disabled={saving} className="w-full">
-            <Plus className="h-4 w-4 mr-2" />
-            {saving ? 'Adicionando...' : 'Adicionar Botão'}
-          </Button>
+          <div className="flex gap-2">
+            {editingButton ? (
+              <>
+                <Button 
+                  onClick={() => handleUpdateButton(editingButton as AvatarButton)} 
+                  disabled={saving}
+                  className="flex-1"
+                >
+                  <Save className="h-4 w-4 mr-2" />
+                  {saving ? 'Salvando...' : 'Salvar Alterações'}
+                </Button>
+                <Button variant="outline" onClick={() => setEditingButton(null)}>
+                  Cancelar
+                </Button>
+              </>
+            ) : (
+              <Button onClick={handleSaveNewButton} disabled={saving} className="w-full">
+                <Save className="h-4 w-4 mr-2" />
+                {saving ? 'Salvando...' : 'Salvar Botão'}
+              </Button>
+            )}
+          </div>
         </CardContent>
       </Card>
 
       {/* Buttons List */}
       <Card>
         <CardHeader>
-          <CardTitle>Botões Configurados ({buttons.length})</CardTitle>
+          <CardTitle>Botões Salvos ({buttons.length})</CardTitle>
         </CardHeader>
         <CardContent>
           {buttons.length === 0 ? (
@@ -389,72 +633,41 @@ export const ButtonsManager = ({ avatarId }: ButtonsManagerProps) => {
                   <GripVertical className="h-5 w-5 text-muted-foreground flex-shrink-0" />
                   
                   <div
-                    className="w-8 h-8 rounded flex-shrink-0"
-                    style={{ backgroundColor: button.color }}
+                    className={`w-20 h-8 flex items-center justify-center text-white text-xs font-medium ${BORDER_CONFIG[button.border_style]}`}
+                    style={{ backgroundColor: button.color, fontFamily: button.font_family }}
+                  >
+                    {button.label.slice(0, 10)}
+                  </div>
+                  
+                  <div className="flex-1 min-w-0">
+                    <p className="font-medium truncate">{button.label}</p>
+                    <p className="text-sm text-muted-foreground flex items-center gap-1">
+                      {getActionIcon(button.action_type)}
+                      {ACTION_LABELS[button.action_type]}
+                    </p>
+                  </div>
+                  
+                  <Switch
+                    checked={button.enabled}
+                    onCheckedChange={() => handleToggleEnabled(button)}
                   />
                   
-                  {editingId === button.id ? (
-                    <div className="flex-1 space-y-2">
-                      <Input
-                        value={button.label}
-                        onChange={(e) => {
-                          const updated = buttons.map(b => 
-                            b.id === button.id ? { ...b, label: e.target.value } : b
-                          );
-                          setButtons(updated);
-                        }}
-                      />
-                      <div className="flex gap-2">
-                        <Button size="sm" onClick={() => handleUpdateButton(button)}>
-                          Salvar
-                        </Button>
-                        <Button size="sm" variant="outline" onClick={() => setEditingId(null)}>
-                          Cancelar
-                        </Button>
-                      </div>
-                    </div>
-                  ) : (
-                    <>
-                      <div className="flex-1 min-w-0">
-                        <p className="font-medium truncate">{button.label}</p>
-                        <p className="text-sm text-muted-foreground flex items-center gap-1">
-                          {getActionIcon(button.action_type)}
-                          {ACTION_LABELS[button.action_type]}
-                          {button.action_type === 'external_link' && button.external_url && (
-                            <span className="text-xs truncate max-w-32">
-                              ({button.external_url})
-                            </span>
-                          )}
-                        </p>
-                      </div>
-                      
-                      <span className="text-xs text-muted-foreground">
-                        {SIZE_LABELS[button.size]}
-                      </span>
-                      
-                      <Switch
-                        checked={button.enabled}
-                        onCheckedChange={() => handleToggleEnabled(button)}
-                      />
-                      
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => setEditingId(button.id)}
-                      >
-                        <Pencil className="h-4 w-4" />
-                      </Button>
-                      
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => handleDeleteButton(button.id)}
-                        className="text-destructive hover:text-destructive"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </>
-                  )}
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setEditingButton(button)}
+                  >
+                    <Pencil className="h-4 w-4" />
+                  </Button>
+                  
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => handleDeleteButton(button.id)}
+                    className="text-destructive hover:text-destructive"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
                 </div>
               ))}
             </div>
