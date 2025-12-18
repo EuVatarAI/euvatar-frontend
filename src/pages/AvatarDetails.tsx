@@ -15,6 +15,7 @@ import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recha
 import { sanitizeContextName } from '@/utils/contextNameSanitizer';
 import { CredentialsTab } from '@/components/avatar/CredentialsTab';
 import { AdsManager } from '@/components/avatar/AdsManager';
+import { ButtonsManager } from '@/components/avatar/ButtonsManager';
 
 interface Avatar {
   id: string;
@@ -468,9 +469,10 @@ const AvatarDetails = () => {
         </div>
 
         <Tabs defaultValue={searchParams.get('tab') || 'overview'} className="w-full">
-          <TabsList className="grid w-full grid-cols-5">
+          <TabsList className="grid w-full grid-cols-6">
             <TabsTrigger value="overview">Visão Geral</TabsTrigger>
             <TabsTrigger value="edit">Editar Euvatar</TabsTrigger>
+            <TabsTrigger value="buttons">Botões</TabsTrigger>
             <TabsTrigger value="ads">Anúncios</TabsTrigger>
             <TabsTrigger value="media">Gatilhos de Mídia</TabsTrigger>
             <TabsTrigger value="credentials">Credenciais</TabsTrigger>
@@ -860,6 +862,10 @@ const AvatarDetails = () => {
               </CardContent>
             </Card>
 
+          </TabsContent>
+
+          <TabsContent value="buttons" className="mt-6">
+            <ButtonsManager avatarId={id!} />
           </TabsContent>
 
           <TabsContent value="ads" className="mt-6">
