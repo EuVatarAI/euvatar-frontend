@@ -801,47 +801,8 @@ export const AdminClientDetails = () => {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {/* Basic Info */}
               <Card>
-                <CardHeader className="flex flex-row items-center justify-between">
+                <CardHeader>
                   <CardTitle>Dados do Cliente</CardTitle>
-                  <Button 
-                    size="sm" 
-                    onClick={async () => {
-                      if (!client) return;
-                      try {
-                        // Log URL change if changed
-                        if (clientUrl !== client.client_url) {
-                          await supabase.from('client_url_history').insert({
-                            client_id: client.id,
-                            old_url: client.client_url,
-                            new_url: clientUrl || null,
-                            changed_by: 'admin',
-                          });
-                        }
-
-                        const { error } = await supabase
-                          .from('admin_clients')
-                          .update({ client_url: clientUrl || null })
-                          .eq('id', client.id);
-
-                        if (error) throw error;
-
-                        toast({
-                          title: "URL salva!",
-                        });
-
-                        fetchClientData();
-                      } catch (error: any) {
-                        toast({
-                          title: "Erro ao salvar",
-                          description: error.message,
-                          variant: "destructive",
-                        });
-                      }
-                    }}
-                  >
-                    <Save className="h-4 w-4 mr-2" />
-                    Salvar
-                  </Button>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div className="space-y-2">
@@ -867,6 +828,41 @@ export const AdminClientDetails = () => {
                       Acesso: {window.location.origin}/{clientUrl || 'sua-url'}
                     </p>
                   </div>
+                  <Button 
+                    className="w-full"
+                    onClick={async () => {
+                      if (!client) return;
+                      try {
+                        if (clientUrl !== client.client_url) {
+                          await supabase.from('client_url_history').insert({
+                            client_id: client.id,
+                            old_url: client.client_url,
+                            new_url: clientUrl || null,
+                            changed_by: 'admin',
+                          });
+                        }
+
+                        const { error } = await supabase
+                          .from('admin_clients')
+                          .update({ client_url: clientUrl || null })
+                          .eq('id', client.id);
+
+                        if (error) throw error;
+
+                        toast({ title: "URL salva!" });
+                        fetchClientData();
+                      } catch (error: any) {
+                        toast({
+                          title: "Erro ao salvar",
+                          description: error.message,
+                          variant: "destructive",
+                        });
+                      }
+                    }}
+                  >
+                    <Save className="h-4 w-4 mr-2" />
+                    Salvar Dados
+                  </Button>
                 </CardContent>
               </Card>
 
@@ -1040,48 +1036,14 @@ export const AdminClientDetails = () => {
 
               {/* HeyGen Integration */}
               <Card className="md:col-span-2">
-                <CardHeader className="flex flex-row items-center justify-between">
-                  <div>
-                    <CardTitle className="flex items-center gap-2">
-                      <Key className="h-5 w-5" />
-                      Integração HeyGen
-                    </CardTitle>
-                    <CardDescription>
-                      1 crédito HeyGen (5 min) = 20 créditos Euvatar | 240 créditos = 1 hora
-                    </CardDescription>
-                  </div>
-                  <Button 
-                    size="sm" 
-                    onClick={async () => {
-                      try {
-                        const { error } = await supabase
-                          .from('admin_clients')
-                          .update({
-                            heygen_api_key: heygenApiKey || null,
-                            heygen_avatar_id: heygenAvatarId || null,
-                            heygen_interactive_avatar_id: heygenInteractiveAvatarId || null,
-                          })
-                          .eq('id', client.id);
-
-                        if (error) throw error;
-
-                        toast({
-                          title: "Configurações HeyGen salvas!",
-                        });
-
-                        fetchClientData();
-                      } catch (error: any) {
-                        toast({
-                          title: "Erro ao salvar",
-                          description: error.message,
-                          variant: "destructive",
-                        });
-                      }
-                    }}
-                  >
-                    <Save className="h-4 w-4 mr-2" />
-                    Salvar
-                  </Button>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Key className="h-5 w-5" />
+                    Integração HeyGen
+                  </CardTitle>
+                  <CardDescription>
+                    1 crédito HeyGen (5 min) = 20 créditos Euvatar | 240 créditos = 1 hora
+                  </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -1124,6 +1086,35 @@ export const AdminClientDetails = () => {
                       />
                     </div>
                   </div>
+                  <Button 
+                    className="w-full"
+                    onClick={async () => {
+                      try {
+                        const { error } = await supabase
+                          .from('admin_clients')
+                          .update({
+                            heygen_api_key: heygenApiKey || null,
+                            heygen_avatar_id: heygenAvatarId || null,
+                            heygen_interactive_avatar_id: heygenInteractiveAvatarId || null,
+                          })
+                          .eq('id', client.id);
+
+                        if (error) throw error;
+
+                        toast({ title: "Configurações HeyGen salvas!" });
+                        fetchClientData();
+                      } catch (error: any) {
+                        toast({
+                          title: "Erro ao salvar",
+                          description: error.message,
+                          variant: "destructive",
+                        });
+                      }
+                    }}
+                  >
+                    <Save className="h-4 w-4 mr-2" />
+                    Salvar Integração
+                  </Button>
                 </CardContent>
               </Card>
 
