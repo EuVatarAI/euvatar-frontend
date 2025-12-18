@@ -4,13 +4,15 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
-import { supabase } from "@/integrations/supabase/client";
 import { Eye, EyeOff, Shield } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import euvatarLogo from "@/assets/euvatar-logo-white.png";
 
+const ADMIN_USERNAME = "euvatar";
+const ADMIN_PASSWORD = "B4b4d0@15";
+
 export const AdminLogin = () => {
-  const [email, setEmail] = useState("");
+  const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -19,22 +21,10 @@ export const AdminLogin = () => {
 
   useEffect(() => {
     // Check if already logged in as admin
-    const checkAdminSession = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (session?.user) {
-        const { data: roleData } = await supabase
-          .from('user_roles')
-          .select('role')
-          .eq('user_id', session.user.id)
-          .eq('role', 'admin')
-          .single();
-        
-        if (roleData) {
-          navigate('/admin/dashboard');
-        }
-      }
-    };
-    checkAdminSession();
+    const isAdminLoggedIn = sessionStorage.getItem('adminLoggedIn') === 'true';
+    if (isAdminLoggedIn) {
+      navigate('/admin/dashboard');
+    }
   }, [navigate]);
 
   const handleLogin = async (e: React.FormEvent) => {
@@ -42,33 +32,18 @@ export const AdminLogin = () => {
     setLoading(true);
 
     try {
-      const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
-      
-      if (authError) throw authError;
-
-      // Check if user has admin role
-      const { data: roleData, error: roleError } = await supabase
-        .from('user_roles')
-        .select('role')
-        .eq('user_id', authData.user.id)
-        .eq('role', 'admin')
-        .single();
-
-      if (roleError || !roleData) {
-        // Sign out if not admin
-        await supabase.auth.signOut();
-        throw new Error('Acesso negado. Você não tem permissão de administrador.');
+      if (username === ADMIN_USERNAME && password === ADMIN_PASSWORD) {
+        sessionStorage.setItem('adminLoggedIn', 'true');
+        
+        toast({
+          title: "Login realizado com sucesso!",
+          description: "Bem-vindo ao painel administrativo.",
+        });
+        
+        navigate('/admin/dashboard');
+      } else {
+        throw new Error('Credenciais inválidas.');
       }
-
-      toast({
-        title: "Login realizado com sucesso!",
-        description: "Bem-vindo ao painel administrativo.",
-      });
-      
-      navigate('/admin/dashboard');
     } catch (error: any) {
       toast({
         title: "Erro no login",
@@ -108,13 +83,13 @@ export const AdminLogin = () => {
 
           <form onSubmit={handleLogin} className="space-y-6">
             <div className="space-y-2">
-              <Label htmlFor="email">E-mail</Label>
+              <Label htmlFor="username">Usuário</Label>
               <Input
-                id="email"
-                type="email"
-                placeholder="admin@euvatar.ai"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                id="username"
+                type="text"
+                placeholder="Usuário"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
                 required
                 className="bg-muted border-border"
               />
