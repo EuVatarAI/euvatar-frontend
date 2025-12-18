@@ -41,7 +41,7 @@ export const AppLayout = ({
               <img
                 src={euvatarLogo}
                 alt="Logo da Euvatar"
-                className="h-20 w-auto object-contain"
+                className="h-28 w-auto object-contain"
               />
             </div>
             <div className="flex items-center gap-4">
