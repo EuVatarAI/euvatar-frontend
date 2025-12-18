@@ -474,7 +474,11 @@ export const AdminDashboard = () => {
                       const statusInfo = statusConfig[status];
                       
                       return (
-                        <TableRow key={client.id} className="cursor-pointer hover:bg-muted/50">
+                        <TableRow 
+                          key={client.id} 
+                          className="cursor-pointer hover:bg-muted/50"
+                          onClick={() => navigate(`/admin/client/${client.id}`)}
+                        >
                           <TableCell>
                             <div>
                               <p className="font-medium">{client.name}</p>
@@ -536,22 +540,22 @@ export const AdminDashboard = () => {
                             </Badge>
                           </TableCell>
                           <TableCell className="text-right">
-                            <DropdownMenu>
-                              <DropdownMenuTrigger asChild>
+                              <DropdownMenu>
+                              <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
                                 <Button variant="ghost" size="sm">
                                   Ações
                                 </Button>
                               </DropdownMenuTrigger>
                               <DropdownMenuContent align="end">
-                                <DropdownMenuItem onClick={() => navigate(`/admin/client/${client.id}`)}>
+                                <DropdownMenuItem onClick={(e) => { e.stopPropagation(); navigate(`/admin/client/${client.id}`); }}>
                                   <Eye className="h-4 w-4 mr-2" />
-                                  Abrir Cliente
+                                  Ver Detalhes
                                 </DropdownMenuItem>
-                                <DropdownMenuItem>
+                                <DropdownMenuItem onClick={(e) => e.stopPropagation()}>
                                   <CreditCard className="h-4 w-4 mr-2" />
                                   Gerar Cobrança
                                 </DropdownMenuItem>
-                                <DropdownMenuItem>
+                                <DropdownMenuItem onClick={(e) => e.stopPropagation()}>
                                   <ExternalLink className="h-4 w-4 mr-2" />
                                   Acessar como Cliente
                                 </DropdownMenuItem>
