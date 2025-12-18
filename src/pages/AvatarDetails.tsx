@@ -471,18 +471,156 @@ const AvatarDetails = () => {
           </TabsList>
 
           <TabsContent value="overview" className="space-y-6 mt-6">
+            {/* Cover Image and Basic Info */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <Card className="md:col-span-1">
+                <CardHeader>
+                  <CardTitle>Imagem de Capa</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="aspect-video bg-muted rounded-lg overflow-hidden flex items-center justify-center">
+                    {coverImageUrl ? (
+                      <img src={coverImageUrl} alt="Capa" className="w-full h-full object-cover" />
+                    ) : (
+                      <ImageIcon className="h-12 w-12 text-muted-foreground" />
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
 
-            {avatar?.backstory && (
-              <Card>
+              <Card className="md:col-span-2">
                 <CardHeader>
                   <CardTitle>Sobre o Euvatar</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <p className="text-muted-foreground">{avatar.backstory}</p>
+                  <p className="text-muted-foreground line-clamp-4">
+                    {avatar?.backstory || 'Nenhuma descrição definida.'}
+                  </p>
+                  <div className="mt-4 grid grid-cols-3 gap-4 text-sm">
+                    <div>
+                      <p className="text-muted-foreground">Idioma</p>
+                      <p className="font-medium">{avatar?.language || 'pt-BR'}</p>
+                    </div>
+                    <div>
+                      <p className="text-muted-foreground">Modelo IA</p>
+                      <p className="font-medium">{avatar?.ai_model || 'gpt-4'}</p>
+                    </div>
+                    <div>
+                      <p className="text-muted-foreground">Modelo de Voz</p>
+                      <p className="font-medium">{avatar?.voice_model || 'default'}</p>
+                    </div>
+                  </div>
                 </CardContent>
               </Card>
-            )}
+            </div>
 
+            {/* Idle Media and Training Documents */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Mídia Idle</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {avatar?.idle_media_url ? (
+                    <div className="aspect-video bg-muted rounded-lg overflow-hidden">
+                      <video 
+                        src={avatar.idle_media_url} 
+                        className="w-full h-full object-cover"
+                        muted
+                        loop
+                        playsInline
+                      />
+                    </div>
+                  ) : (
+                    <p className="text-muted-foreground">Nenhuma mídia idle configurada.</p>
+                  )}
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle>Documentos Treinados</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {trainingDocuments.length > 0 ? (
+                    <div className="space-y-2 max-h-40 overflow-y-auto">
+                      {trainingDocuments.map((doc) => (
+                        <div key={doc.id} className="flex items-center gap-2 p-2 bg-muted rounded">
+                          <FileText className="h-4 w-4 text-muted-foreground" />
+                          <span className="text-sm truncate flex-1">{doc.document_name}</span>
+                          {trainedDocs.has(doc.id) && (
+                            <CheckCircle2 className="h-4 w-4 text-green-500" />
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-muted-foreground">Nenhum documento de treinamento.</p>
+                  )}
+                  <p className="text-xs text-muted-foreground mt-2">
+                    {trainingDocuments.length} documento(s) carregado(s)
+                  </p>
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Topics and Access Days */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Assuntos Mais Relatados</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {topTopics.length > 0 ? (
+                    <div className="space-y-2">
+                      {topTopics.map(([topic, count]: any, index) => (
+                        <div key={index} className="flex justify-between items-center p-2 bg-muted rounded">
+                          <span className="text-sm">{topic}</span>
+                          <span className="text-xs text-muted-foreground">{count} menções</span>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-muted-foreground">Nenhuma conversa registrada ainda.</p>
+                  )}
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle>Dias com Mais Acesso</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {(() => {
+                    const dayCount = new Map<string, number>();
+                    conversations.forEach(conv => {
+                      const day = new Date(conv.created_at).toLocaleDateString('pt-BR', { 
+                        weekday: 'long' 
+                      });
+                      dayCount.set(day, (dayCount.get(day) || 0) + 1);
+                    });
+                    const topDays = Array.from(dayCount.entries())
+                      .sort((a, b) => b[1] - a[1])
+                      .slice(0, 5);
+                    
+                    return topDays.length > 0 ? (
+                      <div className="space-y-2">
+                        {topDays.map(([day, count], index) => (
+                          <div key={index} className="flex justify-between items-center p-2 bg-muted rounded">
+                            <span className="text-sm capitalize">{day}</span>
+                            <span className="text-xs text-muted-foreground">{count} acessos</span>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-muted-foreground">Nenhum acesso registrado ainda.</p>
+                    );
+                  })()}
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Credits Summary */}
             <Card>
               <CardHeader>
                 <CardTitle>Consumo de Créditos</CardTitle>
@@ -502,26 +640,6 @@ const AvatarDetails = () => {
                     <p className="text-2xl font-bold">{totalUsage}</p>
                   </div>
                 </div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle>Assuntos Mais Relatados</CardTitle>
-              </CardHeader>
-              <CardContent>
-                {topTopics.length > 0 ? (
-                  <div className="space-y-2">
-                    {topTopics.map(([topic, count]: any, index) => (
-                      <div key={index} className="flex justify-between items-center p-2 bg-muted rounded">
-                        <span>{topic}</span>
-                        <span className="text-sm text-muted-foreground">{count} menções</span>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="text-muted-foreground">Nenhuma conversa registrada ainda.</p>
-                )}
               </CardContent>
             </Card>
           </TabsContent>
