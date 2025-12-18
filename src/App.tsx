@@ -12,6 +12,8 @@ import AvatarSessions from "./pages/AvatarSessions";
 import CreateAvatar from "./pages/CreateAvatar";
 import ConfigureCredentials from "./pages/ConfigureCredentials";
 import EuvatarPublic from "./pages/EuvatarPublic";
+import AdminLogin from "./pages/AdminLogin";
+import AdminDashboard from "./pages/AdminDashboard";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -32,6 +34,8 @@ const App = () => (
             <Route path="/avatar/:id/settings" element={<AvatarSettings />} />
             <Route path="/avatar/:id/sessions" element={<AvatarSessions />} />
             <Route path="/euvatar/:id" element={<EuvatarPublic />} />
+            <Route path="/admin" element={<AdminLogin />} />
+            <Route path="/admin/dashboard" element={<AdminDashboard />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>

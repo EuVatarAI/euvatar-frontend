@@ -1,44 +1,78 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
-import { Eye, EyeOff } from "lucide-react";
+import { Eye, EyeOff, Shield } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 import euvatarLogo from "@/assets/euvatar-logo-white.png";
 
-interface AuthProps {
-  onAuthSuccess: () => void;
-}
-
-export const Auth = ({ onAuthSuccess }: AuthProps) => {
+export const AdminLogin = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const { toast } = useToast();
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    // Check if already logged in as admin
+    const checkAdminSession = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.user) {
+        const { data: roleData } = await supabase
+          .from('user_roles')
+          .select('role')
+          .eq('user_id', session.user.id)
+          .eq('role', 'admin')
+          .single();
+        
+        if (roleData) {
+          navigate('/admin/dashboard');
+        }
+      }
+    };
+    checkAdminSession();
+  }, [navigate]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
 
     try {
-      const { error } = await supabase.auth.signInWithPassword({
+      const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
         email,
         password,
       });
       
-      if (error) throw error;
-      
+      if (authError) throw authError;
+
+      // Check if user has admin role
+      const { data: roleData, error: roleError } = await supabase
+        .from('user_roles')
+        .select('role')
+        .eq('user_id', authData.user.id)
+        .eq('role', 'admin')
+        .single();
+
+      if (roleError || !roleData) {
+        // Sign out if not admin
+        await supabase.auth.signOut();
+        throw new Error('Acesso negado. Você não tem permissão de administrador.');
+      }
+
       toast({
         title: "Login realizado com sucesso!",
-        description: "Bem-vindo de volta à plataforma.",
+        description: "Bem-vindo ao painel administrativo.",
       });
+      
+      navigate('/admin/dashboard');
     } catch (error: any) {
       toast({
         title: "Erro no login",
-        description: error.message || "Credenciais inválidas. Tente novamente.",
+        description: error.message || "Credenciais inválidas.",
         variant: "destructive",
       });
     } finally {
@@ -47,10 +81,10 @@ export const Auth = ({ onAuthSuccess }: AuthProps) => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-subtle p-4">
-      <div className="w-full max-w-md mx-auto animate-fade-in">
+    <div className="min-h-screen bg-gradient-subtle flex items-center justify-center p-4">
+      <div className="w-full max-w-md animate-fade-in">
         {/* Logo and Branding */}
-        <div className="text-center mb-4">
+        <div className="text-center mb-6">
           <div className="flex justify-center">
             <img 
               src={euvatarLogo} 
@@ -60,21 +94,15 @@ export const Auth = ({ onAuthSuccess }: AuthProps) => {
           </div>
         </div>
 
-        <div className="text-center mb-4">
-          <p className="text-lg text-center text-muted-foreground leading-tight">
-            não fale para o seu público, converse com ele no mundo real.{" "}
-            <span className="text-primary font-semibold">
-              a evolução da comunicação humano-marca
-            </span>
-          </p>
-        </div>
-
         {/* Auth Form */}
         <Card className="gradient-card shadow-card border-border p-8">
           <div className="text-center mb-6">
-            <h2 className="text-2xl font-bold">Entre na sua conta</h2>
-            <p className="text-muted-foreground mt-2">
-              Acesse sua plataforma de mídia OOH
+            <div className="flex items-center justify-center gap-2 mb-2">
+              <Shield className="h-6 w-6 text-primary" />
+              <h2 className="text-2xl font-bold">Área Administrativa</h2>
+            </div>
+            <p className="text-muted-foreground">
+              Acesso restrito à equipe Euvatar
             </p>
           </div>
 
@@ -84,7 +112,7 @@ export const Auth = ({ onAuthSuccess }: AuthProps) => {
               <Input
                 id="email"
                 type="email"
-                placeholder="seu@email.com"
+                placeholder="admin@euvatar.ai"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
@@ -102,7 +130,6 @@ export const Auth = ({ onAuthSuccess }: AuthProps) => {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   required
-                  minLength={6}
                   className="bg-muted border-border pr-10"
                 />
                 <button
@@ -120,7 +147,7 @@ export const Auth = ({ onAuthSuccess }: AuthProps) => {
               className="w-full bg-gradient-primary hover:shadow-glow transition-all duration-300"
               disabled={loading}
             >
-              {loading ? "Entrando..." : "Entrar na plataforma"}
+              {loading ? "Verificando..." : "Entrar"}
             </Button>
           </form>
         </Card>
@@ -128,3 +155,5 @@ export const Auth = ({ onAuthSuccess }: AuthProps) => {
     </div>
   );
 };
+
+export default AdminLogin;
