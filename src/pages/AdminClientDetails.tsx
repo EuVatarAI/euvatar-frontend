@@ -108,8 +108,23 @@ const planConfigs = {
   plano_20h: { hours: 20, pricePerHour: 25000, monthly: 500000, quarterly: 1500000, credits: 4800 },
 };
 
+// 20 créditos = 5 min (300 seg), então 1 crédito = 15 segundos
 const creditsToHours = (credits: number): string => {
-  return (credits / CREDITS_PER_HOUR).toFixed(1);
+  const hours = credits / CREDITS_PER_HOUR;
+  return hours.toFixed(2);
+};
+
+const creditsToMinutes = (credits: number): string => {
+  const minutes = (credits * 15) / 60; // 1 crédito = 15 seg
+  return minutes.toFixed(1);
+};
+
+const secondsToCredits = (seconds: number): number => {
+  return Number((seconds / 15).toFixed(2)); // 1 crédito = 15 segundos
+};
+
+const formatCredits = (credits: number): string => {
+  return credits.toFixed(2);
 };
 
 const formatCurrency = (cents: number): string => {
