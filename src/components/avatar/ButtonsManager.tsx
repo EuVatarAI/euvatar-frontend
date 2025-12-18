@@ -7,6 +7,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { Slider } from '@/components/ui/slider';
+import { ScaledIframe } from '@/components/ScaledIframe';
 
 import { useToast } from '@/hooks/use-toast';
 import { Trash2, Play, Upload, ExternalLink, GripVertical, Save, Pencil, Monitor, Smartphone, X, Eye } from 'lucide-react';
@@ -401,7 +402,7 @@ export const ButtonsManager = ({ avatarId }: ButtonsManagerProps) => {
         <CardContent>
           <div 
             className={`mx-auto bg-black rounded-lg overflow-hidden relative ${
-              videoOrientation === 'vertical' ? 'aspect-[9/16] max-w-xs' : 'aspect-video max-w-2xl'
+              testPopupUrl ? 'aspect-[16/10] max-w-4xl' : videoOrientation === 'vertical' ? 'aspect-[9/16] max-w-xs' : 'aspect-video max-w-2xl'
             }`}
             ref={previewRef}
             onMouseDown={!testPopupUrl && !testVideoUrl ? handlePreviewMouseDown : undefined}
@@ -419,35 +420,19 @@ export const ButtonsManager = ({ avatarId }: ButtonsManagerProps) => {
               playsInline
             />
 
-            {/* Test Link Preview - Scaled mobile viewport */}
+            {/* Test Link Preview - Notebook viewport scaled to fit */}
             {testPopupUrl && (
               <div className="absolute inset-0 z-20 flex items-center justify-center bg-black/60 p-2">
-                <div className="relative bg-white rounded-lg overflow-hidden shadow-2xl" style={{ width: '90%', height: '95%' }}>
-                  <div className="w-full h-full overflow-hidden">
-                    <iframe
-                      src={testPopupUrl}
-                      className="border-0 origin-top-left"
-                      title="Teste de Link Externo"
-                      sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
-                      style={{
-                        width: '375px',
-                        height: '667px',
-                        transform: 'scale(var(--iframe-scale, 0.5))',
-                        transformOrigin: 'top left',
-                      }}
-                      ref={(el) => {
-                        if (el) {
-                          const container = el.parentElement;
-                          if (container) {
-                            const scaleX = container.clientWidth / 375;
-                            const scaleY = container.clientHeight / 667;
-                            const scale = Math.min(scaleX, scaleY);
-                            el.style.transform = `scale(${scale})`;
-                          }
-                        }
-                      }}
-                    />
-                  </div>
+                <div
+                  className="relative bg-white rounded-lg overflow-hidden shadow-2xl"
+                  style={{ width: '92%', height: '92%', aspectRatio: '16/10' }}
+                >
+                  <ScaledIframe
+                    src={testPopupUrl}
+                    title="Teste de Link Externo"
+                    baseWidth={1366}
+                    baseHeight={768}
+                  />
                   <Button
                     variant="destructive"
                     size="sm"
