@@ -6,7 +6,7 @@ interface EuvatarLogoProps {
   alt?: string;
 }
 
-export const EuvatarLogo = ({ className = "h-8", alt = "Euvatar" }: EuvatarLogoProps) => {
+export const EuvatarLogo = ({ className = "h-14 w-auto object-contain origin-left scale-[1.2]", alt = "Euvatar" }: EuvatarLogoProps) => {
   const [logoSrc, setLogoSrc] = useState<string>("/euvatar-logo-original.png");
   const [isProcessing, setIsProcessing] = useState(true);
 
