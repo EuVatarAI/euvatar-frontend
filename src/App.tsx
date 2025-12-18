@@ -15,6 +15,7 @@ import EuvatarPublic from "./pages/EuvatarPublic";
 import ClientPortal from "./pages/ClientPortal";
 import AdminLogin from "./pages/AdminLogin";
 import AdminDashboard from "./pages/AdminDashboard";
+import AdminClientDetails from "./pages/AdminClientDetails";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -37,6 +38,7 @@ const App = () => (
             <Route path="/euvatar/:id" element={<EuvatarPublic />} />
             <Route path="/admin" element={<AdminLogin />} />
             <Route path="/admin/dashboard" element={<AdminDashboard />} />
+            <Route path="/admin/client/:clientId" element={<AdminClientDetails />} />
             {/* Public client routes - must be last to avoid conflicts */}
             <Route path="/:orgSlug" element={<ClientPortal />} />
             <Route path="/:orgSlug/:avatarSlug" element={<ClientPortal />} />
