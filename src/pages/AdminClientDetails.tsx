@@ -484,12 +484,13 @@ export const AdminClientDetails = () => {
 
       if (error) throw error;
 
+      // Atualiza estado local sem recarregar a página
+      setEventAdditions(prev => prev.filter(e => e.id !== additionId));
+
       toast({
         title: "Cobrança excluída!",
         description: "A cobrança foi removida com sucesso.",
       });
-
-      fetchClientData();
     } catch (error: any) {
       toast({
         title: "Erro",
