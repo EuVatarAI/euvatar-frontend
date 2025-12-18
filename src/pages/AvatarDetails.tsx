@@ -373,22 +373,27 @@ const AvatarDetails = () => {
         .from('avatar-media')
         .getPublicUrl(fileName);
 
-      const { error: insertError } = await supabase
+      const { data: insertedDoc, error: insertError } = await supabase
         .from('training_documents')
         .insert({
           avatar_id: id,
           document_url: publicUrl,
           document_name: file.name,
-        });
+        })
+        .select()
+        .single();
 
       if (insertError) throw insertError;
+
+      // Only update training documents list, not the entire form
+      if (insertedDoc) {
+        setTrainingDocuments(prev => [...prev, insertedDoc]);
+      }
 
       toast({
         title: 'Sucesso',
         description: 'Documento de treinamento adicionado!',
       });
-
-      fetchAvatarData();
     } catch (error: any) {
       console.error('Error uploading training document:', error);
       toast({
@@ -418,12 +423,13 @@ const AvatarDetails = () => {
         .from('avatar-media')
         .remove([`${user?.id}/${filePath}`]);
 
+      // Only update training documents list, not the entire form
+      setTrainingDocuments(prev => prev.filter(doc => doc.id !== docId));
+
       toast({
         title: 'Sucesso',
         description: 'Documento removido!',
       });
-
-      fetchAvatarData();
     } catch (error: any) {
       console.error('Error removing document:', error);
       toast({
