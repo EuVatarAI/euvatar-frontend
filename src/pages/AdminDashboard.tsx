@@ -56,22 +56,9 @@ export const AdminDashboard = () => {
     fetchClients();
   }, []);
 
-  const checkAdminAccess = async () => {
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session?.user) {
-      navigate('/admin');
-      return;
-    }
-
-    const { data: roleData } = await supabase
-      .from('user_roles')
-      .select('role')
-      .eq('user_id', session.user.id)
-      .eq('role', 'admin')
-      .single();
-    
-    if (!roleData) {
-      await supabase.auth.signOut();
+  const checkAdminAccess = () => {
+    const isAdminLoggedIn = sessionStorage.getItem('adminLoggedIn') === 'true';
+    if (!isAdminLoggedIn) {
       navigate('/admin');
     }
   };
@@ -179,8 +166,8 @@ export const AdminDashboard = () => {
     }
   };
 
-  const handleLogout = async () => {
-    await supabase.auth.signOut();
+  const handleLogout = () => {
+    sessionStorage.removeItem('adminLoggedIn');
     navigate('/admin');
   };
 
@@ -393,7 +380,7 @@ export const AdminDashboard = () => {
                         <Button
                           variant="ghost"
                           size="sm"
-                          onClick={() => copyToClipboard(`${window.location.origin}/euvatar/${client.organization_slug}`)}
+                          onClick={() => copyToClipboard(`${window.location.origin}/${client.organization_slug}`)}
                         >
                           <Copy className="h-4 w-4" />
                         </Button>
