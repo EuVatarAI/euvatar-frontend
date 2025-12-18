@@ -97,9 +97,10 @@ const planLabels: Record<string, string> = {
   plano_20h: '20h/mês',
 };
 
-// Convert credits to hours (12 credits = 1 hour, 1 credit = 5 min)
+// Convert credits to hours (240 credits = 1 hour)
+// 1 crédito HeyGen (5 min) = 20 créditos Euvatar
 const creditsToHours = (credits: number): string => {
-  const hours = credits / 12;
+  const hours = credits / 240;
   return hours.toFixed(1);
 };
 

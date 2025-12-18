@@ -100,12 +100,12 @@ interface EventAddition {
 const SETUP_PRICE = 1550000; // R$ 15.500,00 in cents
 const EVENT_HOUR_PRICE = 35000; // R$ 350,00 per hour in cents
 const EVENT_BLOCK_HOURS = 4;
-const CREDITS_PER_HOUR = 12; // 1 crédito do fornecedor = 5 minutos
+const CREDITS_PER_HOUR = 240; // 1 crédito HeyGen (5 min) = 20 créditos Euvatar
 
 const planConfigs = {
-  plano_4h: { hours: 4, pricePerHour: 35000, monthly: 140000, quarterly: 420000, credits: 48 },
-  plano_7h: { hours: 7, pricePerHour: 30000, monthly: 210000, quarterly: 630000, credits: 84 },
-  plano_20h: { hours: 20, pricePerHour: 25000, monthly: 500000, quarterly: 1500000, credits: 240 },
+  plano_4h: { hours: 4, pricePerHour: 35000, monthly: 140000, quarterly: 420000, credits: 960 },
+  plano_7h: { hours: 7, pricePerHour: 30000, monthly: 210000, quarterly: 630000, credits: 1680 },
+  plano_20h: { hours: 20, pricePerHour: 25000, monthly: 500000, quarterly: 1500000, credits: 4800 },
 };
 
 const creditsToHours = (credits: number): string => {
@@ -284,8 +284,8 @@ export const AdminClientDetails = () => {
         client_id: client.id,
         payment_type: 'setup',
         amount_cents: SETUP_PRICE,
-        description: 'Setup inicial - inclui 4 horas (48 créditos)',
-        credits_to_add: 48, // 4 hours × 12 credits
+        description: 'Setup inicial - inclui 4 horas (960 créditos)',
+        credits_to_add: 960,
         status: 'pendente',
       });
 
@@ -649,7 +649,7 @@ export const AdminClientDetails = () => {
                     Integração HeyGen
                   </CardTitle>
                   <CardDescription>
-                    1 crédito = 5 minutos | 12 créditos = 1 hora
+                    1 crédito HeyGen (5 min) = 20 créditos Euvatar | 240 créditos = 1 hora
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
