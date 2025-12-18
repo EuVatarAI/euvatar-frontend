@@ -11,7 +11,7 @@ interface ResizableLogoProps {
 export const ResizableLogo = ({ src, alt, className }: ResizableLogoProps) => {
   const [size, setSize] = useState(() => {
     const saved = localStorage.getItem('euvatar-logo-size');
-    return saved ? parseInt(saved) : 48; // default h-12 = 48px
+    return saved ? parseInt(saved) : 80; // default 80px - larger logo
   });
 
   useEffect(() => {
