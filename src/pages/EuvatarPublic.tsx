@@ -389,14 +389,14 @@ export default function EuvatarPublic() {
           {currentMediaUrl ? (
             <video
               ref={videoRef}
-              key={currentMediaUrl}
+              key={ads.length > 1 ? `ad-${currentAdIndex}` : currentMediaUrl}
               src={currentMediaUrl}
               className="absolute inset-0 w-full h-full object-contain"
               autoPlay
-              loop={ads.length === 0}
+              loop={ads.length <= 1}
               muted
               playsInline
-              onEnded={ads.length > 0 ? handleAdEnded : undefined}
+              onEnded={ads.length > 1 ? handleAdEnded : undefined}
             />
           ) : (
             <div className="absolute inset-0 flex items-center justify-center text-white/50">
