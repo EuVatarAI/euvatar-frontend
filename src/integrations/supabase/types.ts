@@ -24,6 +24,8 @@ export type Database = {
           email: string
           heygen_api_key: string | null
           heygen_api_key_valid: boolean | null
+          heygen_avatar_id: string | null
+          heygen_interactive_avatar_id: string | null
           id: string
           last_credit_reload_at: string | null
           last_payment_at: string | null
@@ -47,6 +49,8 @@ export type Database = {
           email: string
           heygen_api_key?: string | null
           heygen_api_key_valid?: boolean | null
+          heygen_avatar_id?: string | null
+          heygen_interactive_avatar_id?: string | null
           id?: string
           last_credit_reload_at?: string | null
           last_payment_at?: string | null
@@ -70,6 +74,8 @@ export type Database = {
           email?: string
           heygen_api_key?: string | null
           heygen_api_key_valid?: boolean | null
+          heygen_avatar_id?: string | null
+          heygen_interactive_avatar_id?: string | null
           id?: string
           last_credit_reload_at?: string | null
           last_payment_at?: string | null

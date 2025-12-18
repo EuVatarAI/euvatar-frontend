@@ -97,9 +97,9 @@ const planLabels: Record<string, string> = {
   plano_20h: '20h/mês',
 };
 
-// Convert credits to hours (240 credits = 1 hour)
+// Convert credits to hours (12 credits = 1 hour, 1 credit = 5 min)
 const creditsToHours = (credits: number): string => {
-  const hours = credits / 240;
+  const hours = credits / 12;
   return hours.toFixed(1);
 };
 
