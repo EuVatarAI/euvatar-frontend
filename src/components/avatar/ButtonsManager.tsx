@@ -63,11 +63,18 @@ const FONTS = [
   { value: 'Lato', label: 'Lato' },
 ];
 
-// Sample video URLs for preview
+// Sample video URLs for preview (used only when no ads configured)
 const SAMPLE_VIDEOS = {
   vertical: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerJoyrides.mp4',
   horizontal: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4',
 };
+
+interface Ad {
+  id: string;
+  media_url: string;
+  duration: number;
+  display_order: number;
+}
 
 export const ButtonsManager = ({ avatarId }: ButtonsManagerProps) => {
   const { toast } = useToast();
@@ -83,6 +90,8 @@ export const ButtonsManager = ({ avatarId }: ButtonsManagerProps) => {
   const [testPopupUrl, setTestPopupUrl] = useState<string | null>(null);
   const [testVideoUrl, setTestVideoUrl] = useState<string | null>(null);
   const [uploadingVideo, setUploadingVideo] = useState(false);
+  const [ads, setAds] = useState<Ad[]>([]);
+  const [currentAdIndex, setCurrentAdIndex] = useState(0);
   const [newButton, setNewButton] = useState<{
     label: string;
     action_type: 'session_start' | 'video_upload' | 'external_link';
@@ -111,12 +120,37 @@ export const ButtonsManager = ({ avatarId }: ButtonsManagerProps) => {
 
   useEffect(() => {
     fetchButtons();
+    fetchAds();
     // Load Google Fonts
     const link = document.createElement('link');
     link.href = 'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Roboto:wght@400;500;700&family=Open+Sans:wght@400;600;700&family=Poppins:wght@400;500;600;700&family=Montserrat:wght@400;500;600;700&family=Playfair+Display:wght@400;700&family=Oswald:wght@400;500;600;700&family=Lato:wght@400;700&display=swap';
     link.rel = 'stylesheet';
     document.head.appendChild(link);
   }, [avatarId]);
+
+  const fetchAds = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('avatar_ads')
+        .select('id, media_url, duration, display_order')
+        .eq('avatar_id', avatarId)
+        .order('display_order', { ascending: true });
+
+      if (error) throw error;
+      setAds(data || []);
+    } catch (error) {
+      console.error('Error fetching ads:', error);
+    }
+  };
+
+  const handleAdEnded = () => {
+    if (ads.length > 0) {
+      setCurrentAdIndex((prev) => (prev + 1) % ads.length);
+    }
+  };
+
+  const hasAds = ads.length > 0;
+  const currentAdUrl = hasAds ? ads[currentAdIndex]?.media_url : null;
 
   const fetchButtons = async () => {
     try {
@@ -410,15 +444,35 @@ export const ButtonsManager = ({ avatarId }: ButtonsManagerProps) => {
             onMouseUp={!testPopupUrl && !testVideoUrl ? handlePreviewMouseUp : undefined}
             onMouseLeave={!testPopupUrl && !testVideoUrl ? handlePreviewMouseUp : undefined}
           >
-            {/* Background Video always playing */}
-            <video
-              src={SAMPLE_VIDEOS[videoOrientation]}
-              className="w-full h-full object-cover"
-              autoPlay
-              loop
-              muted
-              playsInline
-            />
+            {/* Background Video - uses ads when available, otherwise sample video */}
+            {hasAds && currentAdUrl ? (
+              <video
+                key={currentAdUrl}
+                src={currentAdUrl}
+                className="w-full h-full object-cover"
+                autoPlay
+                muted
+                playsInline
+                onEnded={handleAdEnded}
+              />
+            ) : (
+              <>
+                <video
+                  src={SAMPLE_VIDEOS[videoOrientation]}
+                  className="w-full h-full object-cover"
+                  autoPlay
+                  loop
+                  muted
+                  playsInline
+                />
+                {/* Simulação watermark */}
+                <div className="absolute top-3 left-3 z-10">
+                  <span className="bg-black/60 text-white text-xs px-2 py-1 rounded">
+                    Simulação
+                  </span>
+                </div>
+              </>
+            )}
 
             {/* Test Link Preview - centered, without resizing the idle video */}
             {testPopupUrl && (

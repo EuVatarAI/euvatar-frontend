@@ -482,7 +482,7 @@ const AvatarDetails = () => {
             <TabsTrigger value="overview">Visão Geral</TabsTrigger>
             <TabsTrigger value="edit">Editar Euvatar</TabsTrigger>
             <TabsTrigger value="buttons">Botões</TabsTrigger>
-            <TabsTrigger value="ads">Anúncios</TabsTrigger>
+            <TabsTrigger value="ads">Idle/Anúncios</TabsTrigger>
             <TabsTrigger value="media">Gatilhos de Mídia</TabsTrigger>
             <TabsTrigger value="credentials">Credenciais</TabsTrigger>
           </TabsList>
