@@ -102,7 +102,7 @@ serve(async (req) => {
       
       if (heygenResponse.status === 401) {
         return new Response(JSON.stringify({ 
-          error: "API key da HeyGen inválida ou expirada",
+          error: "A API key do Euvatar está inválida ou expirada",
           needsCredentialUpdate: true,
           euvatarCredits: 0,
           heygenCredits: 0,
@@ -119,7 +119,7 @@ serve(async (req) => {
       }
       
       return new Response(JSON.stringify({ 
-        error: "Erro ao buscar créditos da HeyGen",
+        error: "Erro ao buscar créditos do Euvatar",
         details: errorText 
       }), {
         status: 500,

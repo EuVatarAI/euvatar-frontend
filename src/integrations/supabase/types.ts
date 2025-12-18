@@ -90,6 +90,65 @@ export type Database = {
           },
         ]
       }
+      avatar_sessions: {
+        Row: {
+          avatar_id: string
+          created_at: string
+          duration_seconds: number | null
+          ended_at: string | null
+          id: string
+          ip_address: string | null
+          messages_count: number | null
+          metadata: Json | null
+          platform: string | null
+          session_id: string
+          started_at: string
+          summary: string | null
+          topics: string[] | null
+          user_agent: string | null
+        }
+        Insert: {
+          avatar_id: string
+          created_at?: string
+          duration_seconds?: number | null
+          ended_at?: string | null
+          id?: string
+          ip_address?: string | null
+          messages_count?: number | null
+          metadata?: Json | null
+          platform?: string | null
+          session_id: string
+          started_at?: string
+          summary?: string | null
+          topics?: string[] | null
+          user_agent?: string | null
+        }
+        Update: {
+          avatar_id?: string
+          created_at?: string
+          duration_seconds?: number | null
+          ended_at?: string | null
+          id?: string
+          ip_address?: string | null
+          messages_count?: number | null
+          metadata?: Json | null
+          platform?: string | null
+          session_id?: string
+          started_at?: string
+          summary?: string | null
+          topics?: string[] | null
+          user_agent?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "avatar_sessions_avatar_id_fkey"
+            columns: ["avatar_id"]
+            isOneToOne: false
+            referencedRelation: "avatars"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       avatars: {
         Row: {
           ai_model: string
