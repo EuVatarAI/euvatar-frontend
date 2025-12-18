@@ -11,7 +11,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { 
   ArrowLeft, Save, Loader2, CreditCard, Key, Users, 
   Clock, CheckCircle2, AlertCircle, Plus, ExternalLink,
-  Eye, EyeOff, Trash2, Settings, BarChart3
+  Eye, EyeOff, Trash2, Settings, BarChart3, Copy, Link
 } from "lucide-react";
 import euvatarLogo from "@/assets/euvatar-logo-white.png";
 import {
@@ -707,6 +707,66 @@ export const AdminClientDetails = () => {
                             <p className="text-xs text-muted-foreground text-center">
                               Setup pago libera 4h iniciais. Máximo 9 adições extras (36h).
                             </p>
+                            
+                            {/* Lista de cobranças de evento */}
+                            {eventAdditions.length > 0 && (
+                              <div className="mt-4 space-y-2">
+                                <Label className="text-sm font-medium">Cobranças de Horas Adicionais</Label>
+                                <div className="space-y-2">
+                                  {eventAdditions.map((addition) => (
+                                    <div 
+                                      key={addition.id} 
+                                      className="flex items-center justify-between p-3 bg-card border rounded-lg"
+                                    >
+                                      <div className="flex items-center gap-3">
+                                        <div className="flex flex-col">
+                                          <span className="text-sm font-medium">+{addition.hours}h</span>
+                                          <span className="text-xs text-muted-foreground">
+                                            {formatCurrency(addition.amount_cents)}
+                                          </span>
+                                        </div>
+                                        <Badge variant={addition.status === 'pago' ? 'default' : 'secondary'}>
+                                          {addition.status === 'pago' ? 'Pago' : 'Pendente'}
+                                        </Badge>
+                                      </div>
+                                      <div className="flex items-center gap-2">
+                                        {addition.stripe_link && addition.status !== 'pago' && (
+                                          <Button
+                                            variant="outline"
+                                            size="sm"
+                                            onClick={() => {
+                                              navigator.clipboard.writeText(addition.stripe_link || '');
+                                              toast({
+                                                title: "Link copiado!",
+                                                description: "Link de pagamento copiado para a área de transferência.",
+                                              });
+                                            }}
+                                          >
+                                            <Copy className="h-3 w-3 mr-1" />
+                                            Copiar Link
+                                          </Button>
+                                        )}
+                                        {addition.status !== 'pago' && (
+                                          <Button
+                                            variant="default"
+                                            size="sm"
+                                            onClick={() => handleMarkEventAdditionAsPaid(addition.id, addition.credits)}
+                                          >
+                                            <CheckCircle2 className="h-3 w-3 mr-1" />
+                                            Marcar Pago
+                                          </Button>
+                                        )}
+                                        {addition.status === 'pago' && addition.paid_at && (
+                                          <span className="text-xs text-muted-foreground">
+                                            {new Date(addition.paid_at).toLocaleDateString('pt-BR')}
+                                          </span>
+                                        )}
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
                           </>
                         );
                       })()}
