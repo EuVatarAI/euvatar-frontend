@@ -621,14 +621,12 @@ const AvatarDetails = () => {
                       acessos: dayCount.get(day) || 0
                     }));
                     
-                    const hasData = chartData.some(d => d.acessos > 0);
-                    
-                    return hasData ? (
+                    return (
                       <div className="h-48">
                         <ResponsiveContainer width="100%" height="100%">
                           <BarChart data={chartData}>
                             <XAxis dataKey="name" tick={{ fontSize: 12 }} />
-                            <YAxis allowDecimals={false} tick={{ fontSize: 12 }} />
+                            <YAxis allowDecimals={false} tick={{ fontSize: 12 }} domain={[0, 'auto']} />
                             <Tooltip 
                               formatter={(value: number) => [`${value} acessos`, 'Acessos']}
                               contentStyle={{ backgroundColor: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }}
@@ -637,8 +635,6 @@ const AvatarDetails = () => {
                           </BarChart>
                         </ResponsiveContainer>
                       </div>
-                    ) : (
-                      <p className="text-muted-foreground">Nenhum acesso registrado ainda.</p>
                     );
                   })()}
                 </CardContent>
