@@ -303,6 +303,9 @@ export const AdminClientDetails = () => {
     if (!client) return;
 
     try {
+      // Gerar link de pagamento placeholder (para integração futura com Stripe)
+      const stripeLink = `https://pay.stripe.com/placeholder?amount=${SETUP_PRICE}&client=${client.id}&type=setup`;
+
       const { error } = await supabase.from('client_payments').insert({
         client_id: client.id,
         payment_type: 'setup',
@@ -310,13 +313,24 @@ export const AdminClientDetails = () => {
         description: 'Setup inicial - inclui 4 horas (960 créditos)',
         credits_to_add: 960,
         status: 'pendente',
+        stripe_link: stripeLink,
       });
 
       if (error) throw error;
 
+      // Auto-preencher data de contratação se não estiver definida
+      if (!planStartDate) {
+        const today = new Date().toISOString().split('T')[0];
+        setPlanStartDate(today);
+        await supabase
+          .from('admin_clients')
+          .update({ plan_start_date: today })
+          .eq('id', client.id);
+      }
+
       toast({
         title: "Cobrança gerada!",
-        description: "Link Stripe será adicionado quando integração estiver pronta.",
+        description: "Link de pagamento criado com sucesso.",
       });
 
       fetchClientData();
@@ -1062,54 +1076,48 @@ export const AdminClientDetails = () => {
                   </div>
                   {!client.setup_paid && !pendingSetupPayment && (
                     <Button onClick={handleGenerateSetupPayment} className="w-full">
-                      <CreditCard className="h-4 w-4 mr-2" />
-                      Gerar Cobrança do Setup
+                      <Link className="h-4 w-4 mr-2" />
+                      Gerar Link de Pagamento
                     </Button>
                   )}
                   {!client.setup_paid && pendingSetupPayment && (
                     <div className="space-y-3">
-                      <div className="p-4 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-lg">
-                        <p className="text-sm font-medium text-amber-800 dark:text-amber-200 mb-2">
-                          Cobrança gerada em {new Date(pendingSetupPayment.created_at).toLocaleDateString('pt-BR')}
-                        </p>
-                        {pendingSetupPayment.stripe_link ? (
-                          <a 
-                            href={pendingSetupPayment.stripe_link} 
-                            target="_blank" 
-                            rel="noopener noreferrer"
-                            className="inline-flex items-center gap-2 text-primary hover:underline font-medium"
+                      <div className="flex items-center justify-between p-3 bg-card border rounded-lg">
+                        <div className="flex items-center gap-3">
+                          <div className="flex flex-col">
+                            <span className="text-sm font-medium">Setup Inicial</span>
+                            <span className="text-xs text-muted-foreground">
+                              {formatCurrency(pendingSetupPayment.amount_cents)} • {new Date(pendingSetupPayment.created_at).toLocaleDateString('pt-BR')}
+                            </span>
+                          </div>
+                          <Badge variant="secondary">Pendente</Badge>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          {pendingSetupPayment.stripe_link && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => {
+                                navigator.clipboard.writeText(pendingSetupPayment.stripe_link || '');
+                                toast({
+                                  title: "Link copiado!",
+                                  description: "Link de pagamento copiado para a área de transferência.",
+                                });
+                              }}
+                            >
+                              <Copy className="h-3 w-3 mr-1" />
+                              Copiar Link
+                            </Button>
+                          )}
+                          <Button
+                            variant="destructive"
+                            size="sm"
+                            onClick={() => handleCancelPayment(pendingSetupPayment.id)}
                           >
-                            <ExternalLink className="h-4 w-4" />
-                            Acessar link de pagamento
-                          </a>
-                        ) : (
-                          <p className="text-sm text-muted-foreground">
-                            Link Stripe será gerado quando a integração estiver pronta.
-                          </p>
-                        )}
-                      </div>
-                      <div className="flex gap-2">
-                        {pendingSetupPayment.stripe_link && (
-                          <Button 
-                            variant="outline" 
-                            className="flex-1"
-                            onClick={() => {
-                              navigator.clipboard.writeText(pendingSetupPayment.stripe_link!);
-                              toast({ title: "Link copiado!" });
-                            }}
-                          >
-                            <Copy className="h-4 w-4 mr-2" />
-                            Copiar Link
+                            <Trash2 className="h-3 w-3 mr-1" />
+                            Excluir
                           </Button>
-                        )}
-                        <Button 
-                          variant="destructive" 
-                          className={pendingSetupPayment.stripe_link ? "" : "w-full"}
-                          onClick={() => handleCancelPayment(pendingSetupPayment.id)}
-                        >
-                          <XCircle className="h-4 w-4 mr-2" />
-                          Cancelar Cobrança
-                        </Button>
+                        </div>
                       </div>
                     </div>
                   )}
