@@ -11,7 +11,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { 
   ArrowLeft, Save, Loader2, CreditCard, Key, Users, 
   Clock, CheckCircle2, AlertCircle, Plus, ExternalLink,
-  Eye, EyeOff, Trash2, Settings, BarChart3, Copy, Link
+  Eye, EyeOff, Trash2, Settings, BarChart3, Copy, Link,
+  Pause, Play, XCircle, Edit
 } from "lucide-react";
 import euvatarLogo from "@/assets/euvatar-logo-white.png";
 import {
@@ -47,6 +48,7 @@ interface AdminClient {
   client_url: string | null;
   modality: 'evento' | 'plano_trimestral' | null;
   current_plan: 'plano_4h' | 'plano_7h' | 'plano_20h' | null;
+  status: string;
   setup_paid: boolean;
   setup_paid_at: string | null;
   setup_stripe_link: string | null;
@@ -72,6 +74,7 @@ interface ClientAvatar {
   heygen_avatar_id: string | null;
   credits_used: number;
   created_at: string;
+  updated_at?: string;
 }
 
 interface ClientPayment {
@@ -157,6 +160,11 @@ export const AdminClientDetails = () => {
   const [isAddAvatarOpen, setIsAddAvatarOpen] = useState(false);
   const [newAvatarName, setNewAvatarName] = useState("");
   const [newAvatarUrl, setNewAvatarUrl] = useState("");
+  const [newAvatarHeygenId, setNewAvatarHeygenId] = useState("");
+  
+  // Edit avatar dialog
+  const [editingAvatar, setEditingAvatar] = useState<ClientAvatar | null>(null);
+  const [editAvatarHeygenId, setEditAvatarHeygenId] = useState("");
   
   const { toast } = useToast();
   const navigate = useNavigate();
@@ -405,9 +413,19 @@ export const AdminClientDetails = () => {
         client_id: client.id,
         name: newAvatarName,
         avatar_url: newAvatarUrl || null,
+        heygen_avatar_id: newAvatarHeygenId || null,
       });
 
       if (error) throw error;
+
+      setAvatars(prev => [{
+        id: crypto.randomUUID(),
+        name: newAvatarName,
+        avatar_url: newAvatarUrl || null,
+        heygen_avatar_id: newAvatarHeygenId || null,
+        credits_used: 0,
+        created_at: new Date().toISOString(),
+      }, ...prev]);
 
       toast({
         title: "Avatar adicionado!",
@@ -415,8 +433,71 @@ export const AdminClientDetails = () => {
 
       setNewAvatarName("");
       setNewAvatarUrl("");
+      setNewAvatarHeygenId("");
       setIsAddAvatarOpen(false);
-      fetchClientData();
+    } catch (error: any) {
+      toast({
+        title: "Erro",
+        description: error.message,
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleUpdateAvatarHeygenId = async () => {
+    if (!editingAvatar) return;
+
+    try {
+      const { error } = await supabase
+        .from('client_avatars')
+        .update({ heygen_avatar_id: editAvatarHeygenId || null })
+        .eq('id', editingAvatar.id);
+
+      if (error) throw error;
+
+      setAvatars(prev => prev.map(a => 
+        a.id === editingAvatar.id 
+          ? { ...a, heygen_avatar_id: editAvatarHeygenId || null }
+          : a
+      ));
+
+      toast({
+        title: "Avatar atualizado!",
+      });
+
+      setEditingAvatar(null);
+      setEditAvatarHeygenId("");
+    } catch (error: any) {
+      toast({
+        title: "Erro",
+        description: error.message,
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleStatusChange = async (newStatus: string) => {
+    if (!client) return;
+
+    try {
+      const { error } = await supabase
+        .from('admin_clients')
+        .update({ status: newStatus })
+        .eq('id', client.id);
+
+      if (error) throw error;
+
+      setClient(prev => prev ? { ...prev, status: newStatus } : null);
+
+      toast({
+        title: newStatus === 'pausado' ? "Conta pausada!" : 
+               newStatus === 'cancelado' ? "Conta cancelada!" : "Conta ativada!",
+        description: newStatus === 'pausado' 
+          ? "A integração HeyGen foi pausada." 
+          : newStatus === 'cancelado' 
+          ? "A conta foi cancelada."
+          : "A conta está ativa novamente.",
+      });
     } catch (error: any) {
       toast({
         title: "Erro",
@@ -522,15 +603,46 @@ export const AdminClientDetails = () => {
             </Button>
             <img src={euvatarLogo} alt="Euvatar" className="h-8" />
             <span className="text-lg font-semibold">{client.name}</span>
+            <Badge 
+              variant={client.status === 'ativo' ? 'default' : client.status === 'pausado' ? 'secondary' : 'destructive'}
+            >
+              {client.status === 'ativo' ? 'Ativo' : client.status === 'pausado' ? 'Pausado' : 'Cancelado'}
+            </Badge>
           </div>
-          <Button onClick={handleSaveClient} disabled={saving}>
-            {saving ? (
-              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-            ) : (
-              <Save className="h-4 w-4 mr-2" />
+          <div className="flex items-center gap-2">
+            {client.status === 'ativo' && (
+              <Button variant="outline" size="sm" onClick={() => handleStatusChange('pausado')}>
+                <Pause className="h-4 w-4 mr-1" />
+                Pausar
+              </Button>
             )}
-            Salvar Alterações
-          </Button>
+            {client.status === 'pausado' && (
+              <Button variant="outline" size="sm" onClick={() => handleStatusChange('ativo')}>
+                <Play className="h-4 w-4 mr-1" />
+                Ativar
+              </Button>
+            )}
+            {client.status !== 'cancelado' && (
+              <Button variant="destructive" size="sm" onClick={() => handleStatusChange('cancelado')}>
+                <XCircle className="h-4 w-4 mr-1" />
+                Cancelar
+              </Button>
+            )}
+            {client.status === 'cancelado' && (
+              <Button variant="default" size="sm" onClick={() => handleStatusChange('ativo')}>
+                <Play className="h-4 w-4 mr-1" />
+                Reativar
+              </Button>
+            )}
+            <Button onClick={handleSaveClient} disabled={saving}>
+              {saving ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                <Save className="h-4 w-4 mr-2" />
+              )}
+              Salvar
+            </Button>
+          </div>
         </div>
       </header>
 
@@ -1091,10 +1203,43 @@ export const AdminClientDetails = () => {
                           placeholder="url-do-avatar"
                         />
                       </div>
+                      <div className="space-y-2">
+                        <Label>HeyGen Avatar ID</Label>
+                        <Input
+                          value={newAvatarHeygenId}
+                          onChange={(e) => setNewAvatarHeygenId(e.target.value)}
+                          placeholder="ID do avatar na HeyGen"
+                        />
+                      </div>
                       <Button type="submit" className="w-full">
                         Adicionar
                       </Button>
                     </form>
+                  </DialogContent>
+                </Dialog>
+
+                {/* Dialog para editar HeyGen ID */}
+                <Dialog open={!!editingAvatar} onOpenChange={(open) => !open && setEditingAvatar(null)}>
+                  <DialogContent>
+                    <DialogHeader>
+                      <DialogTitle>Editar HeyGen Avatar ID</DialogTitle>
+                      <DialogDescription>
+                        Configurar o ID do avatar na HeyGen para: {editingAvatar?.name}
+                      </DialogDescription>
+                    </DialogHeader>
+                    <div className="space-y-4 mt-4">
+                      <div className="space-y-2">
+                        <Label>HeyGen Avatar ID</Label>
+                        <Input
+                          value={editAvatarHeygenId}
+                          onChange={(e) => setEditAvatarHeygenId(e.target.value)}
+                          placeholder="ID do avatar na HeyGen"
+                        />
+                      </div>
+                      <Button onClick={handleUpdateAvatarHeygenId} className="w-full">
+                        Salvar
+                      </Button>
+                    </div>
                   </DialogContent>
                 </Dialog>
               </CardHeader>
@@ -1112,6 +1257,7 @@ export const AdminClientDetails = () => {
                         <TableHead>HeyGen ID</TableHead>
                         <TableHead>Consumo</TableHead>
                         <TableHead>Criado em</TableHead>
+                        <TableHead>Ações</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -1128,13 +1274,32 @@ export const AdminClientDetails = () => {
                             )}
                           </TableCell>
                           <TableCell>
-                            {avatar.heygen_avatar_id || '-'}
+                            {avatar.heygen_avatar_id ? (
+                              <code className="text-xs bg-muted px-2 py-1 rounded">
+                                {avatar.heygen_avatar_id}
+                              </code>
+                            ) : (
+                              <span className="text-muted-foreground">Não configurado</span>
+                            )}
                           </TableCell>
                           <TableCell>
                             {avatar.credits_used} créditos
                           </TableCell>
                           <TableCell>
                             {new Date(avatar.created_at).toLocaleDateString('pt-BR')}
+                          </TableCell>
+                          <TableCell>
+                            <Button 
+                              variant="outline" 
+                              size="sm"
+                              onClick={() => {
+                                setEditingAvatar(avatar);
+                                setEditAvatarHeygenId(avatar.heygen_avatar_id || '');
+                              }}
+                            >
+                              <Edit className="h-3 w-3 mr-1" />
+                              HeyGen ID
+                            </Button>
                           </TableCell>
                         </TableRow>
                       ))}
