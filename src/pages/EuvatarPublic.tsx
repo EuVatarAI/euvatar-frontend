@@ -315,10 +315,10 @@ export default function EuvatarPublic() {
         </div>
       )}
 
-      {/* External Link Square Popup Overlay */}
+      {/* External Link Popup Overlay - Laptop-like viewport */}
       {externalPopupOpen && externalUrl && (
-        <div className="absolute inset-0 z-20 flex items-center justify-center bg-black/60">
-          <div className="relative w-[85%] max-w-2xl aspect-square bg-white rounded-lg overflow-hidden shadow-2xl">
+        <div className="absolute inset-0 z-20 flex items-center justify-center bg-black/70 p-4 sm:p-8">
+          <div className="relative w-full h-full max-w-4xl max-h-[90vh] bg-white rounded-lg overflow-hidden shadow-2xl" style={{ aspectRatio: '16/10' }}>
             <iframe
               src={externalUrl}
               className="w-full h-full border-0"
