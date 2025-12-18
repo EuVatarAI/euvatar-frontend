@@ -419,17 +419,35 @@ export const ButtonsManager = ({ avatarId }: ButtonsManagerProps) => {
               playsInline
             />
 
-            {/* Test Link Preview - Laptop-like popup overlay */}
+            {/* Test Link Preview - Scaled mobile viewport */}
             {testPopupUrl && (
-              <div className="absolute inset-0 z-20 flex items-center justify-center bg-black/60 p-4">
-                <div className="relative w-full h-full max-w-full max-h-full bg-white rounded-lg overflow-hidden shadow-2xl">
-                  <iframe
-                    src={testPopupUrl}
-                    className="w-full h-full border-0"
-                    title="Teste de Link Externo"
-                    sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
-                    style={{ minWidth: '100%', minHeight: '100%' }}
-                  />
+              <div className="absolute inset-0 z-20 flex items-center justify-center bg-black/60 p-2">
+                <div className="relative bg-white rounded-lg overflow-hidden shadow-2xl" style={{ width: '90%', height: '95%' }}>
+                  <div className="w-full h-full overflow-hidden">
+                    <iframe
+                      src={testPopupUrl}
+                      className="border-0 origin-top-left"
+                      title="Teste de Link Externo"
+                      sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
+                      style={{
+                        width: '375px',
+                        height: '667px',
+                        transform: 'scale(var(--iframe-scale, 0.5))',
+                        transformOrigin: 'top left',
+                      }}
+                      ref={(el) => {
+                        if (el) {
+                          const container = el.parentElement;
+                          if (container) {
+                            const scaleX = container.clientWidth / 375;
+                            const scaleY = container.clientHeight / 667;
+                            const scale = Math.min(scaleX, scaleY);
+                            el.style.transform = `scale(${scale})`;
+                          }
+                        }
+                      }}
+                    />
+                  </div>
                   <Button
                     variant="destructive"
                     size="sm"
