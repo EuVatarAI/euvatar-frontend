@@ -10,7 +10,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
-import { ArrowLeft, Plus, Trash2, CheckCircle2, Save, Upload, FileText, ImageIcon, Clock, ExternalLink } from 'lucide-react';
+import { ArrowLeft, Plus, Trash2, CheckCircle2, Save, Upload, FileText, ImageIcon, Clock, ExternalLink, Link, Copy, Check } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 import { sanitizeContextName } from '@/utils/contextNameSanitizer';
 import { CredentialsTab } from '@/components/avatar/CredentialsTab';
@@ -29,6 +29,7 @@ interface Avatar {
   idle_media_url?: string | null;
   cover_image_url?: string | null;
   avatar_orientation?: string | null;
+  slug?: string | null;
 }
 
 interface MediaTrigger {
@@ -74,6 +75,7 @@ const AvatarDetails = () => {
     language: 'pt-BR',
     ai_model: 'gpt-4',
     voice_model: 'alloy',
+    slug: '',
   });
   const [originalFormData, setOriginalFormData] = useState({
     name: '',
@@ -81,7 +83,10 @@ const AvatarDetails = () => {
     language: 'pt-BR',
     ai_model: 'gpt-4',
     voice_model: 'alloy',
+    slug: '',
   });
+  const [organizationSlug, setOrganizationSlug] = useState('');
+  const [copiedLink, setCopiedLink] = useState(false);
 
   const stripTrainingNotes = (text: string) => {
     // Remove legacy markers like: [Treinado com o documento: arquivo.pdf]
@@ -115,9 +120,20 @@ const AvatarDetails = () => {
         language: avatarData.language,
         ai_model: avatarData.ai_model,
         voice_model: avatarData.voice_model,
+        slug: avatarData.slug || '',
       };
       setFormData(formDataFromDb);
       setOriginalFormData(formDataFromDb);
+
+      // Fetch organization slug for building public URL
+      const { data: orgData } = await supabase
+        .from('organizations')
+        .select('slug')
+        .single();
+      
+      if (orgData) {
+        setOrganizationSlug(orgData.slug);
+      }
 
       const { data: conversationsData, error: conversationsError } = await supabase
         .from('conversations')
@@ -251,6 +267,7 @@ const AvatarDetails = () => {
           language: formData.language,
           ai_model: formData.ai_model,
           voice_model: formData.voice_model,
+          slug: formData.slug || null,
         })
         .eq('id', id);
 
@@ -438,6 +455,35 @@ const AvatarDetails = () => {
       });
     } finally {
       setTrainingDocId(null);
+    }
+  };
+
+  const sanitizeSlug = (input: string): string => {
+    return input
+      .toLowerCase()
+      .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+      .replace(/\s+/g, '-')
+      .replace(/[^a-z0-9-]/g, '')
+      .replace(/-+/g, '-')
+      .replace(/^-|-$/g, '');
+  };
+
+  const getPublicDirectUrl = () => {
+    const baseUrl = window.location.origin;
+    if (organizationSlug && formData.slug) {
+      return `${baseUrl}/cliente/${organizationSlug}/${formData.slug}`;
+    }
+    return `${baseUrl}/euvatar/${id}`;
+  };
+
+  const copyPublicLink = async () => {
+    try {
+      await navigator.clipboard.writeText(getPublicDirectUrl());
+      setCopiedLink(true);
+      toast({ title: 'Link copiado!' });
+      setTimeout(() => setCopiedLink(false), 2000);
+    } catch {
+      toast({ title: 'Erro ao copiar', variant: 'destructive' });
     }
   };
 
@@ -763,6 +809,48 @@ const AvatarDetails = () => {
                     onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                     placeholder="Ex: Assistente Virtual"
                   />
+                </div>
+
+                {/* Public Link Configuration */}
+                <div className="p-4 bg-muted/50 rounded-lg space-y-3">
+                  <div className="flex items-center gap-2">
+                    <Link className="h-4 w-4" />
+                    <Label>Link Público Direto</Label>
+                  </div>
+                  <div>
+                    <Label htmlFor="slug" className="text-sm text-muted-foreground">
+                      Slug do Euvatar (opcional)
+                    </Label>
+                    <div className="flex items-center gap-2 mt-1">
+                      <span className="text-sm text-muted-foreground whitespace-nowrap">
+                        /cliente/{organizationSlug || 'org'}/
+                      </span>
+                      <Input
+                        id="slug"
+                        value={formData.slug}
+                        onChange={(e) => setFormData({ ...formData, slug: sanitizeSlug(e.target.value) })}
+                        placeholder="nome-do-euvatar"
+                        className="flex-1"
+                      />
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 p-2 bg-background rounded border">
+                    <code className="flex-1 text-xs break-all text-muted-foreground">
+                      {getPublicDirectUrl()}
+                    </code>
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      onClick={copyPublicLink}
+                      title="Copiar link"
+                      type="button"
+                    >
+                      {copiedLink ? <Check className="h-4 w-4 text-green-500" /> : <Copy className="h-4 w-4" />}
+                    </Button>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Defina um slug para ter um link amigável. Sem slug, o link usa o ID do euvatar.
+                  </p>
                 </div>
 
                 <div>

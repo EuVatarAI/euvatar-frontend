@@ -228,6 +228,7 @@ export type Database = {
           idle_media_url: string | null
           language: string
           name: string
+          slug: string | null
           updated_at: string
           user_id: string
           voice_model: string
@@ -242,6 +243,7 @@ export type Database = {
           idle_media_url?: string | null
           language?: string
           name: string
+          slug?: string | null
           updated_at?: string
           user_id: string
           voice_model?: string
@@ -256,6 +258,7 @@ export type Database = {
           idle_media_url?: string | null
           language?: string
           name?: string
+          slug?: string | null
           updated_at?: string
           user_id?: string
           voice_model?: string
