@@ -153,7 +153,7 @@ const Dashboard = () => {
 
   const getPublicUrl = () => {
     const baseUrl = window.location.origin;
-    return `${baseUrl}/cliente/${organizationSlug}`;
+    return `${baseUrl}/${organizationSlug}`;
   };
 
   const copyToClipboard = async () => {
@@ -299,7 +299,7 @@ const Dashboard = () => {
               <div className="space-y-3">
                 <div className="flex items-center gap-2">
                   <span className="text-sm text-muted-foreground whitespace-nowrap">
-                    {window.location.origin}/cliente/
+                    {window.location.origin}/
                   </span>
                   <Input
                     value={newSlug}

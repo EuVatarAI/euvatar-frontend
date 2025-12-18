@@ -35,10 +35,11 @@ const App = () => (
             <Route path="/avatar/:id/settings" element={<AvatarSettings />} />
             <Route path="/avatar/:id/sessions" element={<AvatarSessions />} />
             <Route path="/euvatar/:id" element={<EuvatarPublic />} />
-            <Route path="/cliente/:orgSlug" element={<ClientPortal />} />
-            <Route path="/cliente/:orgSlug/:avatarSlug" element={<ClientPortal />} />
             <Route path="/admin" element={<AdminLogin />} />
             <Route path="/admin/dashboard" element={<AdminDashboard />} />
+            {/* Public client routes - must be last to avoid conflicts */}
+            <Route path="/:orgSlug" element={<ClientPortal />} />
+            <Route path="/:orgSlug/:avatarSlug" element={<ClientPortal />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>
