@@ -650,6 +650,38 @@ export const AdminClientDetails = () => {
                     </Select>
                   </div>
 
+                  {modality === 'evento' && (
+                    <>
+                      <Separator className="my-4" />
+                      <div className="p-4 bg-muted rounded-lg space-y-3">
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm font-medium">Blocos contratados</span>
+                          <Badge variant="outline">{1 + eventAdditions.length}/10</Badge>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm font-medium">Horas totais</span>
+                          <span className="text-sm">{(1 + eventAdditions.length) * 4}h (máx 40h)</span>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm font-medium">Créditos disponíveis</span>
+                          <span className="text-sm font-bold">{formatCredits(client.credits_balance)}</span>
+                        </div>
+                      </div>
+                      <Button 
+                        variant="outline" 
+                        className="w-full"
+                        onClick={handleAddEventCredits}
+                        disabled={eventAdditions.length >= 9}
+                      >
+                        <Plus className="h-4 w-4 mr-2" />
+                        Adicionar +4 horas ({eventAdditions.length}/9 adições)
+                      </Button>
+                      <p className="text-xs text-muted-foreground text-center">
+                        Setup inclui 4h iniciais. Máximo 9 adições extras (36h).
+                      </p>
+                    </>
+                  )}
+
                   {modality === 'plano_trimestral' && (
                     <>
                       <div className="space-y-2">
