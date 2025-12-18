@@ -456,6 +456,40 @@ export const AdminClientDetails = () => {
     }
   };
 
+  const handleMarkEventAdditionAsPaid = async (additionId: string, creditsToAdd: number) => {
+    if (!client) return;
+
+    try {
+      // Update addition status
+      await supabase
+        .from('client_event_additions')
+        .update({ status: 'pago', paid_at: new Date().toISOString() })
+        .eq('id', additionId);
+
+      // Add credits to client
+      await supabase
+        .from('admin_clients')
+        .update({ 
+          credits_balance: client.credits_balance + creditsToAdd,
+          last_payment_status: 'pago',
+          last_payment_at: new Date().toISOString(),
+        })
+        .eq('id', client.id);
+
+      toast({
+        title: "Pagamento confirmado!",
+        description: `${creditsToAdd} créditos adicionados (${creditsToHours(creditsToAdd)}h).`,
+      });
+
+      fetchClientData();
+    } catch (error: any) {
+      toast({
+        title: "Erro",
+        description: error.message,
+        variant: "destructive",
+      });
+    }
+  };
   if (loading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
@@ -752,9 +786,14 @@ export const AdminClientDetails = () => {
                 </div>
                 <div className="flex gap-2">
                   {modality === 'evento' && (
-                    <Button variant="outline" onClick={handleAddEventCredits}>
+                    <Button 
+                      variant="outline" 
+                      onClick={handleAddEventCredits}
+                      disabled={eventAdditions.length >= 9}
+                      title={eventAdditions.length >= 9 ? "Limite de 10 blocos atingido (1 setup + 9 adições)" : ""}
+                    >
                       <Plus className="h-4 w-4 mr-2" />
-                      Adicionar Créditos (4h)
+                      Adicionar Créditos (4h) ({eventAdditions.length}/9)
                     </Button>
                   )}
                   {modality === 'plano_trimestral' && currentPlan && (
@@ -824,7 +863,7 @@ export const AdminClientDetails = () => {
                 <CardHeader>
                   <CardTitle>Adições de Evento</CardTitle>
                   <CardDescription>
-                    Blocos de 4 horas adicionais ({eventAdditions.length}/10 utilizados)
+                    Blocos de 4 horas: 1 no Setup + {eventAdditions.length} adições = {1 + eventAdditions.length}/10 total (máx. 40h)
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
@@ -841,13 +880,14 @@ export const AdminClientDetails = () => {
                           <TableHead>Valor</TableHead>
                           <TableHead>Status</TableHead>
                           <TableHead>Data</TableHead>
+                          <TableHead></TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
                         {eventAdditions.map((addition) => (
                           <TableRow key={addition.id}>
                             <TableCell>{addition.hours}h</TableCell>
-                            <TableCell>{addition.credits}</TableCell>
+                            <TableCell>{formatCredits(addition.credits)}</TableCell>
                             <TableCell>{formatCurrency(addition.amount_cents)}</TableCell>
                             <TableCell>
                               <Badge variant={addition.status === 'pago' ? 'default' : 'secondary'}>
@@ -856,6 +896,18 @@ export const AdminClientDetails = () => {
                             </TableCell>
                             <TableCell>
                               {new Date(addition.created_at).toLocaleDateString('pt-BR')}
+                            </TableCell>
+                            <TableCell>
+                              {addition.status === 'pendente' && (
+                                <Button 
+                                  size="sm" 
+                                  variant="outline"
+                                  onClick={() => handleMarkEventAdditionAsPaid(addition.id, addition.credits)}
+                                >
+                                  <CheckCircle2 className="h-4 w-4 mr-1" />
+                                  Marcar Pago
+                                </Button>
+                              )}
                             </TableCell>
                           </TableRow>
                         ))}
