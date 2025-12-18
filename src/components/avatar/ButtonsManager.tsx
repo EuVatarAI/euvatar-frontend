@@ -7,8 +7,9 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { Slider } from '@/components/ui/slider';
+import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
-import { Trash2, Play, Upload, ExternalLink, GripVertical, Save, Pencil, Monitor, Smartphone } from 'lucide-react';
+import { Trash2, Play, Upload, ExternalLink, GripVertical, Save, Pencil, Monitor, Smartphone, X, Eye } from 'lucide-react';
 
 interface AvatarButton {
   id: string;
@@ -77,7 +78,7 @@ export const ButtonsManager = ({ avatarId }: ButtonsManagerProps) => {
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
   const [editingButton, setEditingButton] = useState<Partial<AvatarButton> | null>(null);
   const [isDraggingButton, setIsDraggingButton] = useState(false);
-  
+  const [testPopupUrl, setTestPopupUrl] = useState<string | null>(null);
   const [newButton, setNewButton] = useState<{
     label: string;
     action_type: 'session_start' | 'video_upload' | 'external_link';
@@ -467,16 +468,53 @@ export const ButtonsManager = ({ avatarId }: ButtonsManagerProps) => {
           </div>
 
           {currentButton.action_type === 'external_link' && (
-            <div>
+            <div className="space-y-2">
               <Label>URL do Link</Label>
-              <Input
-                value={currentButton.external_url || ''}
-                onChange={(e) => editingButton
-                  ? setEditingButton({ ...editingButton, external_url: e.target.value })
-                  : setNewButton({ ...newButton, external_url: e.target.value })
-                }
-                placeholder="https://exemplo.com"
-              />
+              <div className="flex gap-2">
+                <Input
+                  value={currentButton.external_url || ''}
+                  onChange={(e) => editingButton
+                    ? setEditingButton({ ...editingButton, external_url: e.target.value })
+                    : setNewButton({ ...newButton, external_url: e.target.value })
+                  }
+                  placeholder="https://exemplo.com"
+                  className="flex-1"
+                />
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    const url = currentButton.external_url || '';
+                    if (url) {
+                      // Add https if missing
+                      const fullUrl = url.startsWith('http') ? url : `https://${url}`;
+                      setTestPopupUrl(fullUrl);
+                    } else {
+                      toast({ title: 'Digite uma URL para testar', variant: 'destructive' });
+                    }
+                  }}
+                >
+                  <Eye className="h-4 w-4 mr-1" />
+                  Testar
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {currentButton.action_type === 'video_upload' && (
+            <div className="p-3 bg-muted rounded-lg">
+              <p className="text-sm text-muted-foreground">
+                <Upload className="h-4 w-4 inline mr-1" />
+                Quando o usuário clicar neste botão na página pública, abrirá um modal para ele fazer upload de um vídeo que o avatar irá apresentar.
+              </p>
+            </div>
+          )}
+
+          {currentButton.action_type === 'session_start' && (
+            <div className="p-3 bg-muted rounded-lg">
+              <p className="text-sm text-muted-foreground">
+                <Play className="h-4 w-4 inline mr-1" />
+                Quando o usuário clicar neste botão, iniciará uma sessão interativa com o avatar.
+              </p>
             </div>
           )}
 
@@ -692,6 +730,29 @@ export const ButtonsManager = ({ avatarId }: ButtonsManagerProps) => {
           )}
         </CardContent>
       </Card>
+      {/* Test Popup Dialog */}
+      <Dialog open={!!testPopupUrl} onOpenChange={(open) => !open && setTestPopupUrl(null)}>
+        <DialogContent className="max-w-4xl h-[80vh] p-0 overflow-hidden">
+          <div className="relative w-full h-full">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="absolute top-2 right-2 z-10 bg-background/80 hover:bg-background"
+              onClick={() => setTestPopupUrl(null)}
+            >
+              <X className="h-4 w-4" />
+            </Button>
+            {testPopupUrl && (
+              <iframe
+                src={testPopupUrl}
+                className="w-full h-full border-0"
+                title="Teste de Link Externo"
+                sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
+              />
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
