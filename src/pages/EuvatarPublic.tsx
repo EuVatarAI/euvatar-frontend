@@ -3,9 +3,7 @@ import { useParams } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { X, Upload, AlertCircle } from 'lucide-react';
+import { X, AlertCircle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
 interface AvatarButton {
@@ -13,6 +11,7 @@ interface AvatarButton {
   label: string;
   action_type: 'session_start' | 'video_upload' | 'external_link';
   external_url: string | null;
+  video_url: string | null;
   color: string;
   position_x: number;
   position_y: number;
@@ -54,9 +53,7 @@ export default function EuvatarPublic() {
   // Popup states
   const [externalPopupOpen, setExternalPopupOpen] = useState(false);
   const [externalUrl, setExternalUrl] = useState('');
-  const [videoUploadOpen, setVideoUploadOpen] = useState(false);
-  const [uploadingVideo, setUploadingVideo] = useState(false);
-  const [presentationVideoUrl, setPresentationVideoUrl] = useState<string | null>(null);
+  const [buttonVideoUrl, setButtonVideoUrl] = useState<string | null>(null);
   
   // Inactivity states
   const [showInactivityWarning, setShowInactivityWarning] = useState(false);
@@ -65,7 +62,6 @@ export default function EuvatarPublic() {
   const countdownTimerRef = useRef<NodeJS.Timeout | null>(null);
   
   const videoRef = useRef<HTMLVideoElement>(null);
-  const presentationVideoRef = useRef<HTMLVideoElement>(null);
 
   useEffect(() => {
     // Load Google Fonts
@@ -133,13 +129,13 @@ export default function EuvatarPublic() {
     setCountdown(COUNTDOWN_SECONDS);
     
     // Only start timer if a popup is open
-    if (externalPopupOpen || videoUploadOpen || presentationVideoUrl) {
+    if (externalPopupOpen || buttonVideoUrl) {
       inactivityTimerRef.current = setTimeout(() => {
         setShowInactivityWarning(true);
         startCountdown();
       }, INACTIVITY_TIMEOUT);
     }
-  }, [externalPopupOpen, videoUploadOpen, presentationVideoUrl]);
+  }, [externalPopupOpen, buttonVideoUrl]);
 
   const startCountdown = () => {
     setCountdown(COUNTDOWN_SECONDS);
@@ -169,8 +165,7 @@ export default function EuvatarPublic() {
   const closeAllPopups = () => {
     setExternalPopupOpen(false);
     setExternalUrl('');
-    setVideoUploadOpen(false);
-    setPresentationVideoUrl(null);
+    setButtonVideoUrl(null);
     clearInactivityTimer();
     clearCountdownTimer();
     setShowInactivityWarning(false);
@@ -179,7 +174,7 @@ export default function EuvatarPublic() {
   // Track user activity
   useEffect(() => {
     const handleActivity = () => {
-      if (externalPopupOpen || videoUploadOpen || presentationVideoUrl) {
+      if (externalPopupOpen || buttonVideoUrl) {
         resetInactivityTimer();
       }
     };
@@ -195,18 +190,18 @@ export default function EuvatarPublic() {
       window.removeEventListener('click', handleActivity);
       window.removeEventListener('scroll', handleActivity);
     };
-  }, [externalPopupOpen, videoUploadOpen, presentationVideoUrl, resetInactivityTimer]);
+  }, [externalPopupOpen, buttonVideoUrl, resetInactivityTimer]);
 
   // Start inactivity timer when popup opens
   useEffect(() => {
-    if (externalPopupOpen || videoUploadOpen || presentationVideoUrl) {
+    if (externalPopupOpen || buttonVideoUrl) {
       resetInactivityTimer();
     } else {
       clearInactivityTimer();
       clearCountdownTimer();
       setShowInactivityWarning(false);
     }
-  }, [externalPopupOpen, videoUploadOpen, presentationVideoUrl, resetInactivityTimer]);
+  }, [externalPopupOpen, buttonVideoUrl, resetInactivityTimer]);
 
   const handleButtonClick = (button: AvatarButton) => {
     switch (button.action_type) {
@@ -214,7 +209,9 @@ export default function EuvatarPublic() {
         handleSessionStart();
         break;
       case 'video_upload':
-        setVideoUploadOpen(true);
+        if (button.video_url) {
+          setButtonVideoUrl(button.video_url);
+        }
         break;
       case 'external_link':
         if (button.external_url) {
@@ -233,65 +230,8 @@ export default function EuvatarPublic() {
     });
   };
 
-  const handleVideoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    // Validate video duration
-    const video = document.createElement('video');
-    video.preload = 'metadata';
-    
-    video.onloadedmetadata = async () => {
-      URL.revokeObjectURL(video.src);
-      
-      if (video.duration > 60) {
-        toast({
-          title: 'Vídeo muito longo',
-          description: 'O vídeo deve ter no máximo 60 segundos.',
-          variant: 'destructive',
-        });
-        return;
-      }
-
-      setUploadingVideo(true);
-      try {
-        const fileExt = file.name.split('.').pop();
-        const fileName = `presentations/${id}/${Date.now()}.${fileExt}`;
-
-        const { error: uploadError } = await supabase.storage
-          .from('avatar-media')
-          .upload(fileName, file);
-
-        if (uploadError) throw uploadError;
-
-        const { data: { publicUrl } } = supabase.storage
-          .from('avatar-media')
-          .getPublicUrl(fileName);
-
-        setVideoUploadOpen(false);
-        setPresentationVideoUrl(publicUrl);
-        
-        toast({
-          title: 'Vídeo enviado!',
-          description: 'O avatar irá apresentar seu vídeo.',
-        });
-      } catch (err: any) {
-        console.error('Upload error:', err);
-        toast({
-          title: 'Erro no upload',
-          description: 'Não foi possível enviar o vídeo.',
-          variant: 'destructive',
-        });
-      } finally {
-        setUploadingVideo(false);
-      }
-    };
-
-    video.src = URL.createObjectURL(file);
-  };
-
-  const handlePresentationEnd = () => {
-    setPresentationVideoUrl(null);
+  const handleButtonVideoEnd = () => {
+    setButtonVideoUrl(null);
   };
 
   const renderButton = (button: AvatarButton) => {
@@ -343,15 +283,14 @@ export default function EuvatarPublic() {
 
   return (
     <div className="min-h-screen bg-black relative overflow-hidden">
-      {/* Idle Video / Presentation Video */}
+      {/* Idle Video / Button Video */}
       <div className="absolute inset-0 flex items-center justify-center">
-        {presentationVideoUrl ? (
+        {buttonVideoUrl ? (
           <video
-            ref={presentationVideoRef}
-            src={presentationVideoUrl}
+            src={buttonVideoUrl}
             className="max-w-full max-h-full object-contain"
             autoPlay
-            onEnded={handlePresentationEnd}
+            onEnded={handleButtonVideoEnd}
           />
         ) : avatar.idle_media_url ? (
           <video
@@ -370,8 +309,8 @@ export default function EuvatarPublic() {
         )}
       </div>
 
-      {/* Buttons overlay - only show when not in presentation mode */}
-      {!presentationVideoUrl && !externalPopupOpen && (
+      {/* Buttons overlay - only show when not playing button video */}
+      {!buttonVideoUrl && !externalPopupOpen && (
         <div className="absolute inset-0 pointer-events-none">
           <div className="relative w-full h-full pointer-events-auto">
             {buttons.map(renderButton)}
@@ -399,43 +338,6 @@ export default function EuvatarPublic() {
               title="Conteúdo externo"
               sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
             />
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      {/* Video Upload Dialog */}
-      <Dialog open={videoUploadOpen} onOpenChange={(open) => {
-        if (!open) setVideoUploadOpen(false);
-      }}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Enviar Vídeo para Apresentação</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div>
-              <Label htmlFor="video-upload">Selecione um vídeo (máx. 60 segundos)</Label>
-              <div className="mt-2">
-                <input
-                  type="file"
-                  id="video-upload"
-                  accept="video/*"
-                  onChange={handleVideoUpload}
-                  className="hidden"
-                />
-                <Button
-                  variant="outline"
-                  onClick={() => document.getElementById('video-upload')?.click()}
-                  disabled={uploadingVideo}
-                  className="w-full"
-                >
-                  <Upload className="h-4 w-4 mr-2" />
-                  {uploadingVideo ? 'Enviando...' : 'Escolher Vídeo'}
-                </Button>
-              </div>
-            </div>
-            <p className="text-xs text-muted-foreground">
-              Formatos aceitos: MP4, WebM, MOV
-            </p>
           </div>
         </DialogContent>
       </Dialog>
