@@ -9,8 +9,9 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
-import { ArrowLeft, Plus, Trash2, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { Plus, Trash2, AlertCircle, CheckCircle2 } from 'lucide-react';
 import { sanitizeContextName } from '@/utils/contextNameSanitizer';
+import { AppLayout } from '@/components/layout/AppLayout';
 
 interface MediaTrigger {
   trigger_phrase: string;
@@ -194,14 +195,7 @@ const CreateAvatar = () => {
   };
 
   return (
-    <div className="min-h-screen bg-background p-8">
-      <div className="max-w-3xl mx-auto">
-        <div className="flex items-center gap-4 mb-8">
-          <Button onClick={() => navigate('/avatars')} variant="outline" size="icon">
-            <ArrowLeft className="h-4 w-4" />
-          </Button>
-          <h1 className="text-4xl font-bold">Criar Novo Euvatar</h1>
-        </div>
+    <AppLayout title="Criar Novo Euvatar">
 
         <Card>
           <CardHeader>
@@ -467,8 +461,7 @@ const CreateAvatar = () => {
             {creating ? 'Criando...' : 'Criar Euvatar'}
           </Button>
         </div>
-      </div>
-    </div>
+    </AppLayout>
   );
 };
 

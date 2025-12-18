@@ -7,8 +7,9 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
-import { ArrowLeft, Lock, Save } from 'lucide-react';
+import { Lock, Save } from 'lucide-react';
 import { UnlockPasswordDialog } from '@/components/avatar/UnlockPasswordDialog';
+import { AppLayout } from '@/components/layout/AppLayout';
 
 const ConfigureCredentials = () => {
   const navigate = useNavigate();
@@ -91,14 +92,8 @@ const ConfigureCredentials = () => {
   };
 
   return (
-    <div className="min-h-screen bg-background p-8">
-      <div className="max-w-2xl mx-auto">
-        <div className="flex items-center gap-4 mb-8">
-          <Button onClick={() => navigate('/avatars')} variant="outline" size="icon">
-            <ArrowLeft className="h-4 w-4" />
-          </Button>
-          <h1 className="text-4xl font-bold">Configurar Credenciais do Euvatar</h1>
-        </div>
+    <AppLayout title="Configurar Credenciais do Euvatar">
+      <div className="max-w-2xl">
 
         <Card>
           <CardHeader>
@@ -183,7 +178,7 @@ const ConfigureCredentials = () => {
           onUnlock={handleUnlock}
         />
       </div>
-    </div>
+    </AppLayout>
   );
 };
 

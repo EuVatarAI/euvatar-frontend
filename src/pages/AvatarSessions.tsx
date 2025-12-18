@@ -11,6 +11,7 @@ import { ArrowLeft, Clock, MessageSquare, Calendar as CalendarIcon } from 'lucid
 import { format, isSameDay, parseISO, startOfMonth, endOfMonth } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
+import { AppLayout } from '@/components/layout/AppLayout';
 
 interface AvatarSession {
   id: string;
@@ -144,17 +145,16 @@ const AvatarSessions = () => {
   }
 
   return (
-    <div className="min-h-screen bg-background p-8">
-      <div className="max-w-6xl mx-auto">
-        <div className="flex items-center gap-4 mb-8">
-          <Button onClick={() => navigate(`/avatar/${id}`)} variant="outline" size="icon">
-            <ArrowLeft className="h-4 w-4" />
-          </Button>
-          <div>
-            <h1 className="text-3xl font-bold">Histórico de Sessões</h1>
-            <p className="text-muted-foreground">{avatar?.name}</p>
-          </div>
+    <AppLayout>
+      <div className="flex items-center gap-4 mb-8">
+        <Button onClick={() => navigate(`/avatar/${id}`)} variant="outline" size="icon">
+          <ArrowLeft className="h-4 w-4" />
+        </Button>
+        <div>
+          <h1 className="text-3xl font-bold">Histórico de Sessões</h1>
+          <p className="text-muted-foreground">{avatar?.name}</p>
         </div>
+      </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Calendar */}
@@ -372,8 +372,7 @@ const AvatarSessions = () => {
             )}
           </DialogContent>
         </Dialog>
-      </div>
-    </div>
+    </AppLayout>
   );
 };
 
