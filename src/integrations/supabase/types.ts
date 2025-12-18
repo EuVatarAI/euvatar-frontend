@@ -70,6 +70,7 @@ export type Database = {
           position_y: number
           size: string
           updated_at: string
+          video_url: string | null
         }
         Insert: {
           action_type: string
@@ -88,6 +89,7 @@ export type Database = {
           position_y?: number
           size?: string
           updated_at?: string
+          video_url?: string | null
         }
         Update: {
           action_type?: string
@@ -106,6 +108,7 @@ export type Database = {
           position_y?: number
           size?: string
           updated_at?: string
+          video_url?: string | null
         }
         Relationships: [
           {

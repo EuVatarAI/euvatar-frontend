@@ -16,6 +16,7 @@ interface AvatarButton {
   label: string;
   action_type: 'session_start' | 'video_upload' | 'external_link';
   external_url: string | null;
+  video_url: string | null;
   size: 'small' | 'medium' | 'large';
   color: string;
   position_x: number;
@@ -79,10 +80,12 @@ export const ButtonsManager = ({ avatarId }: ButtonsManagerProps) => {
   const [editingButton, setEditingButton] = useState<Partial<AvatarButton> | null>(null);
   const [isDraggingButton, setIsDraggingButton] = useState(false);
   const [testPopupUrl, setTestPopupUrl] = useState<string | null>(null);
+  const [uploadingVideo, setUploadingVideo] = useState(false);
   const [newButton, setNewButton] = useState<{
     label: string;
     action_type: 'session_start' | 'video_upload' | 'external_link';
     external_url: string;
+    video_url: string;
     size: 'small' | 'medium' | 'large';
     color: string;
     border_style: 'square' | 'rounded' | 'pill';
@@ -94,6 +97,7 @@ export const ButtonsManager = ({ avatarId }: ButtonsManagerProps) => {
     label: 'Conversar',
     action_type: 'session_start',
     external_url: '',
+    video_url: '',
     size: 'medium',
     color: '#6366f1',
     border_style: 'rounded',
@@ -152,6 +156,7 @@ export const ButtonsManager = ({ avatarId }: ButtonsManagerProps) => {
           label: newButton.label,
           action_type: newButton.action_type,
           external_url: newButton.action_type === 'external_link' ? newButton.external_url : null,
+          video_url: newButton.action_type === 'video_upload' ? newButton.video_url : null,
           size: newButton.size,
           color: newButton.color,
           border_style: newButton.border_style,
@@ -168,6 +173,7 @@ export const ButtonsManager = ({ avatarId }: ButtonsManagerProps) => {
         label: 'Conversar',
         action_type: 'session_start',
         external_url: '',
+        video_url: '',
         size: 'medium',
         color: '#6366f1',
         border_style: 'rounded',
@@ -194,7 +200,8 @@ export const ButtonsManager = ({ avatarId }: ButtonsManagerProps) => {
         .update({
           label: button.label,
           action_type: button.action_type,
-          external_url: button.external_url,
+          external_url: button.action_type === 'external_link' ? button.external_url : null,
+          video_url: button.action_type === 'video_upload' ? button.video_url : null,
           size: button.size,
           color: button.color,
           border_style: button.border_style,
@@ -501,11 +508,98 @@ export const ButtonsManager = ({ avatarId }: ButtonsManagerProps) => {
           )}
 
           {currentButton.action_type === 'video_upload' && (
-            <div className="p-3 bg-muted rounded-lg">
-              <p className="text-sm text-muted-foreground">
-                <Upload className="h-4 w-4 inline mr-1" />
-                Quando o usuário clicar neste botão na página pública, abrirá um modal para ele fazer upload de um vídeo que o avatar irá apresentar.
-              </p>
+            <div className="space-y-3">
+              <Label>Vídeo a ser Exibido</Label>
+              {(editingButton?.video_url || newButton.video_url) ? (
+                <div className="space-y-2">
+                  <video
+                    src={editingButton ? editingButton.video_url! : newButton.video_url}
+                    className="w-full max-h-40 rounded-lg object-contain bg-black"
+                    controls
+                  />
+                  <div className="flex gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        if (editingButton) {
+                          setEditingButton({ ...editingButton, video_url: null });
+                        } else {
+                          setNewButton({ ...newButton, video_url: '' });
+                        }
+                      }}
+                      className="flex-1"
+                    >
+                      <Trash2 className="h-4 w-4 mr-1" />
+                      Remover Vídeo
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => document.getElementById('button-video-upload')?.click()}
+                      disabled={uploadingVideo}
+                      className="flex-1"
+                    >
+                      <Upload className="h-4 w-4 mr-1" />
+                      Trocar Vídeo
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <div className="border-2 border-dashed border-muted-foreground/30 rounded-lg p-4 text-center">
+                  <Upload className="h-8 w-8 mx-auto text-muted-foreground mb-2" />
+                  <Button
+                    variant="outline"
+                    onClick={() => document.getElementById('button-video-upload')?.click()}
+                    disabled={uploadingVideo}
+                  >
+                    {uploadingVideo ? 'Enviando...' : 'Selecionar Vídeo'}
+                  </Button>
+                  <p className="text-xs text-muted-foreground mt-2">
+                    Este vídeo será exibido quando o usuário clicar no botão
+                  </p>
+                </div>
+              )}
+              <input
+                type="file"
+                id="button-video-upload"
+                accept="video/*"
+                className="hidden"
+                onChange={async (e) => {
+                  const file = e.target.files?.[0];
+                  if (!file) return;
+                  
+                  setUploadingVideo(true);
+                  try {
+                    const fileExt = file.name.split('.').pop();
+                    const fileName = `button-videos/${avatarId}/${Date.now()}.${fileExt}`;
+                    
+                    const { error: uploadError } = await supabase.storage
+                      .from('avatar-media')
+                      .upload(fileName, file);
+                    
+                    if (uploadError) throw uploadError;
+                    
+                    const { data: { publicUrl } } = supabase.storage
+                      .from('avatar-media')
+                      .getPublicUrl(fileName);
+                    
+                    if (editingButton) {
+                      setEditingButton({ ...editingButton, video_url: publicUrl });
+                    } else {
+                      setNewButton({ ...newButton, video_url: publicUrl });
+                    }
+                    
+                    toast({ title: 'Vídeo enviado!' });
+                  } catch (err: any) {
+                    console.error('Upload error:', err);
+                    toast({ title: 'Erro no upload', variant: 'destructive' });
+                  } finally {
+                    setUploadingVideo(false);
+                    e.target.value = '';
+                  }
+                }}
+              />
             </div>
           )}
 
