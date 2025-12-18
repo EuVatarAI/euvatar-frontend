@@ -801,8 +801,47 @@ export const AdminClientDetails = () => {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {/* Basic Info */}
               <Card>
-                <CardHeader>
+                <CardHeader className="flex flex-row items-center justify-between">
                   <CardTitle>Dados do Cliente</CardTitle>
+                  <Button 
+                    size="sm" 
+                    onClick={async () => {
+                      if (!client) return;
+                      try {
+                        // Log URL change if changed
+                        if (clientUrl !== client.client_url) {
+                          await supabase.from('client_url_history').insert({
+                            client_id: client.id,
+                            old_url: client.client_url,
+                            new_url: clientUrl || null,
+                            changed_by: 'admin',
+                          });
+                        }
+
+                        const { error } = await supabase
+                          .from('admin_clients')
+                          .update({ client_url: clientUrl || null })
+                          .eq('id', client.id);
+
+                        if (error) throw error;
+
+                        toast({
+                          title: "URL salva!",
+                        });
+
+                        fetchClientData();
+                      } catch (error: any) {
+                        toast({
+                          title: "Erro ao salvar",
+                          description: error.message,
+                          variant: "destructive",
+                        });
+                      }
+                    }}
+                  >
+                    <Save className="h-4 w-4 mr-2" />
+                    Salvar
+                  </Button>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div className="space-y-2">
