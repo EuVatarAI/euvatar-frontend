@@ -296,12 +296,14 @@ export function AvatarStreamingPreview({
           <>
             {currentAdUrl ? (
               <video
+                key={`ad-${currentAdIndex}`}
                 ref={idleVideoRef}
                 src={currentAdUrl}
                 autoPlay
+                loop={ads.length === 1}
                 muted
                 playsInline
-                onEnded={handleAdEnded}
+                onEnded={ads.length > 1 ? handleAdEnded : undefined}
                 className="absolute inset-0 w-full h-full object-contain"
               />
             ) : (
