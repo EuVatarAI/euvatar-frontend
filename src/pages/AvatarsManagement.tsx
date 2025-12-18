@@ -152,14 +152,14 @@ const AvatarsManagement = () => {
   return (
     <div className="min-h-screen bg-background p-8">
       <div className="max-w-7xl mx-auto">
-        <div className="flex justify-between items-center mb-8">
-          <div className="flex items-start gap-4">
+        <div className="flex justify-between items-start mb-8">
+          <div className="flex flex-col gap-2">
             <img
               src={euvatarLogo}
               alt="Logo da Euvatar"
-              className="h-24 w-auto shrink-0 object-contain -translate-y-6 origin-left scale-[1.35]"
+              className="h-20 w-auto object-contain"
             />
-            <h1 className="text-4xl font-bold">Gerenciamento de Euvatares</h1>
+            <h1 className="text-3xl font-bold">Gerenciamento de Euvatares</h1>
           </div>
           <Button onClick={handleSignOut} variant="outline">
             <LogOut className="mr-2 h-4 w-4" />
