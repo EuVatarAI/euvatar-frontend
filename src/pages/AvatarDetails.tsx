@@ -471,7 +471,7 @@ const AvatarDetails = () => {
   const getPublicDirectUrl = () => {
     const baseUrl = window.location.origin;
     if (organizationSlug && formData.slug) {
-      return `${baseUrl}/cliente/${organizationSlug}/${formData.slug}`;
+      return `${baseUrl}/${organizationSlug}/${formData.slug}`;
     }
     return `${baseUrl}/euvatar/${id}`;
   };
@@ -823,7 +823,7 @@ const AvatarDetails = () => {
                     </Label>
                     <div className="flex items-center gap-2 mt-1">
                       <span className="text-sm text-muted-foreground whitespace-nowrap">
-                        /cliente/{organizationSlug || 'org'}/
+                        /{organizationSlug || 'org'}/
                       </span>
                       <Input
                         id="slug"
