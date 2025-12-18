@@ -420,18 +420,17 @@ export const ButtonsManager = ({ avatarId }: ButtonsManagerProps) => {
               playsInline
             />
 
-            {/* Test Link Preview - fits within video bounds */}
+            {/* Test Link Preview - centered, without resizing the idle video */}
             {testPopupUrl && (
-              <div className="absolute inset-0 z-20 flex items-center justify-center bg-black/80 p-4">
+              <div className="absolute inset-0 z-20 flex items-center justify-center bg-background/30 backdrop-blur-sm p-3">
                 <div className="relative w-full h-full flex items-center justify-center">
                   <div
-                    className="relative bg-white rounded-lg overflow-hidden shadow-2xl"
-                    style={{ 
-                      width: '100%',
-                      height: '100%',
-                      maxWidth: '100%',
-                      maxHeight: '100%'
-                    }}
+                    className="relative bg-background border border-border rounded-lg overflow-hidden shadow-2xl"
+                    style={
+                      videoOrientation === 'horizontal'
+                        ? { height: '92%', width: 'auto', aspectRatio: '16 / 10' }
+                        : { width: '92%', height: 'auto', aspectRatio: '16 / 10' }
+                    }
                   >
                     <ScaledIframe
                       src={testPopupUrl}
@@ -439,15 +438,15 @@ export const ButtonsManager = ({ avatarId }: ButtonsManagerProps) => {
                       baseWidth={1366}
                       baseHeight={768}
                     />
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      className="absolute top-2 right-2 z-30"
+                      onClick={() => setTestPopupUrl(null)}
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
                   </div>
-                  <Button
-                    variant="destructive"
-                    size="sm"
-                    className="absolute top-0 right-0 z-30"
-                    onClick={() => setTestPopupUrl(null)}
-                  >
-                    <X className="h-4 w-4" />
-                  </Button>
                 </div>
               </div>
             )}
