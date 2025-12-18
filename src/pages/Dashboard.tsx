@@ -148,11 +148,11 @@ const Dashboard = () => {
     <div className="min-h-screen bg-background p-8">
       <div className="max-w-7xl mx-auto">
         <div className="flex justify-between items-center mb-8">
-          <div className="flex items-center gap-4">
+          <div className="flex items-start gap-4">
             <img
               src={euvatarLogo}
-              alt="Euvatar"
-              className="h-16 w-auto object-contain -translate-y-2"
+              alt="Logo da Euvatar"
+              className="h-24 w-auto shrink-0 object-contain -translate-y-6 origin-left scale-[1.35]"
             />
             <h1 className="text-4xl font-bold">Gerenciamento de Euvatares</h1>
           </div>
