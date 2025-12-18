@@ -10,7 +10,8 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
-import { ArrowLeft, Plus, Trash2, CheckCircle2, Save, Upload, FileText, ImageIcon } from 'lucide-react';
+import { ArrowLeft, Plus, Trash2, CheckCircle2, Save, Upload, FileText, ImageIcon, Clock } from 'lucide-react';
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 import { sanitizeContextName } from '@/utils/contextNameSanitizer';
 import { CredentialsTab } from '@/components/avatar/CredentialsTab';
 import { AdsManager } from '@/components/avatar/AdsManager';
@@ -439,6 +440,11 @@ const AvatarDetails = () => {
   const webUsage = conversations.filter(c => c.platform === 'web').reduce((sum, c) => sum + c.credits_used, 0);
   const appUsage = conversations.filter(c => c.platform === 'app').reduce((sum, c) => sum + c.credits_used, 0);
   const totalUsage = webUsage + appUsage;
+  
+  // Calculate total duration in seconds
+  const totalDuration = conversations.reduce((sum, c) => sum + (c.duration || 0), 0);
+  const totalHours = Math.floor(totalDuration / 3600);
+  const totalMinutes = Math.floor((totalDuration % 3600) / 60);
 
   // Calculate top topics
   const topicsCount = new Map<string, number>();
@@ -592,6 +598,16 @@ const AvatarDetails = () => {
                 </CardHeader>
                 <CardContent>
                   {(() => {
+                    const dayOrder = ['domingo', 'segunda-feira', 'terça-feira', 'quarta-feira', 'quinta-feira', 'sexta-feira', 'sábado'];
+                    const dayAbbrev: Record<string, string> = {
+                      'domingo': 'Dom',
+                      'segunda-feira': 'Seg',
+                      'terça-feira': 'Ter',
+                      'quarta-feira': 'Qua',
+                      'quinta-feira': 'Qui',
+                      'sexta-feira': 'Sex',
+                      'sábado': 'Sáb'
+                    };
                     const dayCount = new Map<string, number>();
                     conversations.forEach(conv => {
                       const day = new Date(conv.created_at).toLocaleDateString('pt-BR', { 
@@ -599,18 +615,27 @@ const AvatarDetails = () => {
                       });
                       dayCount.set(day, (dayCount.get(day) || 0) + 1);
                     });
-                    const topDays = Array.from(dayCount.entries())
-                      .sort((a, b) => b[1] - a[1])
-                      .slice(0, 5);
                     
-                    return topDays.length > 0 ? (
-                      <div className="space-y-2">
-                        {topDays.map(([day, count], index) => (
-                          <div key={index} className="flex justify-between items-center p-2 bg-muted rounded">
-                            <span className="text-sm capitalize">{day}</span>
-                            <span className="text-xs text-muted-foreground">{count} acessos</span>
-                          </div>
-                        ))}
+                    const chartData = dayOrder.map(day => ({
+                      name: dayAbbrev[day] || day.slice(0, 3),
+                      acessos: dayCount.get(day) || 0
+                    }));
+                    
+                    const hasData = chartData.some(d => d.acessos > 0);
+                    
+                    return hasData ? (
+                      <div className="h-48">
+                        <ResponsiveContainer width="100%" height="100%">
+                          <BarChart data={chartData}>
+                            <XAxis dataKey="name" tick={{ fontSize: 12 }} />
+                            <YAxis allowDecimals={false} tick={{ fontSize: 12 }} />
+                            <Tooltip 
+                              formatter={(value: number) => [`${value} acessos`, 'Acessos']}
+                              contentStyle={{ backgroundColor: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }}
+                            />
+                            <Bar dataKey="acessos" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
+                          </BarChart>
+                        </ResponsiveContainer>
                       </div>
                     ) : (
                       <p className="text-muted-foreground">Nenhum acesso registrado ainda.</p>
@@ -626,7 +651,7 @@ const AvatarDetails = () => {
                 <CardTitle>Consumo de Créditos</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="grid grid-cols-3 gap-4">
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                   <div>
                     <p className="text-sm text-muted-foreground">Web</p>
                     <p className="text-2xl font-bold">{webUsage}</p>
@@ -636,8 +661,16 @@ const AvatarDetails = () => {
                     <p className="text-2xl font-bold">{appUsage}</p>
                   </div>
                   <div>
-                    <p className="text-sm text-muted-foreground">Total</p>
+                    <p className="text-sm text-muted-foreground">Total Créditos</p>
                     <p className="text-2xl font-bold">{totalUsage}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-muted-foreground flex items-center gap-1">
+                      <Clock className="h-3 w-3" /> Tempo Total
+                    </p>
+                    <p className="text-2xl font-bold">
+                      {totalHours > 0 ? `${totalHours}h ` : ''}{totalMinutes}min
+                    </p>
                   </div>
                 </div>
               </CardContent>
