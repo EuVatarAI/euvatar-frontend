@@ -38,6 +38,7 @@ export type Database = {
           setup_paid: boolean | null
           setup_paid_at: string | null
           setup_stripe_link: string | null
+          status: string | null
           updated_at: string | null
         }
         Insert: {
@@ -63,6 +64,7 @@ export type Database = {
           setup_paid?: boolean | null
           setup_paid_at?: string | null
           setup_stripe_link?: string | null
+          status?: string | null
           updated_at?: string | null
         }
         Update: {
@@ -88,6 +90,7 @@ export type Database = {
           setup_paid?: boolean | null
           setup_paid_at?: string | null
           setup_stripe_link?: string | null
+          status?: string | null
           updated_at?: string | null
         }
         Relationships: []
