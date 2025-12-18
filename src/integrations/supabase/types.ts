@@ -63,6 +63,7 @@ export type Database = {
           enabled: boolean
           external_url: string | null
           font_family: string
+          font_size: number
           id: string
           label: string
           position_x: number
@@ -80,6 +81,7 @@ export type Database = {
           enabled?: boolean
           external_url?: string | null
           font_family?: string
+          font_size?: number
           id?: string
           label: string
           position_x?: number
@@ -97,6 +99,7 @@ export type Database = {
           enabled?: boolean
           external_url?: string | null
           font_family?: string
+          font_size?: number
           id?: string
           label?: string
           position_x?: number

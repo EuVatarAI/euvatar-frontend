@@ -6,8 +6,9 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
+import { Slider } from '@/components/ui/slider';
 import { useToast } from '@/hooks/use-toast';
-import { Plus, Trash2, Play, Upload, ExternalLink, GripVertical, Save, Pencil, Monitor, Smartphone } from 'lucide-react';
+import { Trash2, Play, Upload, ExternalLink, GripVertical, Save, Pencil, Monitor, Smartphone } from 'lucide-react';
 
 interface AvatarButton {
   id: string;
@@ -22,6 +23,7 @@ interface AvatarButton {
   enabled: boolean;
   border_style: 'square' | 'rounded' | 'pill';
   font_family: string;
+  font_size: number;
 }
 
 interface ButtonsManagerProps {
@@ -34,10 +36,11 @@ const ACTION_LABELS = {
   external_link: 'Link Externo',
 };
 
-const SIZE_CONFIG = {
-  small: { padding: 'px-3 py-1.5', fontSize: 'text-sm' },
-  medium: { padding: 'px-5 py-2.5', fontSize: 'text-base' },
-  large: { padding: 'px-7 py-3.5', fontSize: 'text-lg' },
+// Dynamic padding based on font size
+const getPadding = (fontSize: number) => {
+  const paddingX = Math.max(12, Math.round(fontSize * 0.8));
+  const paddingY = Math.max(6, Math.round(fontSize * 0.4));
+  return { paddingX, paddingY };
 };
 
 const BORDER_CONFIG = {
@@ -83,6 +86,7 @@ export const ButtonsManager = ({ avatarId }: ButtonsManagerProps) => {
     color: string;
     border_style: 'square' | 'rounded' | 'pill';
     font_family: string;
+    font_size: number;
     position_x: number;
     position_y: number;
   }>({
@@ -93,6 +97,7 @@ export const ButtonsManager = ({ avatarId }: ButtonsManagerProps) => {
     color: '#6366f1',
     border_style: 'rounded',
     font_family: 'Inter',
+    font_size: 16,
     position_x: 50,
     position_y: 85,
   });
@@ -150,6 +155,7 @@ export const ButtonsManager = ({ avatarId }: ButtonsManagerProps) => {
           color: newButton.color,
           border_style: newButton.border_style,
           font_family: newButton.font_family,
+          font_size: newButton.font_size,
           position_x: newButton.position_x,
           position_y: newButton.position_y,
           display_order: maxOrder + 1,
@@ -165,6 +171,7 @@ export const ButtonsManager = ({ avatarId }: ButtonsManagerProps) => {
         color: '#6366f1',
         border_style: 'rounded',
         font_family: 'Inter',
+        font_size: 16,
         position_x: 50,
         position_y: 85,
       });
@@ -191,6 +198,7 @@ export const ButtonsManager = ({ avatarId }: ButtonsManagerProps) => {
           color: button.color,
           border_style: button.border_style,
           font_family: button.font_family,
+          font_size: button.font_size,
           position_x: button.position_x,
           position_y: button.position_y,
           enabled: button.enabled,
@@ -322,16 +330,19 @@ export const ButtonsManager = ({ avatarId }: ButtonsManagerProps) => {
   };
 
   const renderButtonPreview = (btn: typeof newButton | AvatarButton, isEditing = false) => {
-    const sizeConfig = SIZE_CONFIG[btn.size];
     const borderConfig = BORDER_CONFIG[btn.border_style];
+    const fontSize = 'font_size' in btn ? btn.font_size : 16;
+    const { paddingX, paddingY } = getPadding(fontSize);
     
     return (
       <button
-        className={`font-medium transition-all shadow-lg ${sizeConfig.padding} ${sizeConfig.fontSize} ${borderConfig}`}
+        className={`font-medium transition-all shadow-lg ${borderConfig}`}
         style={{
           backgroundColor: btn.color,
           color: 'white',
           fontFamily: btn.font_family,
+          fontSize: `${fontSize}px`,
+          padding: `${paddingY}px ${paddingX}px`,
           position: 'absolute',
           left: `${btn.position_x}%`,
           top: `${btn.position_y}%`,
@@ -469,25 +480,20 @@ export const ButtonsManager = ({ avatarId }: ButtonsManagerProps) => {
             </div>
           )}
 
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-2 gap-4">
             <div>
-              <Label>Tamanho</Label>
-              <Select 
-                value={currentButton.size} 
-                onValueChange={(v: any) => editingButton
-                  ? setEditingButton({ ...editingButton, size: v })
-                  : setNewButton({ ...newButton, size: v })
+              <Label>Tamanho da Fonte: {currentButton.font_size || 16}px</Label>
+              <Slider
+                value={[currentButton.font_size || 16]}
+                onValueChange={(v) => editingButton
+                  ? setEditingButton({ ...editingButton, font_size: v[0] })
+                  : setNewButton({ ...newButton, font_size: v[0] })
                 }
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="small">Pequeno</SelectItem>
-                  <SelectItem value="medium">Médio</SelectItem>
-                  <SelectItem value="large">Grande</SelectItem>
-                </SelectContent>
-              </Select>
+                min={12}
+                max={32}
+                step={1}
+                className="mt-2"
+              />
             </div>
             <div>
               <Label>Formato</Label>
@@ -508,27 +514,28 @@ export const ButtonsManager = ({ avatarId }: ButtonsManagerProps) => {
                 </SelectContent>
               </Select>
             </div>
-            <div>
-              <Label>Fonte</Label>
-              <Select 
-                value={currentButton.font_family} 
-                onValueChange={(v) => editingButton
-                  ? setEditingButton({ ...editingButton, font_family: v })
-                  : setNewButton({ ...newButton, font_family: v })
-                }
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {FONTS.map((font) => (
-                    <SelectItem key={font.value} value={font.value} style={{ fontFamily: font.value }}>
-                      {font.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+          </div>
+
+          <div>
+            <Label>Fonte</Label>
+            <Select 
+              value={currentButton.font_family} 
+              onValueChange={(v) => editingButton
+                ? setEditingButton({ ...editingButton, font_family: v })
+                : setNewButton({ ...newButton, font_family: v })
+              }
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {FONTS.map((font) => (
+                  <SelectItem key={font.value} value={font.value} style={{ fontFamily: font.value }}>
+                    {font.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
 
           <div className="grid grid-cols-3 gap-4">
