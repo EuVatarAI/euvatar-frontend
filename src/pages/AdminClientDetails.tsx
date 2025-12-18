@@ -359,6 +359,14 @@ export const AdminClientDetails = () => {
     const amount = 140000; // R$ 1.400,00 em centavos
 
     try {
+      // Primeiro, salvar a modalidade se ainda não estiver salva
+      if (client.modality !== 'evento') {
+        await supabase
+          .from('admin_clients')
+          .update({ modality: 'evento' })
+          .eq('id', client.id);
+      }
+
       // Gerar link de pagamento placeholder (para integração futura com Stripe)
       const stripeLink = `https://pay.stripe.com/placeholder?amount=${amount}&client=${client.id}`;
 
