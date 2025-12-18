@@ -147,14 +147,14 @@ const Dashboard = () => {
   return (
     <div className="min-h-screen bg-background p-8">
       <div className="max-w-7xl mx-auto">
-        <div className="flex justify-between items-start mb-8">
-          <div className="flex flex-col gap-2">
+        <div className="flex justify-between items-start mb-10">
+          <div className="flex flex-col items-start gap-3">
             <img
               src={euvatarLogo}
               alt="Logo da Euvatar"
-              className="h-20 w-auto object-contain"
+              className="h-28 w-auto object-contain -ml-3"
             />
-            <h1 className="text-3xl font-bold">Gerenciamento de Euvatares</h1>
+            <h1 className="text-4xl font-bold leading-tight">Gerenciamento de Euvatares</h1>
           </div>
           <Button onClick={handleSignOut} variant="outline">
             <LogOut className="mr-2 h-4 w-4" />
