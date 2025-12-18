@@ -149,7 +149,11 @@ const Dashboard = () => {
       <div className="max-w-7xl mx-auto">
         <div className="flex justify-between items-center mb-8">
           <div className="flex items-center gap-4">
-            <img src={euvatarLogo} alt="Euvatar" className="h-12" />
+            <img
+              src={euvatarLogo}
+              alt="Euvatar"
+              className="h-16 w-auto object-contain -translate-y-2"
+            />
             <h1 className="text-4xl font-bold">Gerenciamento de Euvatares</h1>
           </div>
           <Button onClick={handleSignOut} variant="outline">
