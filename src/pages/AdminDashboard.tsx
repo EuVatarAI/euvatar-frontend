@@ -11,7 +11,7 @@ import {
   Plus, LogOut, Users, Search, Filter, 
   CreditCard, ExternalLink, Eye, EyeOff, 
   Loader2, Clock, AlertCircle, CheckCircle2,
-  Building2, Zap
+  Building2, Zap, Copy
 } from "lucide-react";
 import euvatarLogo from "@/assets/euvatar-logo-white.png";
 import {
@@ -104,8 +104,20 @@ const creditsToHours = (credits: number): string => {
   return hours.toFixed(1);
 };
 
+interface PendingCharge {
+  id: string;
+  client_id: string;
+  client_name: string;
+  type: 'setup' | 'event_addition' | 'payment';
+  amount_cents: number;
+  hours?: number;
+  stripe_link: string | null;
+  created_at: string;
+}
+
 export const AdminDashboard = () => {
   const [clients, setClients] = useState<AdminClient[]>([]);
+  const [pendingCharges, setPendingCharges] = useState<PendingCharge[]>([]);
   const [loading, setLoading] = useState(true);
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [creating, setCreating] = useState(false);
@@ -127,6 +139,7 @@ export const AdminDashboard = () => {
   useEffect(() => {
     checkAdminAccess();
     fetchClients();
+    fetchPendingCharges();
   }, []);
 
   const checkAdminAccess = () => {
@@ -172,6 +185,75 @@ export const AdminDashboard = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  const fetchPendingCharges = async () => {
+    try {
+      // Fetch pending event additions
+      const { data: eventAdditions } = await supabase
+        .from('client_event_additions')
+        .select('*, admin_clients!inner(name)')
+        .eq('status', 'pendente')
+        .order('created_at', { ascending: false });
+
+      // Fetch pending payments (setup, etc.)
+      const { data: payments } = await supabase
+        .from('client_payments')
+        .select('*, admin_clients!inner(name)')
+        .eq('status', 'pendente')
+        .order('created_at', { ascending: false });
+
+      const charges: PendingCharge[] = [];
+
+      // Map event additions
+      (eventAdditions || []).forEach((ea: any) => {
+        charges.push({
+          id: ea.id,
+          client_id: ea.client_id,
+          client_name: ea.admin_clients?.name || 'Cliente',
+          type: 'event_addition',
+          amount_cents: ea.amount_cents,
+          hours: ea.hours,
+          stripe_link: ea.stripe_link,
+          created_at: ea.created_at,
+        });
+      });
+
+      // Map payments
+      (payments || []).forEach((p: any) => {
+        charges.push({
+          id: p.id,
+          client_id: p.client_id,
+          client_name: p.admin_clients?.name || 'Cliente',
+          type: p.payment_type === 'setup' ? 'setup' : 'payment',
+          amount_cents: p.amount_cents,
+          stripe_link: p.stripe_link,
+          created_at: p.created_at,
+        });
+      });
+
+      // Sort by date
+      charges.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+
+      setPendingCharges(charges);
+    } catch (error) {
+      console.error('Error fetching pending charges:', error);
+    }
+  };
+
+  const formatCurrency = (cents: number): string => {
+    return new Intl.NumberFormat('pt-BR', {
+      style: 'currency',
+      currency: 'BRL',
+    }).format(cents / 100);
+  };
+
+  const copyToClipboard = (text: string) => {
+    navigator.clipboard.writeText(text);
+    toast({
+      title: "Link copiado!",
+      description: "Link de pagamento copiado para a área de transferência.",
+    });
   };
 
   const generatePassword = (name: string): string => {
@@ -327,6 +409,61 @@ export const AdminDashboard = () => {
             </CardContent>
           </Card>
         </div>
+
+        {/* Pending Charges Section */}
+        {pendingCharges.length > 0 && (
+          <Card className="mb-8">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <CreditCard className="h-5 w-5" />
+                Cobranças Pendentes ({pendingCharges.length})
+              </CardTitle>
+              <CardDescription>Cobranças aguardando pagamento</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-3">
+                {pendingCharges.map((charge) => (
+                  <div 
+                    key={`${charge.type}-${charge.id}`}
+                    className="flex items-center justify-between p-4 bg-muted rounded-lg"
+                  >
+                    <div className="flex items-center gap-4">
+                      <div>
+                        <p className="font-medium">{charge.client_name}</p>
+                        <p className="text-sm text-muted-foreground">
+                          {charge.type === 'setup' ? 'Setup' : 
+                           charge.type === 'event_addition' ? `+${charge.hours}h Evento` : 
+                           'Pagamento'}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-4">
+                      <span className="font-semibold">{formatCurrency(charge.amount_cents)}</span>
+                      {charge.stripe_link && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => copyToClipboard(charge.stripe_link || '')}
+                        >
+                          <Copy className="h-3 w-3 mr-1" />
+                          Copiar Link
+                        </Button>
+                      )}
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => navigate(`/admin/client/${charge.client_id}`)}
+                      >
+                        <ExternalLink className="h-3 w-3 mr-1" />
+                        Ver Cliente
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Clients Table */}
         <Card>
