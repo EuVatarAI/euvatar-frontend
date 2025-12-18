@@ -402,7 +402,7 @@ export const ButtonsManager = ({ avatarId }: ButtonsManagerProps) => {
         <CardContent>
           <div 
             className={`mx-auto bg-black rounded-lg overflow-hidden relative ${
-              testPopupUrl ? 'aspect-[16/10] max-w-4xl' : videoOrientation === 'vertical' ? 'aspect-[9/16] max-w-xs' : 'aspect-video max-w-2xl'
+              videoOrientation === 'vertical' ? 'aspect-[9/16] max-w-xs' : 'aspect-video max-w-2xl'
             }`}
             ref={previewRef}
             onMouseDown={!testPopupUrl && !testVideoUrl ? handlePreviewMouseDown : undefined}
@@ -420,23 +420,30 @@ export const ButtonsManager = ({ avatarId }: ButtonsManagerProps) => {
               playsInline
             />
 
-            {/* Test Link Preview - Notebook viewport scaled to fit */}
+            {/* Test Link Preview - fits within video bounds */}
             {testPopupUrl && (
-              <div className="absolute inset-0 z-20 flex items-center justify-center bg-black/60 p-2">
-                <div
-                  className="relative bg-white rounded-lg overflow-hidden shadow-2xl"
-                  style={{ width: '92%', height: '92%', aspectRatio: '16/10' }}
-                >
-                  <ScaledIframe
-                    src={testPopupUrl}
-                    title="Teste de Link Externo"
-                    baseWidth={1366}
-                    baseHeight={768}
-                  />
+              <div className="absolute inset-0 z-20 flex items-center justify-center bg-black/80 p-4">
+                <div className="relative w-full h-full flex items-center justify-center">
+                  <div
+                    className="relative bg-white rounded-lg overflow-hidden shadow-2xl"
+                    style={{ 
+                      width: '100%',
+                      height: '100%',
+                      maxWidth: '100%',
+                      maxHeight: '100%'
+                    }}
+                  >
+                    <ScaledIframe
+                      src={testPopupUrl}
+                      title="Teste de Link Externo"
+                      baseWidth={1366}
+                      baseHeight={768}
+                    />
+                  </div>
                   <Button
                     variant="destructive"
                     size="sm"
-                    className="absolute top-2 right-2 z-30"
+                    className="absolute top-0 right-0 z-30"
                     onClick={() => setTestPopupUrl(null)}
                   >
                     <X className="h-4 w-4" />
