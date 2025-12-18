@@ -16,6 +16,7 @@ import { sanitizeContextName } from '@/utils/contextNameSanitizer';
 import { CredentialsTab } from '@/components/avatar/CredentialsTab';
 import { AdsManager } from '@/components/avatar/AdsManager';
 import { ButtonsManager } from '@/components/avatar/ButtonsManager';
+import { AvatarStreamingPreview } from '@/components/avatar/AvatarStreamingPreview';
 
 interface Avatar {
   id: string;
@@ -61,6 +62,7 @@ const AvatarDetails = () => {
   const [uploadingCover, setUploadingCover] = useState(false);
   const [coverImageUrl, setCoverImageUrl] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [hasCredentials, setHasCredentials] = useState(false);
   const [loading, setLoading] = useState(true);
   const [trainingDocuments, setTrainingDocuments] = useState<any[]>([]);
   const [trainingDocId, setTrainingDocId] = useState<string | null>(null);
@@ -139,6 +141,15 @@ const AvatarDetails = () => {
 
       if (docsError) throw docsError;
       setTrainingDocuments((docsData || []) as any[]);
+
+      // Check if credentials exist
+      const { data: credsData } = await supabase
+        .from('avatar_credentials')
+        .select('id')
+        .eq('avatar_id', id)
+        .maybeSingle();
+      
+      setHasCredentials(!!credsData);
 
       setLoading(false);
     } catch (error: any) {
@@ -489,6 +500,20 @@ const AvatarDetails = () => {
           </TabsList>
 
           <TabsContent value="overview" className="space-y-6 mt-6">
+            {/* Live Preview */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Preview Interativo</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <AvatarStreamingPreview 
+                  avatarId={id!} 
+                  hasCredentials={hasCredentials}
+                  avatarOrientation={avatar?.avatar_orientation}
+                />
+              </CardContent>
+            </Card>
+
             {/* Cover Image and Basic Info */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               <Card className="md:col-span-1">
