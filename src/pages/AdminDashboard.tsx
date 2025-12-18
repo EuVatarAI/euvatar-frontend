@@ -4,9 +4,15 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
-import { Plus, LogOut, Users, Building2, Eye, EyeOff, Loader2, Copy } from "lucide-react";
+import { 
+  Plus, LogOut, Users, Search, Filter, 
+  CreditCard, ExternalLink, Eye, EyeOff, 
+  Loader2, Clock, AlertCircle, CheckCircle2,
+  Building2, Zap
+} from "lucide-react";
 import euvatarLogo from "@/assets/euvatar-logo-white.png";
 import {
   Dialog,
@@ -24,29 +30,95 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
-interface Client {
+interface AdminClient {
   id: string;
+  name: string;
   email: string;
-  full_name: string | null;
-  organization_name: string;
-  organization_slug: string;
+  client_url: string | null;
+  modality: 'evento' | 'plano_trimestral' | null;
+  current_plan: 'plano_4h' | 'plano_7h' | 'plano_20h' | null;
+  setup_paid: boolean;
+  heygen_api_key: string | null;
+  heygen_api_key_valid: boolean;
+  credits_balance: number;
+  credits_used_this_month: number;
+  plan_expiration_date: string | null;
+  last_payment_status: string;
+  last_payment_at: string | null;
   created_at: string;
+  avatar_count?: number;
 }
 
+type ClientStatus = 'ativo' | 'pendente_setup' | 'pendente_pagamento' | 'pendente_integracao' | 'sem_creditos' | 'pendente_avatar' | 'expirado' | 'suspenso';
+
+const getClientStatus = (client: AdminClient): ClientStatus => {
+  if (!client.setup_paid) return 'pendente_setup';
+  if (!client.modality) return 'pendente_pagamento';
+  if (client.plan_expiration_date && new Date(client.plan_expiration_date) < new Date()) return 'expirado';
+  if (!client.heygen_api_key || !client.heygen_api_key_valid) return 'pendente_integracao';
+  if ((client.avatar_count || 0) === 0) return 'pendente_avatar';
+  if (client.credits_balance <= 0) return 'sem_creditos';
+  return 'ativo';
+};
+
+const statusConfig: Record<ClientStatus, { label: string; variant: "default" | "secondary" | "destructive" | "outline" }> = {
+  ativo: { label: 'Ativo', variant: 'default' },
+  pendente_setup: { label: 'Pendente Setup', variant: 'secondary' },
+  pendente_pagamento: { label: 'Pendente Pagamento', variant: 'destructive' },
+  pendente_integracao: { label: 'Pendente Integração', variant: 'secondary' },
+  sem_creditos: { label: 'Sem Créditos', variant: 'destructive' },
+  pendente_avatar: { label: 'Pendente Avatar', variant: 'secondary' },
+  expirado: { label: 'Expirado', variant: 'destructive' },
+  suspenso: { label: 'Suspenso', variant: 'destructive' },
+};
+
+const modalityLabels: Record<string, string> = {
+  evento: 'Evento',
+  plano_trimestral: 'Plano Trimestral',
+};
+
+const planLabels: Record<string, string> = {
+  plano_4h: '4h/mês',
+  plano_7h: '7h/mês',
+  plano_20h: '20h/mês',
+};
+
+// Convert credits to hours (240 credits = 1 hour)
+const creditsToHours = (credits: number): string => {
+  const hours = credits / 240;
+  return hours.toFixed(1);
+};
+
 export const AdminDashboard = () => {
-  const [clients, setClients] = useState<Client[]>([]);
+  const [clients, setClients] = useState<AdminClient[]>([]);
   const [loading, setLoading] = useState(true);
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [creating, setCreating] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   
+  // Search and filters
+  const [searchQuery, setSearchQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [modalityFilter, setModalityFilter] = useState<string>("all");
+  const [paymentFilter, setPaymentFilter] = useState<string>("all");
+  
   // Form state
-  const [newEmail, setNewEmail] = useState("");
-  const [newPassword, setNewPassword] = useState("");
   const [newName, setNewName] = useState("");
-  const [newOrgName, setNewOrgName] = useState("");
-  const [newSlug, setNewSlug] = useState("");
+  const [newEmail, setNewEmail] = useState("");
   
   const { toast } = useToast();
   const navigate = useNavigate();
@@ -65,39 +137,45 @@ export const AdminDashboard = () => {
 
   const fetchClients = async () => {
     try {
-      // Fetch profiles with organization data
-      const { data: profiles, error } = await supabase
-        .from('profiles')
-        .select(`
-          id,
-          email,
-          full_name,
-          created_at,
-          organization_id,
-          organizations (
-            name,
-            slug
-          )
-        `)
+      // Fetch clients from admin_clients table
+      const { data: clientsData, error } = await supabase
+        .from('admin_clients')
+        .select('*')
         .order('created_at', { ascending: false });
 
       if (error) throw error;
 
-      const clientList: Client[] = (profiles || []).map((p: any) => ({
-        id: p.id,
-        email: p.email,
-        full_name: p.full_name,
-        organization_name: p.organizations?.name || 'N/A',
-        organization_slug: p.organizations?.slug || 'N/A',
-        created_at: p.created_at,
-      }));
+      // Fetch avatar counts for each client
+      const clientsWithAvatars = await Promise.all(
+        (clientsData || []).map(async (client) => {
+          const { count } = await supabase
+            .from('client_avatars')
+            .select('*', { count: 'exact', head: true })
+            .eq('client_id', client.id);
+          
+          return {
+            ...client,
+            avatar_count: count || 0,
+          } as AdminClient;
+        })
+      );
 
-      setClients(clientList);
+      setClients(clientsWithAvatars);
     } catch (error) {
       console.error('Error fetching clients:', error);
+      toast({
+        title: "Erro ao carregar clientes",
+        description: "Tente recarregar a página.",
+        variant: "destructive",
+      });
     } finally {
       setLoading(false);
     }
+  };
+
+  const generatePassword = (name: string): string => {
+    const cleanName = name.toLowerCase().replace(/\s+/g, '');
+    return `${cleanName}123`;
   };
 
   const handleCreateClient = async (e: React.FormEvent) => {
@@ -105,52 +183,29 @@ export const AdminDashboard = () => {
     setCreating(true);
 
     try {
-      // Create user via Supabase Auth
-      const { data: authData, error: authError } = await supabase.auth.signUp({
-        email: newEmail,
-        password: newPassword,
-        options: {
-          data: {
-            full_name: newName,
-            company_name: newOrgName,
-          },
-          emailRedirectTo: `${window.location.origin}/`,
-        },
-      });
+      const password = generatePassword(newName);
+      
+      // Create client in admin_clients table
+      const { data, error } = await supabase
+        .from('admin_clients')
+        .insert({
+          name: newName,
+          email: newEmail,
+          password_hash: password, // In production, this should be properly hashed
+        })
+        .select()
+        .single();
 
-      if (authError) throw authError;
-
-      // If we have a custom slug, update the organization
-      if (authData.user && newSlug) {
-        // Wait a bit for the trigger to create the organization
-        await new Promise(resolve => setTimeout(resolve, 1000));
-        
-        // Update organization slug
-        const { data: profileData } = await supabase
-          .from('profiles')
-          .select('organization_id')
-          .eq('user_id', authData.user.id)
-          .single();
-
-        if (profileData?.organization_id) {
-          await supabase
-            .from('organizations')
-            .update({ slug: newSlug.toLowerCase().replace(/\s+/g, '-') })
-            .eq('id', profileData.organization_id);
-        }
-      }
+      if (error) throw error;
 
       toast({
         title: "Cliente criado com sucesso!",
-        description: `Uma conta foi criada para ${newEmail}`,
+        description: `Senha inicial: ${password}`,
       });
 
       // Reset form
-      setNewEmail("");
-      setNewPassword("");
       setNewName("");
-      setNewOrgName("");
-      setNewSlug("");
+      setNewEmail("");
       setIsCreateDialogOpen(false);
       
       // Refresh clients list
@@ -171,27 +226,37 @@ export const AdminDashboard = () => {
     navigate('/admin');
   };
 
-  const copyToClipboard = (text: string) => {
-    navigator.clipboard.writeText(text);
-    toast({
-      title: "Copiado!",
-      description: "Link copiado para a área de transferência.",
-    });
-  };
+  // Filter clients
+  const filteredClients = clients.filter((client) => {
+    // Search filter
+    const matchesSearch = 
+      client.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      client.email.toLowerCase().includes(searchQuery.toLowerCase());
+    
+    // Status filter
+    const clientStatus = getClientStatus(client);
+    const matchesStatus = statusFilter === 'all' || clientStatus === statusFilter;
+    
+    // Modality filter
+    const matchesModality = modalityFilter === 'all' || client.modality === modalityFilter;
+    
+    // Payment filter
+    const matchesPayment = paymentFilter === 'all' || 
+      (paymentFilter === 'pendente' && client.last_payment_status === 'pendente') ||
+      (paymentFilter === 'pago' && client.last_payment_status === 'pago');
+    
+    return matchesSearch && matchesStatus && matchesModality && matchesPayment;
+  });
 
-  const generateSlug = (name: string) => {
-    return name
-      .toLowerCase()
-      .normalize('NFD')
-      .replace(/[\u0300-\u036f]/g, '')
-      .replace(/[^a-z0-9]+/g, '-')
-      .replace(/^-+|-+$/g, '');
-  };
+  // Stats
+  const activeClients = clients.filter(c => getClientStatus(c) === 'ativo').length;
+  const pendingPayments = clients.filter(c => c.last_payment_status === 'pendente').length;
+  const totalCredits = clients.reduce((sum, c) => sum + c.credits_balance, 0);
 
   return (
     <div className="min-h-screen bg-background">
       {/* Header */}
-      <header className="border-b border-border bg-card">
+      <header className="border-b border-border bg-card sticky top-0 z-50">
         <div className="container mx-auto px-4 py-4 flex items-center justify-between">
           <div className="flex items-center gap-4">
             <img src={euvatarLogo} alt="Euvatar" className="h-10" />
@@ -207,7 +272,7 @@ export const AdminDashboard = () => {
       {/* Main Content */}
       <main className="container mx-auto px-4 py-8">
         {/* Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
           <Card>
             <CardContent className="pt-6">
               <div className="flex items-center gap-4">
@@ -216,7 +281,7 @@ export const AdminDashboard = () => {
                 </div>
                 <div>
                   <p className="text-2xl font-bold">{clients.length}</p>
-                  <p className="text-sm text-muted-foreground">Total de Clientes</p>
+                  <p className="text-sm text-muted-foreground">Total Clientes</p>
                 </div>
               </div>
             </CardContent>
@@ -224,12 +289,38 @@ export const AdminDashboard = () => {
           <Card>
             <CardContent className="pt-6">
               <div className="flex items-center gap-4">
-                <div className="p-3 bg-primary/10 rounded-lg">
-                  <Building2 className="h-6 w-6 text-primary" />
+                <div className="p-3 bg-green-500/10 rounded-lg">
+                  <CheckCircle2 className="h-6 w-6 text-green-500" />
                 </div>
                 <div>
-                  <p className="text-2xl font-bold">{clients.length}</p>
-                  <p className="text-sm text-muted-foreground">Organizações</p>
+                  <p className="text-2xl font-bold">{activeClients}</p>
+                  <p className="text-sm text-muted-foreground">Clientes Ativos</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="pt-6">
+              <div className="flex items-center gap-4">
+                <div className="p-3 bg-yellow-500/10 rounded-lg">
+                  <AlertCircle className="h-6 w-6 text-yellow-500" />
+                </div>
+                <div>
+                  <p className="text-2xl font-bold">{pendingPayments}</p>
+                  <p className="text-sm text-muted-foreground">Pagamentos Pendentes</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="pt-6">
+              <div className="flex items-center gap-4">
+                <div className="p-3 bg-blue-500/10 rounded-lg">
+                  <Zap className="h-6 w-6 text-blue-500" />
+                </div>
+                <div>
+                  <p className="text-2xl font-bold">{creditsToHours(totalCredits)}h</p>
+                  <p className="text-sm text-muted-foreground">Créditos Totais</p>
                 </div>
               </div>
             </CardContent>
@@ -238,157 +329,241 @@ export const AdminDashboard = () => {
 
         {/* Clients Table */}
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between">
-            <div>
-              <CardTitle>Clientes</CardTitle>
-              <CardDescription>Gerencie as contas dos clientes</CardDescription>
-            </div>
-            <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
-              <DialogTrigger asChild>
-                <Button>
-                  <Plus className="h-4 w-4 mr-2" />
-                  Novo Cliente
-                </Button>
-              </DialogTrigger>
-              <DialogContent>
-                <DialogHeader>
-                  <DialogTitle>Criar Novo Cliente</DialogTitle>
-                  <DialogDescription>
-                    Preencha os dados para criar uma nova conta de cliente.
-                  </DialogDescription>
-                </DialogHeader>
-                <form onSubmit={handleCreateClient} className="space-y-4 mt-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="name">Nome Completo</Label>
-                    <Input
-                      id="name"
-                      value={newName}
-                      onChange={(e) => setNewName(e.target.value)}
-                      placeholder="Nome do cliente"
-                      required
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="org">Nome da Organização</Label>
-                    <Input
-                      id="org"
-                      value={newOrgName}
-                      onChange={(e) => {
-                        setNewOrgName(e.target.value);
-                        setNewSlug(generateSlug(e.target.value));
-                      }}
-                      placeholder="Nome da empresa"
-                      required
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="slug">Slug (subdomínio)</Label>
-                    <div className="flex items-center gap-2">
-                      <Input
-                        id="slug"
-                        value={newSlug}
-                        onChange={(e) => setNewSlug(generateSlug(e.target.value))}
-                        placeholder="minha-empresa"
-                        required
-                      />
-                      <span className="text-sm text-muted-foreground whitespace-nowrap">.euvatar.ai</span>
-                    </div>
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="client-email">E-mail</Label>
-                    <Input
-                      id="client-email"
-                      type="email"
-                      value={newEmail}
-                      onChange={(e) => setNewEmail(e.target.value)}
-                      placeholder="cliente@empresa.com"
-                      required
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="client-password">Senha</Label>
-                    <div className="relative">
-                      <Input
-                        id="client-password"
-                        type={showPassword ? "text" : "password"}
-                        value={newPassword}
-                        onChange={(e) => setNewPassword(e.target.value)}
-                        placeholder="Mínimo 6 caracteres"
-                        required
-                        minLength={6}
-                        className="pr-10"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setShowPassword(!showPassword)}
-                        className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                      >
-                        {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
-                      </button>
-                    </div>
-                  </div>
-                  <Button type="submit" className="w-full" disabled={creating}>
-                    {creating ? (
-                      <>
-                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                        Criando...
-                      </>
-                    ) : (
-                      "Criar Cliente"
-                    )}
+          <CardHeader>
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div>
+                <CardTitle>Clientes</CardTitle>
+                <CardDescription>Gerencie todas as contas de clientes</CardDescription>
+              </div>
+              <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
+                <DialogTrigger asChild>
+                  <Button>
+                    <Plus className="h-4 w-4 mr-2" />
+                    Adicionar Cliente
                   </Button>
-                </form>
-              </DialogContent>
-            </Dialog>
+                </DialogTrigger>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>Criar Novo Cliente</DialogTitle>
+                    <DialogDescription>
+                      Preencha os dados para criar uma nova conta de cliente.
+                      A senha será gerada automaticamente: nomedocliente123
+                    </DialogDescription>
+                  </DialogHeader>
+                  <form onSubmit={handleCreateClient} className="space-y-4 mt-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="name">Nome do Cliente *</Label>
+                      <Input
+                        id="name"
+                        value={newName}
+                        onChange={(e) => setNewName(e.target.value)}
+                        placeholder="Nome completo do cliente"
+                        required
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="client-email">E-mail de Login *</Label>
+                      <Input
+                        id="client-email"
+                        type="email"
+                        value={newEmail}
+                        onChange={(e) => setNewEmail(e.target.value)}
+                        placeholder="cliente@empresa.com"
+                        required
+                      />
+                    </div>
+                    {newName && (
+                      <div className="p-3 bg-muted rounded-lg">
+                        <p className="text-sm text-muted-foreground">
+                          <strong>Senha gerada:</strong> {generatePassword(newName)}
+                        </p>
+                      </div>
+                    )}
+                    <Button type="submit" className="w-full" disabled={creating}>
+                      {creating ? (
+                        <>
+                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                          Criando...
+                        </>
+                      ) : (
+                        "Criar Cliente"
+                      )}
+                    </Button>
+                  </form>
+                </DialogContent>
+              </Dialog>
+            </div>
+
+            {/* Search and Filters */}
+            <div className="flex flex-col md:flex-row gap-4 mt-6">
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Buscar por nome ou e-mail..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="pl-10"
+                />
+              </div>
+              <Select value={statusFilter} onValueChange={setStatusFilter}>
+                <SelectTrigger className="w-full md:w-[180px]">
+                  <SelectValue placeholder="Status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos os Status</SelectItem>
+                  <SelectItem value="ativo">Ativo</SelectItem>
+                  <SelectItem value="pendente_setup">Pendente Setup</SelectItem>
+                  <SelectItem value="pendente_pagamento">Pendente Pagamento</SelectItem>
+                  <SelectItem value="pendente_integracao">Pendente Integração</SelectItem>
+                  <SelectItem value="sem_creditos">Sem Créditos</SelectItem>
+                  <SelectItem value="pendente_avatar">Pendente Avatar</SelectItem>
+                  <SelectItem value="expirado">Expirado</SelectItem>
+                </SelectContent>
+              </Select>
+              <Select value={modalityFilter} onValueChange={setModalityFilter}>
+                <SelectTrigger className="w-full md:w-[180px]">
+                  <SelectValue placeholder="Modalidade" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todas Modalidades</SelectItem>
+                  <SelectItem value="evento">Evento</SelectItem>
+                  <SelectItem value="plano_trimestral">Plano Trimestral</SelectItem>
+                </SelectContent>
+              </Select>
+              <Select value={paymentFilter} onValueChange={setPaymentFilter}>
+                <SelectTrigger className="w-full md:w-[180px]">
+                  <SelectValue placeholder="Pagamento" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos</SelectItem>
+                  <SelectItem value="pendente">Pagamento Pendente</SelectItem>
+                  <SelectItem value="pago">Pago</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </CardHeader>
           <CardContent>
             {loading ? (
               <div className="flex items-center justify-center py-8">
                 <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
               </div>
-            ) : clients.length === 0 ? (
+            ) : filteredClients.length === 0 ? (
               <div className="text-center py-8 text-muted-foreground">
-                Nenhum cliente cadastrado ainda.
+                {clients.length === 0 
+                  ? "Nenhum cliente cadastrado ainda."
+                  : "Nenhum cliente encontrado com os filtros aplicados."}
               </div>
             ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Nome</TableHead>
-                    <TableHead>E-mail</TableHead>
-                    <TableHead>Organização</TableHead>
-                    <TableHead>Slug</TableHead>
-                    <TableHead>Criado em</TableHead>
-                    <TableHead></TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {clients.map((client) => (
-                    <TableRow key={client.id}>
-                      <TableCell>{client.full_name || '-'}</TableCell>
-                      <TableCell>{client.email}</TableCell>
-                      <TableCell>{client.organization_name}</TableCell>
-                      <TableCell>
-                        <code className="text-xs bg-muted px-2 py-1 rounded">
-                          {client.organization_slug}
-                        </code>
-                      </TableCell>
-                      <TableCell>
-                        {new Date(client.created_at).toLocaleDateString('pt-BR')}
-                      </TableCell>
-                      <TableCell>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => copyToClipboard(`${window.location.origin}/${client.organization_slug}`)}
-                        >
-                          <Copy className="h-4 w-4" />
-                        </Button>
-                      </TableCell>
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Cliente</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Modalidade</TableHead>
+                      <TableHead>Saldo</TableHead>
+                      <TableHead>Consumo Mês</TableHead>
+                      <TableHead>Expira em</TableHead>
+                      <TableHead>Pagamento</TableHead>
+                      <TableHead className="text-right">Ações</TableHead>
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+                  </TableHeader>
+                  <TableBody>
+                    {filteredClients.map((client) => {
+                      const status = getClientStatus(client);
+                      const statusInfo = statusConfig[status];
+                      
+                      return (
+                        <TableRow key={client.id} className="cursor-pointer hover:bg-muted/50">
+                          <TableCell>
+                            <div>
+                              <p className="font-medium">{client.name}</p>
+                              <p className="text-sm text-muted-foreground">{client.email}</p>
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant={statusInfo.variant}>
+                              {statusInfo.label}
+                            </Badge>
+                          </TableCell>
+                          <TableCell>
+                            {client.modality ? (
+                              <div>
+                                <p className="text-sm">{modalityLabels[client.modality]}</p>
+                                {client.current_plan && (
+                                  <p className="text-xs text-muted-foreground">
+                                    {planLabels[client.current_plan]}
+                                  </p>
+                                )}
+                              </div>
+                            ) : (
+                              <span className="text-muted-foreground">-</span>
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            <div>
+                              <p className="font-medium">{client.credits_balance} créditos</p>
+                              <p className="text-xs text-muted-foreground">
+                                {creditsToHours(client.credits_balance)} horas
+                              </p>
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <div>
+                              <p className="font-medium">{client.credits_used_this_month} créditos</p>
+                              <p className="text-xs text-muted-foreground">
+                                {creditsToHours(client.credits_used_this_month)} horas
+                              </p>
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            {client.plan_expiration_date ? (
+                              <div className="flex items-center gap-1">
+                                <Clock className="h-3 w-3 text-muted-foreground" />
+                                <span className="text-sm">
+                                  {new Date(client.plan_expiration_date).toLocaleDateString('pt-BR')}
+                                </span>
+                              </div>
+                            ) : (
+                              <span className="text-muted-foreground">-</span>
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            <Badge 
+                              variant={client.last_payment_status === 'pago' ? 'default' : 'secondary'}
+                            >
+                              {client.last_payment_status === 'pago' ? 'Pago' : 'Pendente'}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button variant="ghost" size="sm">
+                                  Ações
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end">
+                                <DropdownMenuItem onClick={() => navigate(`/admin/client/${client.id}`)}>
+                                  <Eye className="h-4 w-4 mr-2" />
+                                  Abrir Cliente
+                                </DropdownMenuItem>
+                                <DropdownMenuItem>
+                                  <CreditCard className="h-4 w-4 mr-2" />
+                                  Gerar Cobrança
+                                </DropdownMenuItem>
+                                <DropdownMenuItem>
+                                  <ExternalLink className="h-4 w-4 mr-2" />
+                                  Acessar como Cliente
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              </div>
             )}
           </CardContent>
         </Card>

@@ -14,6 +14,78 @@ export type Database = {
   }
   public: {
     Tables: {
+      admin_clients: {
+        Row: {
+          client_url: string | null
+          created_at: string | null
+          credits_balance: number | null
+          credits_used_this_month: number | null
+          current_plan: Database["public"]["Enums"]["plan_type"] | null
+          email: string
+          heygen_api_key: string | null
+          heygen_api_key_valid: boolean | null
+          id: string
+          last_credit_reload_at: string | null
+          last_payment_at: string | null
+          last_payment_status: string | null
+          modality: Database["public"]["Enums"]["client_modality"] | null
+          name: string
+          password_hash: string
+          plan_expiration_date: string | null
+          plan_start_date: string | null
+          setup_paid: boolean | null
+          setup_paid_at: string | null
+          setup_stripe_link: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          client_url?: string | null
+          created_at?: string | null
+          credits_balance?: number | null
+          credits_used_this_month?: number | null
+          current_plan?: Database["public"]["Enums"]["plan_type"] | null
+          email: string
+          heygen_api_key?: string | null
+          heygen_api_key_valid?: boolean | null
+          id?: string
+          last_credit_reload_at?: string | null
+          last_payment_at?: string | null
+          last_payment_status?: string | null
+          modality?: Database["public"]["Enums"]["client_modality"] | null
+          name: string
+          password_hash: string
+          plan_expiration_date?: string | null
+          plan_start_date?: string | null
+          setup_paid?: boolean | null
+          setup_paid_at?: string | null
+          setup_stripe_link?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          client_url?: string | null
+          created_at?: string | null
+          credits_balance?: number | null
+          credits_used_this_month?: number | null
+          current_plan?: Database["public"]["Enums"]["plan_type"] | null
+          email?: string
+          heygen_api_key?: string | null
+          heygen_api_key_valid?: boolean | null
+          id?: string
+          last_credit_reload_at?: string | null
+          last_payment_at?: string | null
+          last_payment_status?: string | null
+          modality?: Database["public"]["Enums"]["client_modality"] | null
+          name?: string
+          password_hash?: string
+          plan_expiration_date?: string | null
+          plan_start_date?: string | null
+          setup_paid?: boolean | null
+          setup_paid_at?: string | null
+          setup_stripe_link?: string | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       avatar_ads: {
         Row: {
           avatar_id: string
@@ -264,6 +336,224 @@ export type Database = {
           voice_model?: string
         }
         Relationships: []
+      }
+      client_avatars: {
+        Row: {
+          avatar_url: string | null
+          client_id: string
+          created_at: string | null
+          credits_used: number | null
+          heygen_avatar_id: string | null
+          id: string
+          name: string
+          updated_at: string | null
+        }
+        Insert: {
+          avatar_url?: string | null
+          client_id: string
+          created_at?: string | null
+          credits_used?: number | null
+          heygen_avatar_id?: string | null
+          id?: string
+          name: string
+          updated_at?: string | null
+        }
+        Update: {
+          avatar_url?: string | null
+          client_id?: string
+          created_at?: string | null
+          credits_used?: number | null
+          heygen_avatar_id?: string | null
+          id?: string
+          name?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "client_avatars_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "admin_clients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      client_consumption_log: {
+        Row: {
+          avatar_id: string | null
+          client_id: string
+          created_at: string | null
+          credits_used: number
+          description: string | null
+          heygen_credits_used: number | null
+          id: string
+          session_duration_seconds: number | null
+        }
+        Insert: {
+          avatar_id?: string | null
+          client_id: string
+          created_at?: string | null
+          credits_used: number
+          description?: string | null
+          heygen_credits_used?: number | null
+          id?: string
+          session_duration_seconds?: number | null
+        }
+        Update: {
+          avatar_id?: string | null
+          client_id?: string
+          created_at?: string | null
+          credits_used?: number
+          description?: string | null
+          heygen_credits_used?: number | null
+          id?: string
+          session_duration_seconds?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "client_consumption_log_avatar_id_fkey"
+            columns: ["avatar_id"]
+            isOneToOne: false
+            referencedRelation: "client_avatars"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "client_consumption_log_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "admin_clients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      client_event_additions: {
+        Row: {
+          amount_cents: number
+          client_id: string
+          created_at: string | null
+          credits: number | null
+          hours: number | null
+          id: string
+          paid_at: string | null
+          status: string | null
+          stripe_link: string | null
+        }
+        Insert: {
+          amount_cents: number
+          client_id: string
+          created_at?: string | null
+          credits?: number | null
+          hours?: number | null
+          id?: string
+          paid_at?: string | null
+          status?: string | null
+          stripe_link?: string | null
+        }
+        Update: {
+          amount_cents?: number
+          client_id?: string
+          created_at?: string | null
+          credits?: number | null
+          hours?: number | null
+          id?: string
+          paid_at?: string | null
+          status?: string | null
+          stripe_link?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "client_event_additions_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "admin_clients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      client_payments: {
+        Row: {
+          amount_cents: number
+          client_id: string
+          created_at: string | null
+          credits_to_add: number | null
+          description: string | null
+          id: string
+          paid_at: string | null
+          payment_type: string
+          status: string | null
+          stripe_link: string | null
+          stripe_payment_id: string | null
+        }
+        Insert: {
+          amount_cents: number
+          client_id: string
+          created_at?: string | null
+          credits_to_add?: number | null
+          description?: string | null
+          id?: string
+          paid_at?: string | null
+          payment_type: string
+          status?: string | null
+          stripe_link?: string | null
+          stripe_payment_id?: string | null
+        }
+        Update: {
+          amount_cents?: number
+          client_id?: string
+          created_at?: string | null
+          credits_to_add?: number | null
+          description?: string | null
+          id?: string
+          paid_at?: string | null
+          payment_type?: string
+          status?: string | null
+          stripe_link?: string | null
+          stripe_payment_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "client_payments_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "admin_clients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      client_url_history: {
+        Row: {
+          changed_by: string | null
+          client_id: string
+          created_at: string | null
+          id: string
+          new_url: string | null
+          old_url: string | null
+        }
+        Insert: {
+          changed_by?: string | null
+          client_id: string
+          created_at?: string | null
+          id?: string
+          new_url?: string | null
+          old_url?: string | null
+        }
+        Update: {
+          changed_by?: string | null
+          client_id?: string
+          created_at?: string | null
+          id?: string
+          new_url?: string | null
+          old_url?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "client_url_history_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "admin_clients"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       contexts: {
         Row: {
@@ -721,6 +1011,17 @@ export type Database = {
     }
     Enums: {
       app_role: "admin" | "user"
+      client_modality: "evento" | "plano_trimestral"
+      client_status:
+        | "ativo"
+        | "pendente_setup"
+        | "pendente_pagamento"
+        | "pendente_integracao"
+        | "sem_creditos"
+        | "pendente_avatar"
+        | "expirado"
+        | "suspenso"
+      plan_type: "plano_4h" | "plano_7h" | "plano_20h"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -849,6 +1150,18 @@ export const Constants = {
   public: {
     Enums: {
       app_role: ["admin", "user"],
+      client_modality: ["evento", "plano_trimestral"],
+      client_status: [
+        "ativo",
+        "pendente_setup",
+        "pendente_pagamento",
+        "pendente_integracao",
+        "sem_creditos",
+        "pendente_avatar",
+        "expirado",
+        "suspenso",
+      ],
+      plan_type: ["plano_4h", "plano_7h", "plano_20h"],
     },
   },
 } as const
