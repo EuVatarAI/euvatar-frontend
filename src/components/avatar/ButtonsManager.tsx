@@ -419,15 +419,16 @@ export const ButtonsManager = ({ avatarId }: ButtonsManagerProps) => {
               playsInline
             />
 
-            {/* Test Link Preview - Square popup overlay */}
+            {/* Test Link Preview - Laptop-like popup overlay */}
             {testPopupUrl && (
-              <div className="absolute inset-0 z-20 flex items-center justify-center bg-black/60">
-                <div className="relative w-[85%] aspect-square bg-white rounded-lg overflow-hidden shadow-2xl">
+              <div className="absolute inset-0 z-20 flex items-center justify-center bg-black/60 p-4">
+                <div className="relative w-full h-full max-w-full max-h-full bg-white rounded-lg overflow-hidden shadow-2xl">
                   <iframe
                     src={testPopupUrl}
                     className="w-full h-full border-0"
                     title="Teste de Link Externo"
                     sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
+                    style={{ minWidth: '100%', minHeight: '100%' }}
                   />
                   <Button
                     variant="destructive"
