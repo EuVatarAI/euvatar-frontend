@@ -17,6 +17,7 @@ import { CredentialsTab } from '@/components/avatar/CredentialsTab';
 import { AdsManager } from '@/components/avatar/AdsManager';
 import { ButtonsManager } from '@/components/avatar/ButtonsManager';
 import { AvatarStreamingPreview } from '@/components/avatar/AvatarStreamingPreview';
+import { AppLayout } from '@/components/layout/AppLayout';
 
 interface Avatar {
   id: string;
@@ -471,23 +472,23 @@ const AvatarDetails = () => {
     .slice(0, 5);
 
   return (
-    <div className="min-h-screen bg-background p-8">
-      <div className="max-w-5xl mx-auto">
-        <div className="flex items-center justify-between mb-8">
-          <div className="flex items-center gap-4">
-            <Button onClick={() => navigate('/avatars')} variant="outline" size="icon">
-              <ArrowLeft className="h-4 w-4" />
-            </Button>
-            <h1 className="text-4xl font-bold">{avatar?.name || 'Euvatar'}</h1>
-          </div>
-          <Button
-            variant="outline"
-            onClick={() => window.open(`/euvatar/${id}`, '_blank')}
-          >
-            <ExternalLink className="h-4 w-4 mr-2" />
-            Ver Página Pública
-          </Button>
-        </div>
+    <AppLayout
+      rightContent={
+        <Button
+          variant="outline"
+          onClick={() => window.open(`/euvatar/${id}`, '_blank')}
+        >
+          <ExternalLink className="h-4 w-4 mr-2" />
+          Ver Página Pública
+        </Button>
+      }
+    >
+      <div className="flex items-center gap-4 mb-8">
+        <Button onClick={() => navigate('/avatars')} variant="outline" size="icon">
+          <ArrowLeft className="h-4 w-4" />
+        </Button>
+        <h1 className="text-4xl font-bold">{avatar?.name || 'Euvatar'}</h1>
+      </div>
 
         <Tabs defaultValue={searchParams.get('tab') || 'overview'} className="w-full">
           <TabsList className="grid w-full grid-cols-6">
@@ -1037,8 +1038,7 @@ const AvatarDetails = () => {
             <CredentialsTab avatarId={id!} />
           </TabsContent>
         </Tabs>
-      </div>
-    </div>
+    </AppLayout>
   );
 };
 

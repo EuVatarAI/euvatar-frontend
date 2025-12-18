@@ -6,9 +6,9 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { useToast } from '@/hooks/use-toast';
-import { LogOut, Settings, Lock, User, Clock } from 'lucide-react';
-import euvatarLogo from '@/assets/euvatar-logo-white.png';
+import { Settings, Lock, User, Clock } from 'lucide-react';
 import { UnlockPasswordDialog } from '@/components/avatar/UnlockPasswordDialog';
+import { AppLayout } from '@/components/layout/AppLayout';
 
 interface Avatar {
   id: string;
@@ -105,11 +105,6 @@ const AvatarsManagement = () => {
     return `${mins}min`;
   };
 
-  const handleSignOut = async () => {
-    await signOut();
-    navigate('/');
-  };
-
   const handleUnlock = async (password: string): Promise<boolean> => {
     try {
       const { data, error } = await supabase.functions.invoke('manage-credentials', {
@@ -134,6 +129,11 @@ const AvatarsManagement = () => {
     }
   };
 
+  const handleSignOut = async () => {
+    await signOut();
+    navigate('/');
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -150,22 +150,7 @@ const AvatarsManagement = () => {
   const hasCredentialsConfigured = !heygenCredits?.error;
 
   return (
-    <div className="min-h-screen bg-background p-8">
-      <div className="max-w-7xl mx-auto">
-        <div className="flex justify-between items-start mb-10">
-          <div className="flex flex-col items-start gap-3">
-            <img
-              src={euvatarLogo}
-              alt="Logo da Euvatar"
-              className="h-28 w-auto object-contain -ml-3"
-            />
-            <h1 className="text-4xl font-bold leading-tight">Gerenciamento de Euvatares</h1>
-          </div>
-          <Button onClick={handleSignOut} variant="outline">
-            <LogOut className="mr-2 h-4 w-4" />
-            Sair
-          </Button>
-        </div>
+    <AppLayout title="Gerenciamento de Euvatares">
 
         {/* Credits Overview */}
         <Card className="mb-8">
@@ -326,8 +311,7 @@ const AvatarsManagement = () => {
           onOpenChange={setShowUnlockDialog}
           onUnlock={handleUnlock}
         />
-      </div>
-    </div>
+    </AppLayout>
   );
 };
 
