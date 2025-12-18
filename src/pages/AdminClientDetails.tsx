@@ -470,29 +470,23 @@ export const AdminClientDetails = () => {
     }
   };
 
-  const handleMarkEventAdditionAsPaid = async (additionId: string, creditsToAdd: number) => {
+  const handleDeleteEventAddition = async (additionId: string) => {
     if (!client) return;
 
     try {
-      // Update addition status
-      await supabase
+      // TODO: Quando Stripe estiver integrado, cancelar o payment link aqui
+      // await stripe.paymentLinks.update(paymentLinkId, { active: false });
+
+      const { error } = await supabase
         .from('client_event_additions')
-        .update({ status: 'pago', paid_at: new Date().toISOString() })
+        .delete()
         .eq('id', additionId);
 
-      // Add credits to client
-      await supabase
-        .from('admin_clients')
-        .update({ 
-          credits_balance: client.credits_balance + creditsToAdd,
-          last_payment_status: 'pago',
-          last_payment_at: new Date().toISOString(),
-        })
-        .eq('id', client.id);
+      if (error) throw error;
 
       toast({
-        title: "Pagamento confirmado!",
-        description: `${creditsToAdd} créditos adicionados (${creditsToHours(creditsToAdd)}h).`,
+        title: "Cobrança excluída!",
+        description: "A cobrança foi removida com sucesso.",
       });
 
       fetchClientData();
@@ -748,12 +742,12 @@ export const AdminClientDetails = () => {
                                         )}
                                         {addition.status !== 'pago' && (
                                           <Button
-                                            variant="default"
+                                            variant="destructive"
                                             size="sm"
-                                            onClick={() => handleMarkEventAdditionAsPaid(addition.id, addition.credits)}
+                                            onClick={() => handleDeleteEventAddition(addition.id)}
                                           >
-                                            <CheckCircle2 className="h-3 w-3 mr-1" />
-                                            Marcar Pago
+                                            <Trash2 className="h-3 w-3 mr-1" />
+                                            Excluir
                                           </Button>
                                         )}
                                         {addition.status === 'pago' && addition.paid_at && (
@@ -1022,14 +1016,31 @@ export const AdminClientDetails = () => {
                             </TableCell>
                             <TableCell>
                               {addition.status === 'pendente' && (
-                                <Button 
-                                  size="sm" 
-                                  variant="outline"
-                                  onClick={() => handleMarkEventAdditionAsPaid(addition.id, addition.credits)}
-                                >
-                                  <CheckCircle2 className="h-4 w-4 mr-1" />
-                                  Marcar Pago
-                                </Button>
+                                <div className="flex gap-2">
+                                  {addition.stripe_link && (
+                                    <Button 
+                                      size="sm" 
+                                      variant="outline"
+                                      onClick={() => {
+                                        navigator.clipboard.writeText(addition.stripe_link || '');
+                                        toast({
+                                          title: "Link copiado!",
+                                        });
+                                      }}
+                                    >
+                                      <Copy className="h-4 w-4 mr-1" />
+                                      Copiar
+                                    </Button>
+                                  )}
+                                  <Button 
+                                    size="sm" 
+                                    variant="destructive"
+                                    onClick={() => handleDeleteEventAddition(addition.id)}
+                                  >
+                                    <Trash2 className="h-4 w-4 mr-1" />
+                                    Excluir
+                                  </Button>
+                                </div>
                               )}
                             </TableCell>
                           </TableRow>
