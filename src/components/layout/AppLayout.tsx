@@ -32,16 +32,16 @@ export const AppLayout = ({
     <div className="min-h-screen bg-background">
       {/* Header */}
       <header className="sticky top-0 z-50 w-full border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-        <div className="max-w-7xl mx-auto px-8 py-4">
+        <div className="max-w-7xl mx-auto px-8 py-3">
           <div className="flex justify-between items-center">
-            <div 
-              className="flex items-center gap-4 cursor-pointer" 
+            <div
+              className="flex items-center gap-4 cursor-pointer"
               onClick={() => navigate('/avatars')}
             >
               <img
                 src={euvatarLogo}
-                alt="Euvatar"
-                className="h-14 w-auto object-contain"
+                alt="Logo da Euvatar"
+                className="h-20 w-auto object-contain"
               />
             </div>
             <div className="flex items-center gap-4">
