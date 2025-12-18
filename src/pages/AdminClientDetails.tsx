@@ -356,20 +356,26 @@ export const AdminClientDetails = () => {
   const handleAddEventCredits = async () => {
     if (!client) return;
 
+    const amount = 140000; // R$ 1.400,00 em centavos
+
     try {
+      // Gerar link de pagamento placeholder (para integração futura com Stripe)
+      const stripeLink = `https://pay.stripe.com/placeholder?amount=${amount}&client=${client.id}`;
+
       const { error } = await supabase.from('client_event_additions').insert({
         client_id: client.id,
         hours: EVENT_BLOCK_HOURS,
         credits: EVENT_BLOCK_HOURS * CREDITS_PER_HOUR,
-        amount_cents: EVENT_BLOCK_HOURS * EVENT_HOUR_PRICE,
+        amount_cents: amount,
         status: 'pendente',
+        stripe_link: stripeLink,
       });
 
       if (error) throw error;
 
       toast({
-        title: "Adição de créditos criada!",
-        description: `${EVENT_BLOCK_HOURS} horas (${formatCurrency(EVENT_BLOCK_HOURS * EVENT_HOUR_PRICE)})`,
+        title: "Cobrança de +4 horas criada!",
+        description: `Valor: R$ 1.400,00. Link de pagamento gerado.`,
       });
 
       fetchClientData();
@@ -653,32 +659,49 @@ export const AdminClientDetails = () => {
                   {modality === 'evento' && (
                     <>
                       <Separator className="my-4" />
-                      <div className="p-4 bg-muted rounded-lg space-y-3">
-                        <div className="flex items-center justify-between">
-                          <span className="text-sm font-medium">Blocos contratados</span>
-                          <Badge variant="outline">{1 + eventAdditions.length}/10</Badge>
-                        </div>
-                        <div className="flex items-center justify-between">
-                          <span className="text-sm font-medium">Horas totais</span>
-                          <span className="text-sm">{(1 + eventAdditions.length) * 4}h (máx 40h)</span>
-                        </div>
-                        <div className="flex items-center justify-between">
-                          <span className="text-sm font-medium">Créditos disponíveis</span>
-                          <span className="text-sm font-bold">{formatCredits(client.credits_balance)}</span>
-                        </div>
-                      </div>
-                      <Button 
-                        variant="outline" 
-                        className="w-full"
-                        onClick={handleAddEventCredits}
-                        disabled={eventAdditions.length >= 9}
-                      >
-                        <Plus className="h-4 w-4 mr-2" />
-                        Adicionar +4 horas ({eventAdditions.length}/9 adições)
-                      </Button>
-                      <p className="text-xs text-muted-foreground text-center">
-                        Setup inclui 4h iniciais. Máximo 9 adições extras (36h).
-                      </p>
+                      {(() => {
+                        const paidAdditions = eventAdditions.filter(e => e.status === 'pago');
+                        const setupPaidBlock = client.setup_paid ? 1 : 0;
+                        const totalPaidBlocks = setupPaidBlock + paidAdditions.length;
+                        const totalBlocks = setupPaidBlock + eventAdditions.length;
+                        
+                        return (
+                          <>
+                            <div className="p-4 bg-muted rounded-lg space-y-3">
+                              <div className="flex items-center justify-between">
+                                <span className="text-sm font-medium">Blocos pagos</span>
+                                <Badge variant="outline">{totalPaidBlocks}/10</Badge>
+                              </div>
+                              <div className="flex items-center justify-between">
+                                <span className="text-sm font-medium">Blocos contratados (pendentes)</span>
+                                <span className="text-sm text-muted-foreground">
+                                  {totalBlocks - totalPaidBlocks} pendente{totalBlocks - totalPaidBlocks !== 1 ? 's' : ''}
+                                </span>
+                              </div>
+                              <div className="flex items-center justify-between">
+                                <span className="text-sm font-medium">Horas pagas</span>
+                                <span className="text-sm">{totalPaidBlocks * 4}h (máx 40h)</span>
+                              </div>
+                              <div className="flex items-center justify-between">
+                                <span className="text-sm font-medium">Créditos disponíveis</span>
+                                <span className="text-sm font-bold">{formatCredits(client.credits_balance)}</span>
+                              </div>
+                            </div>
+                            <Button 
+                              variant="outline" 
+                              className="w-full"
+                              onClick={handleAddEventCredits}
+                              disabled={eventAdditions.length >= 9}
+                            >
+                              <Plus className="h-4 w-4 mr-2" />
+                              Adicionar +4 horas - R$ 1.400,00 ({eventAdditions.length}/9 adições)
+                            </Button>
+                            <p className="text-xs text-muted-foreground text-center">
+                              Setup pago libera 4h iniciais. Máximo 9 adições extras (36h).
+                            </p>
+                          </>
+                        );
+                      })()}
                     </>
                   )}
 
