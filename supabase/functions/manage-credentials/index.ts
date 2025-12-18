@@ -17,6 +17,75 @@ function decrypt(encrypted: string): string {
   return atob(encrypted);
 }
 
+// Fetch avatar details from HeyGen API to get orientation
+async function fetchHeyGenAvatarDetails(apiKey: string, avatarExternalId: string): Promise<{
+  isValid: boolean;
+  orientation: 'vertical' | 'horizontal' | null;
+  error?: string;
+}> {
+  try {
+    console.log('Fetching avatar details from HeyGen API...');
+    
+    // Get interactive avatar details
+    const response = await fetch(`https://api.heygen.com/v1/interactive_avatar/${avatarExternalId}`, {
+      method: 'GET',
+      headers: {
+        'X-Api-Key': apiKey,
+        'Accept': 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('HeyGen API error:', response.status, errorText);
+      
+      if (response.status === 401) {
+        return { isValid: false, orientation: null, error: 'A API key do Euvatar está inválida ou expirada' };
+      }
+      if (response.status === 404) {
+        return { isValid: false, orientation: null, error: 'Avatar não encontrado. Verifique o ID do avatar.' };
+      }
+      return { isValid: false, orientation: null, error: 'Erro ao validar credenciais com o provedor' };
+    }
+
+    const data = await response.json();
+    console.log('HeyGen avatar data:', JSON.stringify(data));
+
+    // Determine orientation from avatar data
+    // HeyGen returns avatar dimensions or aspect ratio
+    let orientation: 'vertical' | 'horizontal' = 'vertical';
+    
+    if (data.data) {
+      const avatarData = data.data;
+      
+      // Check various possible fields for dimensions
+      if (avatarData.width && avatarData.height) {
+        orientation = avatarData.width > avatarData.height ? 'horizontal' : 'vertical';
+      } else if (avatarData.aspect_ratio) {
+        // Parse aspect ratio like "9:16" or "16:9"
+        const [w, h] = avatarData.aspect_ratio.split(':').map(Number);
+        orientation = w > h ? 'horizontal' : 'vertical';
+      } else if (avatarData.orientation) {
+        orientation = avatarData.orientation === 'landscape' ? 'horizontal' : 'vertical';
+      } else if (avatarData.video_settings?.aspect_ratio) {
+        const ratio = avatarData.video_settings.aspect_ratio;
+        if (ratio === '16:9' || ratio === '4:3') {
+          orientation = 'horizontal';
+        } else {
+          orientation = 'vertical';
+        }
+      }
+      
+      console.log('Detected orientation:', orientation);
+    }
+
+    return { isValid: true, orientation };
+  } catch (error) {
+    console.error('Error fetching HeyGen avatar details:', error);
+    return { isValid: false, orientation: null, error: 'Erro de conexão com o provedor' };
+  }
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -141,15 +210,14 @@ Deno.serve(async (req) => {
         }
       }
 
-      // Validate credentials with external provider (mock validation)
-      // In production, you would make actual API call to validate
-      console.log('Validating credentials with external provider...');
-      const isValid = await validateExternalCredentials(accountId, apiKey, avatarExternalId);
+      // Validate credentials with HeyGen API and get orientation
+      console.log('Validating credentials with HeyGen API...');
+      const validationResult = await fetchHeyGenAvatarDetails(apiKey, avatarExternalId);
 
-      if (!isValid) {
-        console.log('Credential validation failed');
+      if (!validationResult.isValid) {
+        console.log('Credential validation failed:', validationResult.error);
         return new Response(
-          JSON.stringify({ error: 'Credenciais inválidas. Verifique os dados com o provedor.' }),
+          JSON.stringify({ error: validationResult.error || 'Credenciais inválidas' }),
           {
             status: 400,
             headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -187,6 +255,21 @@ Deno.serve(async (req) => {
         });
       }
 
+      // Update avatar orientation if detected
+      if (validationResult.orientation) {
+        const { error: orientationError } = await supabaseAdmin
+          .from('avatars')
+          .update({ avatar_orientation: validationResult.orientation })
+          .eq('id', finalAvatarId);
+
+        if (orientationError) {
+          console.error('Error updating orientation:', orientationError);
+          // Don't fail the request, just log the error
+        } else {
+          console.log('Avatar orientation updated to:', validationResult.orientation);
+        }
+      }
+
       // Create audit log
       await supabaseAdmin.from('credential_audit_logs').insert({
         avatar_id: finalAvatarId,
@@ -194,6 +277,7 @@ Deno.serve(async (req) => {
         performed_by: user.id,
         details: {
           fields: ['account_id', 'api_key', 'avatar_external_id'],
+          orientation: validationResult.orientation,
         },
       });
 
@@ -202,7 +286,8 @@ Deno.serve(async (req) => {
         JSON.stringify({ 
           success: true, 
           message: 'Credenciais salvas com sucesso',
-          avatarId: finalAvatarId 
+          avatarId: finalAvatarId,
+          orientation: validationResult.orientation,
         }),
         {
           status: 200,
@@ -269,21 +354,3 @@ Deno.serve(async (req) => {
     );
   }
 });
-
-// Mock validation function - replace with actual API call
-async function validateExternalCredentials(
-  accountId: string,
-  apiKey: string,
-  avatarExternalId: string
-): Promise<boolean> {
-  // In production, make actual API call to external provider
-  // Example:
-  // const response = await fetch('https://provider.com/validate', {
-  //   headers: { 'Authorization': `Bearer ${apiKey}` },
-  //   body: JSON.stringify({ accountId, avatarId: avatarExternalId })
-  // });
-  // return response.ok;
-
-  console.log('Mock validation - accepting all credentials');
-  return true; // For now, accept all credentials
-}

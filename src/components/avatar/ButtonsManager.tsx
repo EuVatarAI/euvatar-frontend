@@ -31,6 +31,7 @@ interface AvatarButton {
 
 interface ButtonsManagerProps {
   avatarId: string;
+  avatarOrientation: string;
 }
 
 const ACTION_LABELS = {
@@ -76,13 +77,15 @@ interface Ad {
   display_order: number;
 }
 
-export const ButtonsManager = ({ avatarId }: ButtonsManagerProps) => {
+export const ButtonsManager = ({ avatarId, avatarOrientation }: ButtonsManagerProps) => {
   const { toast } = useToast();
   const previewRef = useRef<HTMLDivElement>(null);
   const [buttons, setButtons] = useState<AvatarButton[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [videoOrientation, setVideoOrientation] = useState<'vertical' | 'horizontal'>('vertical');
+  const [videoOrientation, setVideoOrientation] = useState<'vertical' | 'horizontal'>(
+    avatarOrientation === 'horizontal' ? 'horizontal' : 'vertical'
+  );
   const [hasOrderChanges, setHasOrderChanges] = useState(false);
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
   const [editingButton, setEditingButton] = useState<Partial<AvatarButton> | null>(null);
