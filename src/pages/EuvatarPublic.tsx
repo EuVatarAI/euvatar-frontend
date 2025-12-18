@@ -2,6 +2,7 @@ import { useEffect, useState, useRef, useCallback } from 'react';
 import { useParams } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
+import { ScaledIframe } from '@/components/ScaledIframe';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { X, AlertCircle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
@@ -315,36 +316,14 @@ export default function EuvatarPublic() {
         </div>
       )}
 
-      {/* External Link Popup Overlay - Scaled to fit like mobile/tablet */}
+      {/* External Link Popup Overlay - Notebook viewport scaled to fit */}
       {externalPopupOpen && externalUrl && (
-        <div className="absolute inset-0 z-20 flex items-center justify-center bg-black/70 p-4">
-          <div className="relative bg-white rounded-lg overflow-hidden shadow-2xl" style={{ width: '90%', height: '85%', maxWidth: '600px' }}>
-            <div className="w-full h-full overflow-hidden">
-              <iframe
-                src={externalUrl}
-                className="border-0 origin-top-left"
-                title="Conteúdo externo"
-                sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
-                style={{
-                  width: '375px',
-                  height: '667px',
-                  transform: 'scale(var(--iframe-scale, 1))',
-                  transformOrigin: 'top left',
-                }}
-                ref={(el) => {
-                  if (el) {
-                    const container = el.parentElement;
-                    if (container) {
-                      const scaleX = container.clientWidth / 375;
-                      const scaleY = container.clientHeight / 667;
-                      const scale = Math.min(scaleX, scaleY);
-                      el.style.setProperty('--iframe-scale', String(scale));
-                      el.style.transform = `scale(${scale})`;
-                    }
-                  }
-                }}
-              />
-            </div>
+        <div className="absolute inset-0 z-20 flex items-center justify-center bg-black/70 p-3 sm:p-6">
+          <div
+            className="relative bg-white rounded-lg overflow-hidden shadow-2xl"
+            style={{ width: '92%', height: '92%', maxWidth: '1100px', aspectRatio: '16/10' }}
+          >
+            <ScaledIframe src={externalUrl} title="Conteúdo externo" baseWidth={1366} baseHeight={768} />
             <Button
               variant="destructive"
               size="sm"
