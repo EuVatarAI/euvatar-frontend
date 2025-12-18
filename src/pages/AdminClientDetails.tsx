@@ -710,15 +710,54 @@ export const AdminClientDetails = () => {
         </div>
 
         <Tabs defaultValue="info" className="space-y-6">
-          <TabsList>
-            <TabsTrigger value="info">Informações</TabsTrigger>
-            <TabsTrigger value="payments">Pagamentos</TabsTrigger>
-            <TabsTrigger value="avatars">Avatares</TabsTrigger>
-            <TabsTrigger value="consumption">Consumo</TabsTrigger>
+          <TabsList className="h-12 p-1">
+            <TabsTrigger value="info" className="text-base px-6 py-2">Informações</TabsTrigger>
+            <TabsTrigger value="payments" className="text-base px-6 py-2">Pagamentos</TabsTrigger>
+            <TabsTrigger value="avatars" className="text-base px-6 py-2">Avatares</TabsTrigger>
+            <TabsTrigger value="consumption" className="text-base px-6 py-2">Consumo</TabsTrigger>
           </TabsList>
 
           {/* Info Tab */}
           <TabsContent value="info" className="space-y-6">
+            {/* Ações Rápidas */}
+            <Card className="border-primary/20 bg-primary/5">
+              <CardContent className="pt-6">
+                <div className="flex flex-wrap gap-4 items-center justify-between">
+                  <div>
+                    <h3 className="font-semibold text-lg">Ações Rápidas</h3>
+                    <p className="text-sm text-muted-foreground">Gerencie o status da conta e avatares</p>
+                  </div>
+                  <div className="flex flex-wrap gap-3">
+                    {client.status === 'ativo' && (
+                      <Button variant="outline" onClick={() => handleStatusChange('pausado')}>
+                        <Pause className="h-4 w-4 mr-2" />
+                        Pausar Conta
+                      </Button>
+                    )}
+                    {client.status === 'pausado' && (
+                      <Button variant="default" onClick={() => handleStatusChange('ativo')}>
+                        <Play className="h-4 w-4 mr-2" />
+                        Ativar Conta
+                      </Button>
+                    )}
+                    {client.status === 'cancelado' && (
+                      <Button variant="default" onClick={() => handleStatusChange('ativo')}>
+                        <Play className="h-4 w-4 mr-2" />
+                        Reativar Conta
+                      </Button>
+                    )}
+                    <Button 
+                      variant="secondary" 
+                      onClick={() => setIsAddAvatarOpen(true)}
+                    >
+                      <Plus className="h-4 w-4 mr-2" />
+                      Adicionar Avatar
+                    </Button>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {/* Basic Info */}
               <Card>
