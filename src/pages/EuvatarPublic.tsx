@@ -4,7 +4,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { ScaledIframe } from '@/components/ScaledIframe';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { X, AlertCircle } from 'lucide-react';
+import { X, AlertCircle, Maximize } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
 interface AvatarButton {
@@ -22,10 +22,18 @@ interface AvatarButton {
   enabled: boolean;
 }
 
+interface AvatarAd {
+  id: string;
+  media_url: string;
+  duration: number;
+  display_order: number;
+}
+
 interface Avatar {
   id: string;
   name: string;
   idle_media_url: string | null;
+  avatar_orientation: string | null;
 }
 
 const INACTIVITY_TIMEOUT = 5 * 60 * 1000; // 5 minutes
@@ -48,8 +56,11 @@ export default function EuvatarPublic() {
   const { toast } = useToast();
   const [avatar, setAvatar] = useState<Avatar | null>(null);
   const [buttons, setButtons] = useState<AvatarButton[]>([]);
+  const [ads, setAds] = useState<AvatarAd[]>([]);
+  const [currentAdIndex, setCurrentAdIndex] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isFullscreen, setIsFullscreen] = useState(false);
   
   // Popup states
   const [externalPopupOpen, setExternalPopupOpen] = useState(false);
@@ -62,7 +73,12 @@ export default function EuvatarPublic() {
   const inactivityTimerRef = useRef<NodeJS.Timeout | null>(null);
   const countdownTimerRef = useRef<NodeJS.Timeout | null>(null);
   
+  const containerRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
+
+  // Determine aspect ratio based on orientation
+  const isVertical = avatar?.avatar_orientation === 'vertical';
+  const aspectRatio = isVertical ? '9 / 16' : '16 / 9';
 
   useEffect(() => {
     // Load Google Fonts
@@ -73,25 +89,32 @@ export default function EuvatarPublic() {
     
     fetchData();
     
+    // Listen for fullscreen changes
+    const handleFullscreenChange = () => {
+      setIsFullscreen(!!document.fullscreenElement);
+    };
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    
     return () => {
       clearInactivityTimer();
       clearCountdownTimer();
+      document.removeEventListener('fullscreenchange', handleFullscreenChange);
     };
   }, [id]);
 
   const fetchData = async () => {
     try {
-      // Fetch avatar data (public access)
+      // Fetch avatar data
       const { data: avatarData, error: avatarError } = await supabase
         .from('avatars')
-        .select('id, name, idle_media_url')
+        .select('id, name, idle_media_url, avatar_orientation')
         .eq('id', id)
         .single();
 
       if (avatarError) throw avatarError;
       setAvatar(avatarData);
 
-      // Fetch buttons (need public policy or service role)
+      // Fetch buttons
       const { data: buttonsData, error: buttonsError } = await supabase
         .from('avatar_buttons')
         .select('*')
@@ -101,11 +124,49 @@ export default function EuvatarPublic() {
 
       if (buttonsError) throw buttonsError;
       setButtons((buttonsData || []) as AvatarButton[]);
+
+      // Fetch ads
+      const { data: adsData, error: adsError } = await supabase
+        .from('avatar_ads')
+        .select('*')
+        .eq('avatar_id', id)
+        .order('display_order', { ascending: true });
+
+      if (!adsError && adsData && adsData.length > 0) {
+        setAds(adsData as AvatarAd[]);
+      }
     } catch (err: any) {
       console.error('Error fetching data:', err);
       setError('Euvatar não encontrado');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const enterFullscreen = async () => {
+    try {
+      if (containerRef.current) {
+        await containerRef.current.requestFullscreen();
+        setIsFullscreen(true);
+      }
+    } catch (err) {
+      console.error('Error entering fullscreen:', err);
+      toast({
+        title: 'Fullscreen não disponível',
+        description: 'Seu navegador não suporta modo tela cheia ou foi bloqueado.',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const exitFullscreen = async () => {
+    try {
+      if (document.fullscreenElement) {
+        await document.exitFullscreen();
+        setIsFullscreen(false);
+      }
+    } catch (err) {
+      console.error('Error exiting fullscreen:', err);
     }
   };
 
@@ -129,7 +190,6 @@ export default function EuvatarPublic() {
     setShowInactivityWarning(false);
     setCountdown(COUNTDOWN_SECONDS);
     
-    // Only start timer if a popup is open
     if (externalPopupOpen || buttonVideoUrl) {
       inactivityTimerRef.current = setTimeout(() => {
         setShowInactivityWarning(true);
@@ -172,7 +232,6 @@ export default function EuvatarPublic() {
     setShowInactivityWarning(false);
   };
 
-  // Track user activity
   useEffect(() => {
     const handleActivity = () => {
       if (externalPopupOpen || buttonVideoUrl) {
@@ -193,7 +252,6 @@ export default function EuvatarPublic() {
     };
   }, [externalPopupOpen, buttonVideoUrl, resetInactivityTimer]);
 
-  // Start inactivity timer when popup opens
   useEffect(() => {
     if (externalPopupOpen || buttonVideoUrl) {
       resetInactivityTimer();
@@ -203,6 +261,13 @@ export default function EuvatarPublic() {
       setShowInactivityWarning(false);
     }
   }, [externalPopupOpen, buttonVideoUrl, resetInactivityTimer]);
+
+  // Handle ad advancement
+  const handleAdEnded = () => {
+    if (ads.length > 0) {
+      setCurrentAdIndex((prev) => (prev + 1) % ads.length);
+    }
+  };
 
   const handleButtonClick = (button: AvatarButton) => {
     switch (button.action_type) {
@@ -224,7 +289,6 @@ export default function EuvatarPublic() {
   };
 
   const handleSessionStart = () => {
-    // TODO: Integrate with HeyGen session start
     toast({
       title: 'Iniciando sessão...',
       description: 'Conectando ao avatar interativo.',
@@ -263,6 +327,9 @@ export default function EuvatarPublic() {
     );
   };
 
+  // Get current media URL (ads playlist or idle)
+  const currentMediaUrl = ads.length > 0 ? ads[currentAdIndex]?.media_url : avatar?.idle_media_url;
+
   if (loading) {
     return (
       <div className="min-h-screen bg-black flex items-center justify-center">
@@ -283,67 +350,103 @@ export default function EuvatarPublic() {
   }
 
   return (
-    <div className="min-h-screen bg-black relative overflow-hidden">
-      {/* Idle Video - always playing in background */}
-      <div className="absolute inset-0 flex items-center justify-center">
-        {avatar.idle_media_url ? (
-          <video
-            ref={videoRef}
-            src={avatar.idle_media_url}
-            className="max-w-full max-h-full object-contain"
-            autoPlay
-            loop
-            muted
-            playsInline
-          />
-        ) : (
-          <div className="text-white/50 text-center">
-            <p className="text-xl">Nenhum vídeo idle configurado</p>
-          </div>
-        )}
+    <div 
+      ref={containerRef}
+      className="min-h-screen bg-black flex items-center justify-center overflow-hidden"
+    >
+      {/* Fullscreen button - only show when not in fullscreen */}
+      {!isFullscreen && (
+        <Button
+          onClick={enterFullscreen}
+          variant="secondary"
+          size="lg"
+          className="fixed top-4 right-4 z-50 gap-2 bg-white/10 hover:bg-white/20 text-white border-white/20"
+        >
+          <Maximize className="h-5 w-5" />
+          Entrar em Tela Cheia
+        </Button>
+      )}
+
+      {/* Main experience container - maintains aspect ratio */}
+      <div 
+        className="relative w-full h-full flex items-center justify-center"
+        style={{ 
+          maxWidth: isVertical ? 'calc(100vh * 9 / 16)' : '100%',
+          maxHeight: isVertical ? '100%' : 'calc(100vw * 9 / 16)',
+        }}
+      >
+        <div
+          className="relative bg-black"
+          style={{
+            aspectRatio,
+            width: isVertical ? 'auto' : '100%',
+            height: isVertical ? '100%' : 'auto',
+            maxWidth: '100%',
+            maxHeight: '100%',
+          }}
+        >
+          {/* Idle/Ads Video */}
+          {currentMediaUrl ? (
+            <video
+              ref={videoRef}
+              key={currentMediaUrl}
+              src={currentMediaUrl}
+              className="absolute inset-0 w-full h-full object-contain"
+              autoPlay
+              loop={ads.length === 0}
+              muted
+              playsInline
+              onEnded={ads.length > 0 ? handleAdEnded : undefined}
+            />
+          ) : (
+            <div className="absolute inset-0 flex items-center justify-center text-white/50">
+              <p className="text-xl">Nenhum vídeo configurado</p>
+            </div>
+          )}
+
+          {/* Button Video Overlay */}
+          {buttonVideoUrl && (
+            <div className="absolute inset-0 z-20 bg-black">
+              <video
+                src={buttonVideoUrl}
+                className="w-full h-full object-contain"
+                autoPlay
+                playsInline
+                onEnded={handleButtonVideoEnd}
+              />
+            </div>
+          )}
+
+          {/* External Link Popup Overlay */}
+          {externalPopupOpen && externalUrl && (
+            <div className="absolute inset-0 z-20 flex items-center justify-center bg-black/70 p-3">
+              <div
+                className="relative bg-white rounded-lg overflow-hidden shadow-2xl"
+                style={{ width: '95%', height: '95%' }}
+              >
+                <ScaledIframe src={externalUrl} title="Conteúdo externo" baseWidth={1366} baseHeight={768} />
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  className="absolute top-2 right-2 z-30"
+                  onClick={closeAllPopups}
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {/* Buttons overlay */}
+          {!buttonVideoUrl && !externalPopupOpen && (
+            <div className="absolute inset-0 pointer-events-none">
+              <div className="relative w-full h-full pointer-events-auto">
+                {buttons.map(renderButton)}
+              </div>
+            </div>
+          )}
+        </div>
       </div>
-
-      {/* Button Video Overlay - No controls */}
-      {buttonVideoUrl && (
-        <div className="absolute inset-0 z-20 flex items-center justify-center bg-black">
-          <video
-            src={buttonVideoUrl}
-            className="max-w-full max-h-full object-contain"
-            autoPlay
-            playsInline
-            onEnded={handleButtonVideoEnd}
-          />
-        </div>
-      )}
-
-      {/* External Link Popup Overlay - Notebook viewport scaled to fit */}
-      {externalPopupOpen && externalUrl && (
-        <div className="absolute inset-0 z-20 flex items-center justify-center bg-black/70 p-3 sm:p-6">
-          <div
-            className="relative bg-white rounded-lg overflow-hidden shadow-2xl"
-            style={{ width: '92%', height: '92%', maxWidth: '1100px', aspectRatio: '16/10' }}
-          >
-            <ScaledIframe src={externalUrl} title="Conteúdo externo" baseWidth={1366} baseHeight={768} />
-            <Button
-              variant="destructive"
-              size="sm"
-              className="absolute top-2 right-2 z-30"
-              onClick={closeAllPopups}
-            >
-              <X className="h-4 w-4" />
-            </Button>
-          </div>
-        </div>
-      )}
-
-      {/* Buttons overlay - only show when not in any overlay mode */}
-      {!buttonVideoUrl && !externalPopupOpen && (
-        <div className="absolute inset-0 pointer-events-none">
-          <div className="relative w-full h-full pointer-events-auto">
-            {buttons.map(renderButton)}
-          </div>
-        </div>
-      )}
 
       {/* Inactivity Warning Dialog */}
       <Dialog open={showInactivityWarning} onOpenChange={() => {}}>
