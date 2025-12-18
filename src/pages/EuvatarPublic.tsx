@@ -315,16 +315,36 @@ export default function EuvatarPublic() {
         </div>
       )}
 
-      {/* External Link Popup Overlay - Laptop-like viewport */}
+      {/* External Link Popup Overlay - Scaled to fit like mobile/tablet */}
       {externalPopupOpen && externalUrl && (
-        <div className="absolute inset-0 z-20 flex items-center justify-center bg-black/70 p-4 sm:p-8">
-          <div className="relative w-full h-full max-w-4xl max-h-[90vh] bg-white rounded-lg overflow-hidden shadow-2xl" style={{ aspectRatio: '16/10' }}>
-            <iframe
-              src={externalUrl}
-              className="w-full h-full border-0"
-              title="Conteúdo externo"
-              sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
-            />
+        <div className="absolute inset-0 z-20 flex items-center justify-center bg-black/70 p-4">
+          <div className="relative bg-white rounded-lg overflow-hidden shadow-2xl" style={{ width: '90%', height: '85%', maxWidth: '600px' }}>
+            <div className="w-full h-full overflow-hidden">
+              <iframe
+                src={externalUrl}
+                className="border-0 origin-top-left"
+                title="Conteúdo externo"
+                sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
+                style={{
+                  width: '375px',
+                  height: '667px',
+                  transform: 'scale(var(--iframe-scale, 1))',
+                  transformOrigin: 'top left',
+                }}
+                ref={(el) => {
+                  if (el) {
+                    const container = el.parentElement;
+                    if (container) {
+                      const scaleX = container.clientWidth / 375;
+                      const scaleY = container.clientHeight / 667;
+                      const scale = Math.min(scaleX, scaleY);
+                      el.style.setProperty('--iframe-scale', String(scale));
+                      el.style.transform = `scale(${scale})`;
+                    }
+                  }
+                }}
+              />
+            </div>
             <Button
               variant="destructive"
               size="sm"
