@@ -7,7 +7,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { Slider } from '@/components/ui/slider';
-import { Dialog, DialogContent } from '@/components/ui/dialog';
+
 import { useToast } from '@/hooks/use-toast';
 import { Trash2, Play, Upload, ExternalLink, GripVertical, Save, Pencil, Monitor, Smartphone, X, Eye } from 'lucide-react';
 
@@ -80,6 +80,7 @@ export const ButtonsManager = ({ avatarId }: ButtonsManagerProps) => {
   const [editingButton, setEditingButton] = useState<Partial<AvatarButton> | null>(null);
   const [isDraggingButton, setIsDraggingButton] = useState(false);
   const [testPopupUrl, setTestPopupUrl] = useState<string | null>(null);
+  const [testVideoUrl, setTestVideoUrl] = useState<string | null>(null);
   const [uploadingVideo, setUploadingVideo] = useState(false);
   const [newButton, setNewButton] = useState<{
     label: string;
@@ -403,34 +404,78 @@ export const ButtonsManager = ({ avatarId }: ButtonsManagerProps) => {
               videoOrientation === 'vertical' ? 'aspect-[9/16] max-w-xs' : 'aspect-video max-w-2xl'
             }`}
             ref={previewRef}
-            onMouseDown={handlePreviewMouseDown}
-            onMouseMove={handlePreviewMouseMove}
-            onMouseUp={handlePreviewMouseUp}
-            onMouseLeave={handlePreviewMouseUp}
+            onMouseDown={!testPopupUrl && !testVideoUrl ? handlePreviewMouseDown : undefined}
+            onMouseMove={!testPopupUrl && !testVideoUrl ? handlePreviewMouseMove : undefined}
+            onMouseUp={!testPopupUrl && !testVideoUrl ? handlePreviewMouseUp : undefined}
+            onMouseLeave={!testPopupUrl && !testVideoUrl ? handlePreviewMouseUp : undefined}
           >
-            <video
-              src={SAMPLE_VIDEOS[videoOrientation]}
-              className="w-full h-full object-cover"
-              autoPlay
-              loop
-              muted
-              playsInline
-            />
-            
-            {/* Show current editing/new button */}
-            <div className="absolute inset-0 pointer-events-none">
-              {renderButtonPreview(currentButton as any, true)}
-            </div>
-            
-            {/* Show saved buttons (dimmed when editing) */}
-            {buttons.filter(b => b.enabled && (!editingButton || b.id !== editingButton.id)).map((btn) => (
-              <div key={btn.id} className={`absolute inset-0 pointer-events-none ${editingButton ? 'opacity-30' : ''}`}>
-                {renderButtonPreview(btn)}
+            {/* Test Link Preview */}
+            {testPopupUrl ? (
+              <div className="absolute inset-0 z-20">
+                <iframe
+                  src={testPopupUrl}
+                  className="w-full h-full border-0"
+                  title="Teste de Link Externo"
+                  sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
+                />
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  className="absolute top-2 right-2 z-30"
+                  onClick={() => setTestPopupUrl(null)}
+                >
+                  <X className="h-4 w-4 mr-1" />
+                  Fechar Teste
+                </Button>
               </div>
-            ))}
+            ) : testVideoUrl ? (
+              /* Test Video Preview */
+              <div className="absolute inset-0 z-20 flex items-center justify-center bg-black">
+                <video
+                  src={testVideoUrl}
+                  className="max-w-full max-h-full object-contain"
+                  autoPlay
+                  controls
+                  onEnded={() => setTestVideoUrl(null)}
+                />
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  className="absolute top-2 right-2 z-30"
+                  onClick={() => setTestVideoUrl(null)}
+                >
+                  <X className="h-4 w-4 mr-1" />
+                  Fechar Teste
+                </Button>
+              </div>
+            ) : (
+              /* Normal Preview */
+              <>
+                <video
+                  src={SAMPLE_VIDEOS[videoOrientation]}
+                  className="w-full h-full object-cover"
+                  autoPlay
+                  loop
+                  muted
+                  playsInline
+                />
+                
+                {/* Show current editing/new button */}
+                <div className="absolute inset-0 pointer-events-none">
+                  {renderButtonPreview(currentButton as any, true)}
+                </div>
+                
+                {/* Show saved buttons (dimmed when editing) */}
+                {buttons.filter(b => b.enabled && (!editingButton || b.id !== editingButton.id)).map((btn) => (
+                  <div key={btn.id} className={`absolute inset-0 pointer-events-none ${editingButton ? 'opacity-30' : ''}`}>
+                    {renderButtonPreview(btn)}
+                  </div>
+                ))}
+              </>
+            )}
           </div>
           <p className="text-xs text-muted-foreground text-center mt-2">
-            Clique e arraste para posicionar o botão
+            {testPopupUrl ? 'Visualizando teste do link externo' : testVideoUrl ? 'Visualizando teste do vídeo' : 'Clique e arraste para posicionar o botão'}
           </p>
         </CardContent>
       </Card>
@@ -522,6 +567,20 @@ export const ButtonsManager = ({ avatarId }: ButtonsManagerProps) => {
                       variant="outline"
                       size="sm"
                       onClick={() => {
+                        const videoUrl = editingButton?.video_url || newButton.video_url;
+                        if (videoUrl) {
+                          setTestVideoUrl(videoUrl);
+                        }
+                      }}
+                      className="flex-1"
+                    >
+                      <Eye className="h-4 w-4 mr-1" />
+                      Testar
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
                         if (editingButton) {
                           setEditingButton({ ...editingButton, video_url: null });
                         } else {
@@ -531,7 +590,7 @@ export const ButtonsManager = ({ avatarId }: ButtonsManagerProps) => {
                       className="flex-1"
                     >
                       <Trash2 className="h-4 w-4 mr-1" />
-                      Remover Vídeo
+                      Remover
                     </Button>
                     <Button
                       variant="outline"
@@ -541,7 +600,7 @@ export const ButtonsManager = ({ avatarId }: ButtonsManagerProps) => {
                       className="flex-1"
                     >
                       <Upload className="h-4 w-4 mr-1" />
-                      Trocar Vídeo
+                      Trocar
                     </Button>
                   </div>
                 </div>
@@ -824,29 +883,6 @@ export const ButtonsManager = ({ avatarId }: ButtonsManagerProps) => {
           )}
         </CardContent>
       </Card>
-      {/* Test Popup Dialog */}
-      <Dialog open={!!testPopupUrl} onOpenChange={(open) => !open && setTestPopupUrl(null)}>
-        <DialogContent className="max-w-4xl h-[80vh] p-0 overflow-hidden">
-          <div className="relative w-full h-full">
-            <Button
-              variant="ghost"
-              size="icon"
-              className="absolute top-2 right-2 z-10 bg-background/80 hover:bg-background"
-              onClick={() => setTestPopupUrl(null)}
-            >
-              <X className="h-4 w-4" />
-            </Button>
-            {testPopupUrl && (
-              <iframe
-                src={testPopupUrl}
-                className="w-full h-full border-0"
-                title="Teste de Link Externo"
-                sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
-              />
-            )}
-          </div>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 };
