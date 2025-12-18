@@ -5,8 +5,9 @@ import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
+import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
-import { Settings, Plus, Lock, User, Clock } from 'lucide-react';
+import { Settings, Plus, Lock, User, Clock, Link, Copy, Check, Pencil } from 'lucide-react';
 import type { Database } from '@/integrations/supabase/types';
 import { UnlockPasswordDialog } from '@/components/avatar/UnlockPasswordDialog';
 import { AppLayout } from '@/components/layout/AppLayout';
@@ -49,6 +50,11 @@ const Dashboard = () => {
   const [heygenCredits, setHeygenCredits] = useState<HeyGenCredits | null>(null);
   const [loading, setLoading] = useState(true);
   const [showUnlockDialog, setShowUnlockDialog] = useState(false);
+  const [organizationSlug, setOrganizationSlug] = useState('');
+  const [editingSlug, setEditingSlug] = useState(false);
+  const [newSlug, setNewSlug] = useState('');
+  const [savingSlug, setSavingSlug] = useState(false);
+  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     if (!user) {
@@ -69,6 +75,17 @@ const Dashboard = () => {
       if (avatarsError) throw avatarsError;
       setAvatars(avatarsData || []);
 
+      // Fetch organization slug
+      const { data: orgData, error: orgError } = await supabase
+        .from('organizations')
+        .select('slug')
+        .single();
+      
+      if (!orgError && orgData) {
+        setOrganizationSlug(orgData.slug);
+        setNewSlug(orgData.slug);
+      }
+
       // Fetch HeyGen credits via edge function
       const { data: creditsData, error: creditsError } = await supabase.functions.invoke('get-heygen-credits');
       
@@ -87,6 +104,66 @@ const Dashboard = () => {
         variant: 'destructive',
       });
       setLoading(false);
+    }
+  };
+
+  const sanitizeSlug = (input: string): string => {
+    return input
+      .toLowerCase()
+      .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+      .replace(/\s+/g, '-')
+      .replace(/[^a-z0-9-]/g, '')
+      .replace(/-+/g, '-')
+      .replace(/^-|-$/g, '');
+  };
+
+  const handleSlugChange = (value: string) => {
+    setNewSlug(sanitizeSlug(value));
+  };
+
+  const handleSaveSlug = async () => {
+    if (!newSlug.trim() || newSlug === organizationSlug) {
+      setEditingSlug(false);
+      return;
+    }
+
+    setSavingSlug(true);
+    try {
+      const { error } = await supabase
+        .from('organizations')
+        .update({ slug: newSlug })
+        .eq('slug', organizationSlug);
+
+      if (error) throw error;
+
+      setOrganizationSlug(newSlug);
+      setEditingSlug(false);
+      toast({ title: 'Link atualizado com sucesso!' });
+    } catch (error: any) {
+      console.error('Error updating slug:', error);
+      toast({
+        title: 'Erro ao atualizar link',
+        description: error.message?.includes('unique') ? 'Este link já está em uso.' : 'Tente novamente.',
+        variant: 'destructive',
+      });
+    } finally {
+      setSavingSlug(false);
+    }
+  };
+
+  const getPublicUrl = () => {
+    const baseUrl = window.location.origin;
+    return `${baseUrl}/cliente/${organizationSlug}`;
+  };
+
+  const copyToClipboard = async () => {
+    try {
+      await navigator.clipboard.writeText(getPublicUrl());
+      setCopied(true);
+      toast({ title: 'Link copiado!' });
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      toast({ title: 'Erro ao copiar', variant: 'destructive' });
     }
   };
 
@@ -202,6 +279,78 @@ const Dashboard = () => {
                 </p>
               )}
             </div>
+          </CardContent>
+        </Card>
+
+        {/* Public Link Configuration */}
+        <Card className="mb-8">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Link className="h-5 w-5" />
+              Seu Link Público
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm text-muted-foreground mb-4">
+              Este é o link que seus clientes usarão para acessar sua experiência Euvatar.
+            </p>
+            
+            {editingSlug ? (
+              <div className="space-y-3">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-muted-foreground whitespace-nowrap">
+                    {window.location.origin}/cliente/
+                  </span>
+                  <Input
+                    value={newSlug}
+                    onChange={(e) => handleSlugChange(e.target.value)}
+                    placeholder="seu-link"
+                    className="flex-1"
+                    disabled={savingSlug}
+                  />
+                </div>
+                <div className="flex gap-2">
+                  <Button 
+                    onClick={handleSaveSlug} 
+                    disabled={savingSlug || !newSlug.trim()}
+                    size="sm"
+                  >
+                    {savingSlug ? 'Salvando...' : 'Salvar'}
+                  </Button>
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    onClick={() => {
+                      setEditingSlug(false);
+                      setNewSlug(organizationSlug);
+                    }}
+                    disabled={savingSlug}
+                  >
+                    Cancelar
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <div className="flex items-center gap-2 p-3 bg-muted/50 rounded-lg">
+                <code className="flex-1 text-sm break-all">{getPublicUrl()}</code>
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  onClick={copyToClipboard}
+                  title="Copiar link"
+                >
+                  {copied ? <Check className="h-4 w-4 text-green-500" /> : <Copy className="h-4 w-4" />}
+                </Button>
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  onClick={() => setEditingSlug(true)}
+                  title="Editar link"
+                >
+                  <Pencil className="h-4 w-4" />
+                </Button>
+              </div>
+            )}
           </CardContent>
         </Card>
 
