@@ -83,8 +83,11 @@ export const ButtonsManager = ({ avatarId, avatarOrientation }: ButtonsManagerPr
   const [buttons, setButtons] = useState<AvatarButton[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const normalizedOrientation = avatarOrientation === 'horizontal' || avatarOrientation === 'vertical'
+    ? avatarOrientation
+    : null;
   const [videoOrientation, setVideoOrientation] = useState<'vertical' | 'horizontal'>(
-    avatarOrientation === 'horizontal' ? 'horizontal' : 'vertical'
+    normalizedOrientation ?? 'vertical'
   );
   const [hasOrderChanges, setHasOrderChanges] = useState(false);
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
@@ -130,6 +133,12 @@ export const ButtonsManager = ({ avatarId, avatarOrientation }: ButtonsManagerPr
     link.rel = 'stylesheet';
     document.head.appendChild(link);
   }, [avatarId]);
+
+  useEffect(() => {
+    if (normalizedOrientation) {
+      setVideoOrientation(normalizedOrientation);
+    }
+  }, [normalizedOrientation, avatarId]);
 
   const fetchAds = async () => {
     try {
@@ -417,6 +426,7 @@ export const ButtonsManager = ({ avatarId, avatarOrientation }: ButtonsManagerPr
           variant={videoOrientation === 'vertical' ? 'default' : 'outline'}
           size="sm"
           onClick={() => setVideoOrientation('vertical')}
+          disabled={!!normalizedOrientation}
         >
           <Smartphone className="h-4 w-4 mr-2" />
           Vertical
@@ -425,11 +435,17 @@ export const ButtonsManager = ({ avatarId, avatarOrientation }: ButtonsManagerPr
           variant={videoOrientation === 'horizontal' ? 'default' : 'outline'}
           size="sm"
           onClick={() => setVideoOrientation('horizontal')}
+          disabled={!!normalizedOrientation}
         >
           <Monitor className="h-4 w-4 mr-2" />
           Horizontal
         </Button>
       </div>
+      {normalizedOrientation && (
+        <p className="text-xs text-muted-foreground text-center">
+          Orientação definida pelo avatar: {normalizedOrientation === 'horizontal' ? 'Horizontal' : 'Vertical'}
+        </p>
+      )}
 
       {/* Live Preview */}
       <Card>

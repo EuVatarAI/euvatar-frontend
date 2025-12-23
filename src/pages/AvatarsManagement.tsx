@@ -9,6 +9,7 @@ import { useToast } from '@/hooks/use-toast';
 import { Settings, Lock, User, Clock } from 'lucide-react';
 import { UnlockPasswordDialog } from '@/components/avatar/UnlockPasswordDialog';
 import { AppLayout } from '@/components/layout/AppLayout';
+import { fetchBackendCredits, type AvatarHeyGenUsage, type HeyGenCredits } from '@/services/credits';
 
 interface Avatar {
   id: string;
@@ -19,32 +20,6 @@ interface Avatar {
   voice_model: string;
   idle_media_url: string | null;
   cover_image_url: string | null;
-}
-
-interface AvatarHeyGenUsage {
-  avatarId: string;
-  heygenAvatarId?: string;
-  totalSeconds: number;
-  totalMinutes: number;
-  heygenCredits: number;
-  euvatarCredits: number;
-  sessionCount: number;
-}
-
-interface HeyGenCredits {
-  euvatarCredits: number;
-  heygenCredits: number;
-  totalEuvatarCredits: number;
-  minutesRemaining: number;
-  totalMinutes: number;
-  hoursRemaining: number;
-  totalHours: number;
-  usedEuvatarCredits: number;
-  usedMinutes: number;
-  percentageRemaining: number;
-  error?: string;
-  needsCredentialUpdate?: boolean;
-  avatarUsage?: AvatarHeyGenUsage[];
 }
 
 const AvatarsManagement = () => {
@@ -75,11 +50,10 @@ const AvatarsManagement = () => {
       if (avatarsError) throw avatarsError;
       setAvatars(avatarsData || []);
 
-      // Fetch HeyGen credits via edge function
-      const { data: creditsData, error: creditsError } = await supabase.functions.invoke('get-heygen-credits');
-      
-      if (creditsError) {
-        console.error('Erro ao buscar créditos HeyGen:', creditsError);
+      // Busca créditos apenas via backend (rota /credits)
+      const creditsData = await fetchBackendCredits();
+      if (!creditsData) {
+        console.error('Erro ao buscar créditos HeyGen via backend');
       } else {
         setHeygenCredits(creditsData);
       }

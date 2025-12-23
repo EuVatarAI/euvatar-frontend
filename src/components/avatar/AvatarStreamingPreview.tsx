@@ -30,6 +30,8 @@ interface AvatarStreamingPreviewProps {
   avatarId: string;
   hasCredentials: boolean;
   avatarOrientation?: string | null;
+  backstory?: string;
+  language?: string;
 }
 
 const BORDER_CONFIG = {
@@ -38,10 +40,21 @@ const BORDER_CONFIG = {
   pill: 'rounded-full',
 };
 
+const backendUrl = (import.meta.env.VITE_BACKEND_URL as string | undefined) || '';
+const apiToken = (import.meta.env.VITE_APP_API_TOKEN as string | undefined) || '';
+
+function buildBackendUrl(path: string) {
+  if (!backendUrl) return '';
+  const base = backendUrl.replace(/\/$/, '');
+  return path.startsWith('/') ? `${base}${path}` : `${base}/${path}`;
+}
+
 export function AvatarStreamingPreview({ 
   avatarId, 
   hasCredentials,
-  avatarOrientation 
+  avatarOrientation,
+  backstory,
+  language
 }: AvatarStreamingPreviewProps) {
   const { toast } = useToast();
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -51,6 +64,7 @@ export function AvatarStreamingPreview({
   
   const [isConnecting, setIsConnecting] = useState(false);
   const [isConnected, setIsConnected] = useState(false);
+  const [isStreaming, setIsStreaming] = useState(false);
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [inputText, setInputText] = useState('');
   const [isSending, setIsSending] = useState(false);
@@ -59,6 +73,17 @@ export function AvatarStreamingPreview({
   const [currentAdIndex, setCurrentAdIndex] = useState(0);
 
   const isVertical = avatarOrientation !== 'horizontal';
+  const clientId = `avatar-preview:${avatarId}`;
+
+  const attachStreamToVideo = useCallback(() => {
+    if (!videoRef.current || !mediaStreamRef.current) return;
+    videoRef.current.srcObject = mediaStreamRef.current;
+    videoRef.current.muted = false;
+    videoRef.current.volume = 1;
+    videoRef.current.play().catch(() => {
+      // alguns browsers bloqueiam autoplay com áudio; usuário já clicou no botão
+    });
+  }, []);
 
   // Fetch buttons and ads
   useEffect(() => {
@@ -93,6 +118,7 @@ export function AvatarStreamingPreview({
 
   // Create and start streaming session
   const startStreaming = async () => {
+    if (isConnecting) return; // evita múltiplos cliques
     if (!hasCredentials) {
       toast({
         title: 'Credenciais necessárias',
@@ -105,28 +131,40 @@ export function AvatarStreamingPreview({
     setIsConnecting(true);
 
     try {
-      // Create session
-      const { data: createData, error: createError } = await supabase.functions.invoke('heygen-streaming', {
-        body: { action: 'create', avatarId },
+      if (!backendUrl) {
+        throw new Error('VITE_BACKEND_URL não configurada');
+      }
+      // pequena proteção para não criar sessão se já estiver conectando
+      if (isConnected) {
+        console.log('Já conectado, ignore start');
+        return;
+      }
+      // Create session (backend already starts HeyGen session)
+      const params = new URLSearchParams();
+      params.set('avatar_id', avatarId);
+      if (language) params.set('language', language);
+      if (backstory) params.set('backstory', backstory);
+      const createUrl = buildBackendUrl(`/new?${params.toString()}`);
+      const createResp = await fetch(createUrl, {
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Client-Id': clientId,
+          ...(apiToken ? { Authorization: `Bearer ${apiToken}` } : {}),
+        },
       });
-
-      if (createError || !createData?.session) {
+      const createData = await createResp.json();
+      if (!createResp.ok || !createData?.ok) {
         throw new Error(createData?.error || 'Erro ao criar sessão');
       }
 
-      const session = createData.session;
+      const session = {
+        session_id: createData.session_id,
+        url: createData.livekit_url,
+        access_token: createData.access_token,
+      };
       setSessionId(session.session_id);
 
-      console.log('Session created:', session.session_id);
-
-      // Start session
-      const { error: startError } = await supabase.functions.invoke('heygen-streaming', {
-        body: { action: 'start', avatarId, sessionId: session.session_id },
-      });
-
-      if (startError) {
-        throw new Error('Erro ao iniciar streaming');
-      }
+      console.log('Session created:', session.session_id, session.url);
 
       // Connect to LiveKit room
       const room = new Room();
@@ -134,21 +172,30 @@ export function AvatarStreamingPreview({
       mediaStreamRef.current = new MediaStream();
 
       room.on(RoomEvent.TrackSubscribed, (track) => {
-        console.log('Track subscribed:', track.kind);
+        console.log('Track subscribed:', track.kind, track.sid);
         if (track.kind === 'video' || track.kind === 'audio') {
           const mediaTrack = track.mediaStreamTrack;
           mediaStreamRef.current?.addTrack(mediaTrack);
-          if (videoRef.current && mediaStreamRef.current) {
-            videoRef.current.srcObject = mediaStreamRef.current;
+          if (track.kind === 'video') {
+            attachStreamToVideo();
+            setIsStreaming(true);
           }
+        }
+      });
+
+      room.on(RoomEvent.TrackUnsubscribed, (track) => {
+        if (track.kind === 'video') {
+          setIsStreaming(false);
         }
       });
 
       room.on(RoomEvent.Disconnected, () => {
         console.log('Room disconnected');
         setIsConnected(false);
+        setIsStreaming(false);
       });
 
+      setIsStreaming(false);
       await room.connect(session.url, session.access_token);
       console.log('Connected to LiveKit room');
 
@@ -174,8 +221,28 @@ export function AvatarStreamingPreview({
   const stopStreaming = async () => {
     try {
       if (sessionId) {
-        await supabase.functions.invoke('heygen-streaming', {
-          body: { action: 'stop', avatarId, sessionId },
+        const interruptUrl = buildBackendUrl('/interrupt');
+        if (interruptUrl) {
+          await fetch(interruptUrl, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'X-Client-Id': clientId,
+              ...(apiToken ? { Authorization: `Bearer ${apiToken}` } : {}),
+            },
+            body: JSON.stringify({ session_id: sessionId }),
+          });
+        }
+      }
+      const endUrl = buildBackendUrl('/end');
+      if (endUrl) {
+        await fetch(endUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Client-Id': clientId,
+            ...(apiToken ? { Authorization: `Bearer ${apiToken}` } : {}),
+          },
         });
       }
 
@@ -191,6 +258,10 @@ export function AvatarStreamingPreview({
       mediaStreamRef.current = null;
       setSessionId(null);
       setIsConnected(false);
+      setIsStreaming(false);
+
+      // pequena pausa antes de permitir nova sessão
+      await new Promise(res => setTimeout(res, 1000));
 
       toast({
         title: 'Desconectado',
@@ -208,17 +279,27 @@ export function AvatarStreamingPreview({
 
     setIsSending(true);
     try {
-      const { error } = await supabase.functions.invoke('heygen-streaming', {
-        body: { 
-          action: 'task', 
-          avatarId, 
-          sessionId,
-          text: inputText,
-          taskType: 'talk',
+      if (!backendUrl) {
+        throw new Error('VITE_BACKEND_URL não configurada');
+      }
+      const sayUrl = buildBackendUrl('/say');
+      const sayResp = await fetch(sayUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Client-Id': clientId,
+          ...(apiToken ? { Authorization: `Bearer ${apiToken}` } : {}),
         },
+        body: JSON.stringify({
+          session_id: sessionId,
+          text: inputText,
+          avatar_id: avatarId,
+        }),
       });
-
-      if (error) throw error;
+      const sayData = await sayResp.json();
+      if (!sayResp.ok || !sayData?.ok) {
+        throw new Error(sayData?.error || 'Erro ao enviar texto');
+      }
 
       setInputText('');
     } catch (error: any) {
@@ -271,28 +352,28 @@ export function AvatarStreamingPreview({
 
   const currentAdUrl = ads.length > 0 ? ads[currentAdIndex]?.media_url : null;
 
-  return (
+    return (
     <div className="space-y-4">
       {/* Preview Container */}
       <div 
         className="relative bg-black rounded-lg overflow-hidden mx-auto"
         style={{
           aspectRatio: isVertical ? '9/16' : '16/9',
-          maxHeight: isVertical ? '500px' : '300px',
+          maxHeight: isVertical ? '600px' : '450px',
         }}
       >
-        {/* Streaming Video - shows when connected */}
-        {isConnected && (
-          <video
-            ref={videoRef}
-            autoPlay
-            playsInline
-            className="absolute inset-0 w-full h-full object-contain"
-          />
-        )}
+        {/* Streaming Video (sempre montado para evitar race com track) */}
+        <video
+          ref={videoRef}
+          autoPlay
+          playsInline
+          className={`absolute inset-0 w-full h-full object-contain transition-opacity ${
+            isConnected && isStreaming ? 'opacity-100' : 'opacity-0'
+          }`}
+        />
 
-        {/* Idle/Ads Video - shows when not connected */}
-        {!isConnected && (
+        {/* Idle/Ads Video - shows when not streaming */}
+        {!isStreaming && (
           <>
             {currentAdUrl ? (
               <video
@@ -330,7 +411,7 @@ export function AvatarStreamingPreview({
         </div>
 
         {/* Connection status indicator */}
-        {isConnected && (
+        {isConnected && isStreaming && (
           <div className="absolute top-2 right-2 flex items-center gap-1 bg-green-500/80 text-white text-xs px-2 py-1 rounded">
             <div className="w-2 h-2 bg-white rounded-full animate-pulse" />
             Ao Vivo

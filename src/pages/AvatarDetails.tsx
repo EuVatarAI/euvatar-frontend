@@ -29,6 +29,15 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 
+const backendUrl = (import.meta.env.VITE_BACKEND_URL as string | undefined) || '';
+const apiToken = (import.meta.env.VITE_APP_API_TOKEN as string | undefined) || '';
+
+function buildBackendUrl(path: string) {
+  if (!backendUrl) return '';
+  const base = backendUrl.replace(/\/$/, '');
+  return path.startsWith('/') ? `${base}${path}` : `${base}/${path}`;
+}
+
 interface Avatar {
   id: string;
   name: string;
@@ -107,6 +116,13 @@ const AvatarDetails = () => {
       .trimEnd();
   };
 
+  const inferMediaType = (url: string, file?: File | null) => {
+    if (file?.type?.startsWith('video/')) return 'video';
+    if (file?.type?.startsWith('image/')) return 'image';
+    if (/\.(mp4|webm|mov|m4v)$/i.test(url)) return 'video';
+    return 'image';
+  };
+
   const hasChanges = JSON.stringify(formData) !== JSON.stringify(originalFormData);
 
   // Safe navigation that checks for unsaved changes
@@ -153,6 +169,35 @@ const AvatarDetails = () => {
     fetchAvatarData();
   }, [user, id, navigate]);
 
+  const fetchTrainingDocs = async (avatarId: string) => {
+    if (backendUrl) {
+      const listUrl = buildBackendUrl(`/training/list?avatar_id=${encodeURIComponent(avatarId)}`);
+      const resp = await fetch(listUrl, {
+        headers: {
+          'Content-Type': 'application/json',
+          ...(apiToken ? { Authorization: `Bearer ${apiToken}` } : {}),
+        },
+      });
+      const data = await resp.json();
+      if (resp.ok && data?.ok) {
+        return (data.items || []).map((doc: any) => ({
+          id: doc.id,
+          document_name: doc.name,
+          document_url: doc.url,
+          created_at: doc.created_at,
+        }));
+      }
+    }
+
+    const { data: docsData, error: docsError } = await supabase
+      .from('training_documents')
+      .select('*')
+      .eq('avatar_id', avatarId);
+
+    if (docsError) throw docsError;
+    return docsData || [];
+  };
+
   const fetchAvatarData = async () => {
     try {
       const { data: avatarData, error: avatarError } = await supabase
@@ -194,21 +239,54 @@ const AvatarDetails = () => {
       if (conversationsError) throw conversationsError;
       setConversations((conversationsData || []) as Conversation[]);
 
-      const { data: triggersData, error: triggersError } = await supabase
-        .from('media_triggers')
+      const { data: contextsData, error: contextsError } = await supabase
+        .from('contexts')
         .select('*')
         .eq('avatar_id', id);
 
-      if (triggersError) throw triggersError;
-      setMediaTriggers((triggersData || []) as MediaTrigger[]);
+      if (contextsError) throw contextsError;
 
-      const { data: docsData, error: docsError } = await supabase
-        .from('training_documents')
-        .select('*')
-        .eq('avatar_id', id);
+      let contexts = (contextsData || []) as any[];
+      if (contexts.length === 0) {
+        const { data: legacyTriggers, error: legacyError } = await supabase
+          .from('media_triggers')
+          .select('*')
+          .eq('avatar_id', id);
 
-      if (docsError) throw docsError;
-      setTrainingDocuments((docsData || []) as any[]);
+        if (!legacyError && legacyTriggers && legacyTriggers.length > 0) {
+          const mapped = legacyTriggers.map((t: any) => ({
+            avatar_id: id,
+            name: t.trigger_phrase,
+            description: t.description,
+            media_url: t.media_url,
+            media_type: inferMediaType(t.media_url),
+          }));
+
+          const { error: insertError } = await supabase
+            .from('contexts')
+            .insert(mapped);
+
+          if (!insertError) {
+            const { data: refreshed } = await supabase
+              .from('contexts')
+              .select('*')
+              .eq('avatar_id', id);
+            contexts = (refreshed || []) as any[];
+          }
+        }
+      }
+
+      setMediaTriggers(
+        contexts.map((row: any) => ({
+          id: row.id,
+          trigger_phrase: row.name,
+          media_url: row.media_url,
+          description: row.description,
+        }))
+      );
+
+      const docsData = await fetchTrainingDocs(id as string);
+      setTrainingDocuments(docsData as any[]);
 
       // Check if credentials exist
       const { data: credsData } = await supabase
@@ -354,12 +432,13 @@ const AvatarDetails = () => {
 
     try {
       const { error } = await supabase
-        .from('media_triggers')
+        .from('contexts')
         .insert({
           avatar_id: id,
-          trigger_phrase: newTrigger.trigger_phrase,
-          media_url: newTrigger.media_url,
+          name: newTrigger.trigger_phrase,
           description: newTrigger.description,
+          media_url: newTrigger.media_url,
+          media_type: inferMediaType(newTrigger.media_url, triggerMediaFile),
         });
 
       if (error) throw error;
@@ -386,7 +465,7 @@ const AvatarDetails = () => {
   const handleRemoveTrigger = async (triggerId: string) => {
     try {
       const { error } = await supabase
-        .from('media_triggers')
+        .from('contexts')
         .delete()
         .eq('id', triggerId);
 
@@ -413,33 +492,28 @@ const AvatarDetails = () => {
 
     setUploadingTraining(true);
     try {
-      const fileName = `${user?.id}/training/${Date.now()}-${file.name}`;
-      const { error: uploadError } = await supabase.storage
-        .from('avatar-media')
-        .upload(fileName, file);
-
-      if (uploadError) throw uploadError;
-
-      const { data: { publicUrl } } = supabase.storage
-        .from('avatar-media')
-        .getPublicUrl(fileName);
-
-      const { data: insertedDoc, error: insertError } = await supabase
-        .from('training_documents')
-        .insert({
-          avatar_id: id,
-          document_url: publicUrl,
-          document_name: file.name,
-        })
-        .select()
-        .single();
-
-      if (insertError) throw insertError;
-
-      // Only update training documents list, not the entire form
-      if (insertedDoc) {
-        setTrainingDocuments(prev => [...prev, insertedDoc]);
+      if (!backendUrl) {
+        throw new Error('VITE_BACKEND_URL não configurada');
       }
+      const form = new FormData();
+      form.append('file', file);
+      form.append('avatar_id', id as string);
+      form.append('title', file.name);
+      const uploadUrl = buildBackendUrl('/training/upload');
+      const resp = await fetch(uploadUrl, {
+        method: 'POST',
+        headers: {
+          ...(apiToken ? { Authorization: `Bearer ${apiToken}` } : {}),
+        },
+        body: form,
+      });
+      const data = await resp.json();
+      if (!resp.ok || !data?.ok) {
+        throw new Error(data?.error || 'Erro ao enviar documento');
+      }
+
+      const docs = await fetchTrainingDocs(id as string);
+      setTrainingDocuments(docs as any[]);
 
       toast({
         title: 'Sucesso',
@@ -459,23 +533,25 @@ const AvatarDetails = () => {
 
   const handleRemoveTrainingDocument = async (docId: string, docUrl: string) => {
     try {
-      const { error: deleteError } = await supabase
-        .from('training_documents')
-        .delete()
-        .eq('id', docId);
+      if (!backendUrl) {
+        throw new Error('VITE_BACKEND_URL não configurada');
+      }
+      const delUrl = buildBackendUrl('/training/delete');
+      const resp = await fetch(delUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(apiToken ? { Authorization: `Bearer ${apiToken}` } : {}),
+        },
+        body: JSON.stringify({ doc_id: docId, doc_url: docUrl }),
+      });
+      const data = await resp.json();
+      if (!resp.ok || !data?.ok) {
+        throw new Error(data?.error || 'Erro ao remover documento');
+      }
 
-      if (deleteError) throw deleteError;
-
-      // Extract file path from URL and delete from storage
-      const urlParts = docUrl.split('/');
-      const filePath = urlParts.slice(urlParts.indexOf('training')).join('/');
-      
-      await supabase.storage
-        .from('avatar-media')
-        .remove([`${user?.id}/${filePath}`]);
-
-      // Only update training documents list, not the entire form
-      setTrainingDocuments(prev => prev.filter(doc => doc.id !== docId));
+      const docs = await fetchTrainingDocs(id as string);
+      setTrainingDocuments(docs as any[]);
 
       toast({
         title: 'Sucesso',
@@ -529,6 +605,9 @@ const AvatarDetails = () => {
     const baseUrl = window.location.origin;
     if (organizationSlug && formData.slug) {
       return `${baseUrl}/${organizationSlug}/${formData.slug}`;
+    }
+    if (organizationSlug) {
+      return `${baseUrl}/${organizationSlug}`;
     }
     return `${baseUrl}/euvatar/${id}`;
   };
@@ -620,6 +699,8 @@ const AvatarDetails = () => {
                   avatarId={id!} 
                   hasCredentials={hasCredentials}
                   avatarOrientation={avatar?.avatar_orientation}
+                  backstory={formData.backstory}
+                  language={formData.language}
                 />
               </CardContent>
             </Card>
@@ -1000,7 +1081,6 @@ const AvatarDetails = () => {
                     <SelectContent>
                       <SelectItem value="pt-BR">Português (BR)</SelectItem>
                       <SelectItem value="en-US">English (US)</SelectItem>
-                      <SelectItem value="es-ES">Español</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>

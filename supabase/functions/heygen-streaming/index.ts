@@ -7,8 +7,13 @@ const corsHeaders = {
 
 const HEYGEN_API_URL = 'https://api.heygen.com';
 
-function decrypt(encrypted: string): string {
-  return atob(encrypted);
+function decrypt(encrypted: string | null | undefined): string {
+  if (!encrypted) return '';
+  try {
+    return atob(encrypted);
+  } catch {
+    return encrypted;
+  }
 }
 
 Deno.serve(async (req) => {
@@ -57,6 +62,12 @@ Deno.serve(async (req) => {
 
     const apiKey = decrypt(creds.api_key);
     const avatarExternalId = decrypt(creds.avatar_external_id);
+    if (!apiKey || !avatarExternalId) {
+      return new Response(JSON.stringify({ error: 'Credenciais inválidas' }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
 
     // Create new streaming session
     if (action === 'create') {

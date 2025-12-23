@@ -39,6 +39,13 @@ const CreateAvatar = () => {
     voice_model: 'alloy',
   });
 
+  const inferMediaType = (url: string, file?: File | null) => {
+    if (file?.type?.startsWith('video/')) return 'video';
+    if (file?.type?.startsWith('image/')) return 'image';
+    if (/\.(mp4|webm|mov|m4v)$/i.test(url)) return 'video';
+    return 'image';
+  };
+
   const uploadMediaFile = async (file: File): Promise<string | null> => {
     if (!user) return null;
 
@@ -136,17 +143,18 @@ const CreateAvatar = () => {
 
       if (avatarError) throw avatarError;
 
-      // Create media triggers if any
+      // Create contexts (media triggers) if any
       if (mediaTriggers.length > 0) {
         const triggersToInsert = mediaTriggers.map(trigger => ({
           avatar_id: avatarData.id,
-          trigger_phrase: trigger.trigger_phrase,
-          media_url: trigger.media_url,
+          name: trigger.trigger_phrase,
           description: trigger.description,
+          media_url: trigger.media_url,
+          media_type: inferMediaType(trigger.media_url),
         }));
 
         const { error: triggersError } = await supabase
-          .from('media_triggers')
+          .from('contexts')
           .insert(triggersToInsert);
 
         if (triggersError) throw triggersError;

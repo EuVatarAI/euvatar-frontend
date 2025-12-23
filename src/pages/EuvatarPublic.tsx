@@ -2,10 +2,12 @@ import { useEffect, useState, useRef, useCallback } from 'react';
 import { useParams } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { ScaledIframe } from '@/components/ScaledIframe';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { X, AlertCircle, Maximize } from 'lucide-react';
+import { X, AlertCircle, Maximize, Mic } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { Room, RoomEvent } from 'livekit-client';
 
 interface AvatarButton {
   id: string;
@@ -33,7 +35,10 @@ interface Avatar {
   id: string;
   name: string;
   idle_media_url: string | null;
+  cover_image_url: string | null;
   avatar_orientation: string | null;
+  backstory: string | null;
+  language: string | null;
 }
 
 const INACTIVITY_TIMEOUT = 5 * 60 * 1000; // 5 minutes
@@ -44,6 +49,22 @@ const BORDER_CONFIG = {
   rounded: 'rounded-lg',
   pill: 'rounded-full',
 };
+
+const backendUrl = (import.meta.env.VITE_BACKEND_URL as string | undefined) || '';
+const apiToken = (import.meta.env.VITE_APP_API_TOKEN as string | undefined) || '';
+const STATIC_ASSETS = {
+  talk: '/estatic/fale%20comigo.png',
+  micBase: '/estatic/bot%C3%A3o%20limpo.png',
+  end: '/estatic/encerrar.png',
+  continue: '/estatic/continuar.png',
+  endAlt: '/estatic/a.png',
+};
+
+function buildBackendUrl(path: string) {
+  if (!backendUrl) return '';
+  const base = backendUrl.replace(/\/$/, '');
+  return path.startsWith('/') ? `${base}${path}` : `${base}/${path}`;
+}
 
 const getPadding = (fontSize: number) => {
   const paddingX = Math.max(12, Math.round(fontSize * 0.8));
@@ -66,6 +87,15 @@ export default function EuvatarPublic() {
   const [externalPopupOpen, setExternalPopupOpen] = useState(false);
   const [externalUrl, setExternalUrl] = useState('');
   const [buttonVideoUrl, setButtonVideoUrl] = useState<string | null>(null);
+
+  // Live session states
+  const [isConnecting, setIsConnecting] = useState(false);
+  const [isConnected, setIsConnected] = useState(false);
+  const [isStreaming, setIsStreaming] = useState(false);
+  const [sessionId, setSessionId] = useState<string | null>(null);
+  const [inputText, setInputText] = useState('');
+  const [isSending, setIsSending] = useState(false);
+  const [isRecording, setIsRecording] = useState(false);
   
   // Inactivity states
   const [showInactivityWarning, setShowInactivityWarning] = useState(false);
@@ -75,10 +105,23 @@ export default function EuvatarPublic() {
   
   const containerRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
+  const liveVideoRef = useRef<HTMLVideoElement>(null);
+  const roomRef = useRef<Room | null>(null);
+  const audioElsRef = useRef<HTMLAudioElement[]>([]);
+  const recorderRef = useRef<MediaRecorder | null>(null);
+  const recordChunksRef = useRef<Blob[]>([]);
 
   // Determine aspect ratio based on orientation
   const isVertical = avatar?.avatar_orientation === 'vertical';
   const aspectRatio = isVertical ? '9 / 16' : '16 / 9';
+  const clientId = `public:${id || 'unknown'}`;
+  const isHolidayAvatar = /papai|noel|santa/i.test(avatar?.name || '');
+  const useCornerChat = isHolidayAvatar && !isVertical;
+
+  const attachTrackToVideo = useCallback((track: any) => {
+    if (!liveVideoRef.current) return;
+    track.attach(liveVideoRef.current);
+  }, []);
 
   useEffect(() => {
     // Load Google Fonts
@@ -99,6 +142,23 @@ export default function EuvatarPublic() {
       clearInactivityTimer();
       clearCountdownTimer();
       document.removeEventListener('fullscreenchange', handleFullscreenChange);
+      if (roomRef.current) {
+        roomRef.current.disconnect();
+        roomRef.current = null;
+      }
+      if (audioElsRef.current.length) {
+        audioElsRef.current.forEach((el) => {
+          try {
+            el.remove();
+          } catch {
+            // ignore
+          }
+        });
+        audioElsRef.current = [];
+      }
+      if (recorderRef.current && recorderRef.current.state !== 'inactive') {
+        recorderRef.current.stop();
+      }
     };
   }, [id]);
 
@@ -107,7 +167,7 @@ export default function EuvatarPublic() {
       // Fetch avatar data
       const { data: avatarData, error: avatarError } = await supabase
         .from('avatars')
-        .select('id, name, idle_media_url, avatar_orientation')
+        .select('id, name, idle_media_url, cover_image_url, avatar_orientation, backstory, language')
         .eq('id', id)
         .single();
 
@@ -215,6 +275,7 @@ export default function EuvatarPublic() {
     clearCountdownTimer();
     setShowInactivityWarning(false);
     closeAllPopups();
+    endSession();
   };
 
   const handleContinueSession = () => {
@@ -289,10 +350,264 @@ export default function EuvatarPublic() {
   };
 
   const handleSessionStart = () => {
+    if (isConnecting || isConnected) return;
+    if (!backendUrl) {
+      toast({
+        title: 'Backend não configurado',
+        description: 'Defina VITE_BACKEND_URL para iniciar a sessão.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setIsConnecting(true);
     toast({
       title: 'Iniciando sessão...',
       description: 'Conectando ao avatar interativo.',
     });
+
+    const start = async () => {
+      try {
+        const params = new URLSearchParams();
+        if (id) params.set('avatar_id', id);
+        if (avatar?.language) params.set('language', avatar.language);
+        if (avatar?.backstory) params.set('backstory', avatar.backstory);
+        if (isHolidayAvatar) params.set('quality', 'high');
+        const createUrl = buildBackendUrl(`/new?${params.toString()}`);
+        const resp = await fetch(createUrl, {
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Client-Id': clientId,
+            ...(apiToken ? { Authorization: `Bearer ${apiToken}` } : {}),
+          },
+        });
+        const data = await resp.json();
+        if (!resp.ok || !data?.ok) {
+          throw new Error(data?.error || 'Erro ao criar sessão');
+        }
+
+        setSessionId(data.session_id);
+
+        const room = new Room();
+        roomRef.current = room;
+        room.on(RoomEvent.TrackSubscribed, (track) => {
+          if (track.kind === 'video') {
+            attachTrackToVideo(track);
+            setIsStreaming(true);
+            return;
+          }
+          if (track.kind === 'audio') {
+            const a = document.createElement('audio');
+            a.autoplay = true;
+            a.playsInline = true;
+            track.attach(a);
+            document.body.appendChild(a);
+            audioElsRef.current.push(a);
+          }
+        });
+
+        room.on(RoomEvent.TrackUnsubscribed, (track) => {
+          if (track.kind === 'video') {
+            setIsStreaming(false);
+            return;
+          }
+        });
+
+        room.on(RoomEvent.Disconnected, () => {
+          setIsConnected(false);
+          setIsStreaming(false);
+        });
+
+        setIsStreaming(false);
+        await room.connect(data.livekit_url, data.access_token);
+        setIsConnected(true);
+      } catch (err: any) {
+        console.error('Error starting session:', err);
+        toast({
+          title: 'Erro ao iniciar',
+          description: err?.message || 'Erro ao iniciar sessão',
+          variant: 'destructive',
+        });
+      } finally {
+        setIsConnecting(false);
+      }
+    };
+
+    start();
+  };
+
+  const endSession = async () => {
+    try {
+      if (!backendUrl) return;
+      if (sessionId) {
+        const interruptUrl = buildBackendUrl('/interrupt');
+        await fetch(interruptUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Client-Id': clientId,
+            ...(apiToken ? { Authorization: `Bearer ${apiToken}` } : {}),
+          },
+          body: JSON.stringify({ session_id: sessionId }),
+        });
+      }
+
+      const endUrl = buildBackendUrl('/end');
+      await fetch(endUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Client-Id': clientId,
+          ...(apiToken ? { Authorization: `Bearer ${apiToken}` } : {}),
+        },
+        body: JSON.stringify({ session_id: sessionId }),
+      });
+    } catch (err) {
+      console.error('Error ending session:', err);
+    } finally {
+      if (roomRef.current) {
+        roomRef.current.disconnect();
+        roomRef.current = null;
+      }
+      setSessionId(null);
+      setIsConnected(false);
+      setIsStreaming(false);
+      setIsRecording(false);
+      if (liveVideoRef.current) {
+        liveVideoRef.current.srcObject = null;
+      }
+      if (audioElsRef.current.length) {
+        audioElsRef.current.forEach((el) => {
+          try {
+            el.remove();
+          } catch {
+            // ignore
+          }
+        });
+        audioElsRef.current = [];
+      }
+      recorderRef.current = null;
+      recordChunksRef.current = [];
+    }
+  };
+
+  const sendText = async (textOverride?: string) => {
+    const text = (textOverride ?? inputText).trim();
+    if (!text) return;
+    if (!sessionId) {
+      toast({
+        title: 'Sessão não iniciada',
+        description: 'Clique em "Fale comigo" para iniciar.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setIsSending(true);
+    try {
+      const sayUrl = buildBackendUrl('/say');
+      const sayResp = await fetch(sayUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Client-Id': clientId,
+          ...(apiToken ? { Authorization: `Bearer ${apiToken}` } : {}),
+        },
+        body: JSON.stringify({
+          session_id: sessionId,
+          text,
+          avatar_id: id,
+        }),
+      });
+      const sayData = await sayResp.json();
+      if (!sayResp.ok || !sayData?.ok) {
+        throw new Error(sayData?.error || 'Erro ao enviar texto');
+      }
+      setInputText('');
+    } catch (error: any) {
+      console.error('Error sending text:', error);
+      toast({
+        title: 'Erro',
+        description: error.message || 'Erro ao enviar texto',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsSending(false);
+    }
+  };
+
+  const startRecording = async () => {
+    if (!sessionId) {
+      toast({
+        title: 'Sessão não iniciada',
+        description: 'Clique em "Fale comigo" para iniciar.',
+        variant: 'destructive',
+      });
+      return;
+    }
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const recorder = new MediaRecorder(stream);
+      recorderRef.current = recorder;
+      recordChunksRef.current = [];
+
+      recorder.ondataavailable = (event) => {
+        if (event.data?.size) {
+          recordChunksRef.current.push(event.data);
+        }
+      };
+
+      recorder.onstop = async () => {
+        try {
+          const blob = new Blob(recordChunksRef.current, { type: 'audio/webm' });
+          const file = new File([blob], 'audio.webm', { type: 'audio/webm' });
+          const form = new FormData();
+          form.append('audio', file);
+          const sttUrl = buildBackendUrl('/stt');
+          const resp = await fetch(sttUrl, {
+            method: 'POST',
+            headers: {
+              'X-Client-Id': clientId,
+              ...(apiToken ? { Authorization: `Bearer ${apiToken}` } : {}),
+            },
+            body: form,
+          });
+          const data = await resp.json();
+          if (!resp.ok || !data?.ok) {
+            throw new Error(data?.error || 'Erro ao transcrever áudio');
+          }
+          if (data.text) {
+            await sendText(data.text);
+          }
+        } catch (err) {
+          console.error('STT error:', err);
+          toast({
+            title: 'Erro',
+            description: 'Erro ao transcrever áudio.',
+            variant: 'destructive',
+          });
+        } finally {
+          stream.getTracks().forEach((t) => t.stop());
+        }
+      };
+
+      recorder.start();
+      setIsRecording(true);
+    } catch (err) {
+      console.error('Mic error:', err);
+      toast({
+        title: 'Microfone bloqueado',
+        description: 'Permita o acesso ao microfone para falar.',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const stopRecording = () => {
+    if (recorderRef.current && isRecording) {
+      recorderRef.current.stop();
+      setIsRecording(false);
+    }
   };
 
   const handleButtonVideoEnd = () => {
@@ -328,7 +643,9 @@ export default function EuvatarPublic() {
   };
 
   // Get current media URL (ads playlist or idle)
-  const currentMediaUrl = ads.length > 0 ? ads[currentAdIndex]?.media_url : avatar?.idle_media_url;
+  const currentMediaUrl = ads.length > 0 ? ads[currentAdIndex]?.media_url : (avatar?.idle_media_url || avatar?.cover_image_url);
+  const isVideoUrl = (url?: string | null) => !!url && /\.(mp4|webm|mov|m4v)$/i.test(url);
+  const controlsClass = `absolute inset-x-0 ${isVertical ? 'bottom-10 px-6' : 'bottom-4 px-4'} flex items-center justify-between pointer-events-none`;
 
   if (loading) {
     return (
@@ -385,24 +702,42 @@ export default function EuvatarPublic() {
             maxHeight: '100%',
           }}
         >
+          {/* Live Video (always mounted) */}
+          <video
+            ref={liveVideoRef}
+            autoPlay
+            playsInline
+            className={`absolute inset-0 w-full h-full object-contain transition-opacity ${
+              isConnected && isStreaming ? 'opacity-100' : 'opacity-0'
+            }`}
+          />
+
           {/* Idle/Ads Video */}
-          {currentMediaUrl ? (
-            <video
-              ref={videoRef}
-              key={ads.length > 1 ? `ad-${currentAdIndex}` : currentMediaUrl}
-              src={currentMediaUrl}
-              className="absolute inset-0 w-full h-full object-contain"
-              autoPlay
-              loop={ads.length <= 1}
-              muted
-              playsInline
-              onEnded={ads.length > 1 ? handleAdEnded : undefined}
-            />
+          {!isStreaming && (currentMediaUrl ? (
+            isVideoUrl(currentMediaUrl) ? (
+              <video
+                ref={videoRef}
+                key={ads.length > 1 ? `ad-${currentAdIndex}` : currentMediaUrl}
+                src={currentMediaUrl}
+                className="absolute inset-0 w-full h-full object-contain"
+                autoPlay
+                loop={ads.length <= 1}
+                muted
+                playsInline
+                onEnded={ads.length > 1 ? handleAdEnded : undefined}
+              />
+            ) : (
+              <img
+                src={currentMediaUrl}
+                alt="Mídia de espera"
+                className="absolute inset-0 w-full h-full object-contain"
+              />
+            )
           ) : (
             <div className="absolute inset-0 flex items-center justify-center text-white/50">
-              <p className="text-xl">Nenhum vídeo configurado</p>
+              <p className="text-xl">Nenhuma mídia configurada</p>
             </div>
-          )}
+          ))}
 
           {/* Button Video Overlay */}
           {buttonVideoUrl && (
@@ -445,6 +780,86 @@ export default function EuvatarPublic() {
               </div>
             </div>
           )}
+
+          {isConnected && (
+            <div className={controlsClass}>
+              <div className="flex flex-col items-center gap-2 pointer-events-auto">
+                <button
+                  onClick={isRecording ? stopRecording : startRecording}
+                  className={`relative transition-transform hover:scale-105 ${
+                    isRecording ? 'animate-pulse' : ''
+                  }`}
+                  aria-label={isRecording ? 'Parar gravação' : 'Falar por voz'}
+                >
+                  <span className="flex h-16 w-16 items-center justify-center rounded-full bg-black/70 text-white shadow-2xl ring-2 ring-white/20">
+                    <Mic className="h-7 w-7" />
+                  </span>
+                </button>
+                <span className="px-4 py-1.5 rounded-full bg-black/80 text-white text-sm font-semibold shadow ring-1 ring-white/10">
+                  {isRecording ? 'Gravando...' : 'Falar'}
+                </span>
+              </div>
+
+              <div className="flex flex-col items-center gap-2 pointer-events-auto">
+                <button
+                  onClick={endSession}
+                  className="transition-transform hover:scale-105"
+                  aria-label="Encerrar sessão"
+                >
+                  <span className="flex h-16 w-16 items-center justify-center rounded-full bg-red-700 text-white shadow-2xl ring-2 ring-white/30">
+                    <span className="text-xs font-bold uppercase tracking-wide">Fim</span>
+                  </span>
+                </button>
+                <span className="px-4 py-1.5 rounded-full bg-red-600/95 text-white text-sm font-semibold shadow ring-1 ring-white/20">
+                  Encerrar
+                </span>
+              </div>
+            </div>
+          )}
+
+          {/* Connecting overlay */}
+          {isConnecting && (
+            <div className="absolute inset-0 z-10 flex items-center justify-center bg-black/60 text-white">
+              <span>Conectando ao avatar...</span>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Text chat */}
+      <div
+        className={
+          useCornerChat
+            ? 'fixed bottom-24 right-5 z-40 w-[min(520px,92vw)] px-3 sm:bottom-28 sm:right-7'
+            : 'w-full max-w-2xl mx-auto px-4 mt-6'
+        }
+      >
+        <div
+          className={
+            useCornerChat
+              ? 'flex items-center gap-2 rounded-full border border-white/10 bg-black/60 px-3 py-2 shadow-2xl backdrop-blur'
+              : 'flex gap-2'
+          }
+        >
+          <Input
+            value={inputText}
+            onChange={(e) => setInputText(e.target.value)}
+            placeholder="Digite para falar com o avatar..."
+            onKeyDown={(e) => e.key === 'Enter' && sendText()}
+            disabled={isSending || !isConnected}
+            className={
+              useCornerChat
+                ? 'border-0 bg-transparent text-white placeholder:text-white/60 focus-visible:ring-0 focus-visible:ring-offset-0'
+                : undefined
+            }
+          />
+          <Button
+            onClick={() => sendText()}
+            disabled={isSending || !inputText.trim() || !isConnected}
+            className={useCornerChat ? 'rounded-full bg-emerald-400/90 text-black hover:bg-emerald-300' : undefined}
+          >
+            {isSending ? 'Enviando...' : 'Enviar'}
+          </Button>
         </div>
       </div>
 
@@ -459,9 +874,14 @@ export default function EuvatarPublic() {
             <p className="text-muted-foreground">
               A sessão será encerrada automaticamente em {countdown} segundos.
             </p>
-            <Button onClick={handleContinueSession} className="w-full">
-              Continuar
-            </Button>
+            <div className="flex items-center justify-center gap-4">
+              <button onClick={endSession} aria-label="Encerrar">
+                <img src={STATIC_ASSETS.endAlt} alt="Encerrar" className="w-32 drop-shadow-lg" />
+              </button>
+              <button onClick={handleContinueSession} aria-label="Continuar">
+                <img src={STATIC_ASSETS.continue} alt="Continuar" className="w-32 drop-shadow-lg" />
+              </button>
+            </div>
           </div>
         </DialogContent>
       </Dialog>

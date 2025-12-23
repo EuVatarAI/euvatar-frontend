@@ -11,36 +11,11 @@ import { Settings, Plus, Lock, User, Clock, Link, Copy, Check, Pencil } from 'lu
 import type { Database } from '@/integrations/supabase/types';
 import { UnlockPasswordDialog } from '@/components/avatar/UnlockPasswordDialog';
 import { AppLayout } from '@/components/layout/AppLayout';
+import { fetchBackendCredits, type AvatarHeyGenUsage, type HeyGenCredits } from '@/services/credits';
 
 type Avatar = Database['public']['Tables']['avatars']['Row'] & {
   cover_image_url?: string | null;
 };
-
-interface AvatarHeyGenUsage {
-  avatarId: string;
-  heygenAvatarId?: string;
-  totalSeconds: number;
-  totalMinutes: number;
-  heygenCredits: number;
-  euvatarCredits: number;
-  sessionCount: number;
-}
-
-interface HeyGenCredits {
-  euvatarCredits: number;
-  heygenCredits: number;
-  totalEuvatarCredits: number;
-  minutesRemaining: number;
-  totalMinutes: number;
-  hoursRemaining: number;
-  totalHours: number;
-  usedEuvatarCredits: number;
-  usedMinutes: number;
-  percentageRemaining: number;
-  error?: string;
-  needsCredentialUpdate?: boolean;
-  avatarUsage?: AvatarHeyGenUsage[];
-}
 
 const Dashboard = () => {
   const navigate = useNavigate();
@@ -86,11 +61,10 @@ const Dashboard = () => {
         setNewSlug(orgData.slug);
       }
 
-      // Fetch HeyGen credits via edge function
-      const { data: creditsData, error: creditsError } = await supabase.functions.invoke('get-heygen-credits');
-      
-      if (creditsError) {
-        console.error('Erro ao buscar créditos:', creditsError);
+      // Busca créditos apenas via backend (rota /credits)
+      const creditsData = await fetchBackendCredits();
+      if (!creditsData) {
+        console.error('Erro ao buscar créditos via backend');
       } else {
         setHeygenCredits(creditsData);
       }
@@ -152,7 +126,8 @@ const Dashboard = () => {
   };
 
   const getPublicUrl = () => {
-    const baseUrl = window.location.origin;
+    const baseEnv = import.meta.env.VITE_PUBLIC_BASE_URL as string | undefined;
+    const baseUrl = baseEnv && baseEnv.trim().length > 0 ? baseEnv.trim().replace(/\/$/, '') : window.location.origin;
     return `${baseUrl}/${organizationSlug}`;
   };
 
