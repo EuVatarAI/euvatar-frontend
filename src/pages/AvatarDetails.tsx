@@ -31,6 +31,7 @@ import {
 
 const backendUrl = (import.meta.env.VITE_BACKEND_URL as string | undefined) || '';
 const apiToken = (import.meta.env.VITE_APP_API_TOKEN as string | undefined) || '';
+const avatarProvider = (import.meta.env.VITE_AVATAR_PROVIDER as string | undefined) || 'heygen';
 
 function buildBackendUrl(path: string) {
   if (!backendUrl) return '';
@@ -406,6 +407,34 @@ const AvatarDetails = () => {
         title: 'Sucesso',
         description: 'Euvatar atualizado com sucesso!',
       });
+
+      if (
+        avatarProvider === 'liveavatar' &&
+        formData.backstory.trim() &&
+        formData.backstory.trim() !== originalFormData.backstory.trim()
+      ) {
+        if (!backendUrl) {
+          throw new Error('VITE_BACKEND_URL não configurada');
+        }
+        const syncUrl = buildBackendUrl('/liveavatar/context');
+        const resp = await fetch(syncUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(apiToken ? { Authorization: `Bearer ${apiToken}` } : {}),
+          },
+          body: JSON.stringify({
+            avatar_id: id,
+            backstory: formData.backstory.trim(),
+            language: formData.language,
+            name: formData.name,
+          }),
+        });
+        const data = await resp.json();
+        if (!resp.ok || !data?.ok) {
+          throw new Error(data?.error || 'Erro ao criar contexto no LiveAvatar');
+        }
+      }
 
       fetchAvatarData();
     } catch (error: any) {

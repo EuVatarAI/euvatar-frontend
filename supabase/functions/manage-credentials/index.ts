@@ -261,7 +261,7 @@ Deno.serve(async (req) => {
     if (action === 'fetch') {
       const { data: stored, error: fetchError } = await supabase
         .from('avatar_credentials')
-        .select('account_id, api_key, avatar_external_id')
+        .select('account_id, api_key, avatar_external_id, voice_id, context_id')
         .eq('avatar_id', avatarId)
         .maybeSingle();
 
@@ -286,6 +286,8 @@ Deno.serve(async (req) => {
             accountId: stored.account_id ? decrypt(stored.account_id) : '',
             apiKey: stored.api_key ? decrypt(stored.api_key) : '',
             avatarExternalId: stored.avatar_external_id ? decrypt(stored.avatar_external_id) : '',
+            voiceId: stored.voice_id ? decrypt(stored.voice_id) : '',
+            contextId: stored.context_id ? decrypt(stored.context_id) : '',
           },
         }),
         { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -299,6 +301,8 @@ Deno.serve(async (req) => {
       const resolvedAccountId = String(payload.accountId ?? accountId ?? '').trim();
       const resolvedApiKey = String(payload.apiKey ?? apiKey ?? '').trim();
       const resolvedAvatarExternalId = String(payload.avatarExternalId ?? avatarExternalId ?? '').trim();
+      const resolvedVoiceId = String(payload.voiceId ?? body.voiceId ?? '').trim();
+      const resolvedContextId = String(payload.contextId ?? body.contextId ?? '').trim();
       const unlockToken = payload.unlockToken;
 
       if (!resolvedAccountId || !resolvedApiKey || !resolvedAvatarExternalId) {
@@ -350,6 +354,8 @@ Deno.serve(async (req) => {
         account_id: encrypt(resolvedAccountId),
         api_key: encrypt(resolvedApiKey),
         avatar_external_id: encrypt(resolvedAvatarExternalId),
+        voice_id: resolvedVoiceId ? encrypt(resolvedVoiceId) : null,
+        context_id: resolvedContextId ? encrypt(resolvedContextId) : null,
         updated_at: new Date().toISOString(),
       });
 
@@ -361,6 +367,8 @@ Deno.serve(async (req) => {
         provider,
         avatarId,
         avatarExternalId: resolvedAvatarExternalId,
+        voiceId: resolvedVoiceId || null,
+        contextId: resolvedContextId || null,
         orientation: validation.orientation ?? null,
       });
     }
