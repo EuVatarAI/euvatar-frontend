@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
@@ -31,13 +31,14 @@ const AvatarsManagement = () => {
   const [loading, setLoading] = useState(true);
   const [showUnlockDialog, setShowUnlockDialog] = useState(false);
 
-  useEffect(() => {
-    if (!user) {
-      navigate('/');
+  const refreshCredits = useCallback(async () => {
+    const creditsData = await fetchBackendCredits();
+    if (!creditsData) {
+      console.error('Erro ao buscar créditos HeyGen via backend');
       return;
     }
-    fetchData();
-  }, [user, navigate]);
+    setHeygenCredits(creditsData);
+  }, []);
 
   const fetchData = async () => {
     try {
@@ -50,13 +51,7 @@ const AvatarsManagement = () => {
       if (avatarsError) throw avatarsError;
       setAvatars(avatarsData || []);
 
-      // Busca créditos apenas via backend (rota /credits)
-      const creditsData = await fetchBackendCredits();
-      if (!creditsData) {
-        console.error('Erro ao buscar créditos HeyGen via backend');
-      } else {
-        setHeygenCredits(creditsData);
-      }
+      await refreshCredits();
 
       setLoading(false);
     } catch (error: any) {
@@ -69,6 +64,25 @@ const AvatarsManagement = () => {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    if (!user) {
+      navigate('/');
+      return;
+    }
+    fetchData();
+  }, [user, navigate]);
+
+  useEffect(() => {
+    if (!user) return;
+    const intervalId = window.setInterval(refreshCredits, 30000);
+    const handleFocus = () => refreshCredits();
+    window.addEventListener('focus', handleFocus);
+    return () => {
+      window.clearInterval(intervalId);
+      window.removeEventListener('focus', handleFocus);
+    };
+  }, [user, refreshCredits]);
 
   const formatTime = (minutes: number) => {
     const hours = Math.floor(minutes / 60);
@@ -116,10 +130,22 @@ const AvatarsManagement = () => {
     );
   }
 
-  const remainingCredits = heygenCredits?.euvatarCredits ?? 960;
   const totalCredits = heygenCredits?.totalEuvatarCredits ?? 960;
-  const creditsPercentage = heygenCredits?.percentageRemaining ?? 100;
-  const minutesRemaining = heygenCredits?.minutesRemaining ?? 240;
+  const totalMinutes = heygenCredits?.totalMinutes ?? 240;
+  const fallbackUsageMinutes = (heygenCredits?.avatarUsage || []).reduce((sum, u) => sum + (u.totalMinutes || 0), 0);
+  const fallbackUsageCredits = (heygenCredits?.avatarUsage || []).reduce((sum, u) => sum + (u.euvatarCredits || 0), 0);
+  const shouldFallbackTotals = Boolean(heygenCredits?.needsCredentialUpdate || heygenCredits?.error);
+  const remainingCreditsRaw = shouldFallbackTotals
+    ? (totalCredits - fallbackUsageCredits)
+    : (heygenCredits?.euvatarCredits ?? (totalCredits - fallbackUsageCredits));
+  const remainingMinutesRaw = shouldFallbackTotals
+    ? (totalMinutes - fallbackUsageMinutes)
+    : (heygenCredits?.minutesRemaining ?? (totalMinutes - fallbackUsageMinutes));
+  const remainingCredits = Math.min(Math.max(remainingCreditsRaw, 0), totalCredits);
+  const minutesRemaining = Math.min(Math.max(remainingMinutesRaw, 0), totalMinutes);
+  const creditsPercentage = totalCredits > 0 ? Math.round((remainingCredits / totalCredits) * 100) : 0;
+  const usedCredits = Math.max(0, totalCredits - remainingCredits);
+  const usedMinutes = Math.max(0, totalMinutes - minutesRemaining);
   const needsCredentialUpdate = heygenCredits?.needsCredentialUpdate;
   const hasCredentialsConfigured = !heygenCredits?.error;
 
@@ -142,7 +168,7 @@ const AvatarsManagement = () => {
                     {remainingCredits} de {totalCredits} créditos restantes
                   </span>
                   <span className="text-sm text-muted-foreground">
-                    {formatTime(minutesRemaining)} ({minutesRemaining}min) de 4h (240min)
+                    {formatTime(minutesRemaining)} ({minutesRemaining}min) de 4h ({totalMinutes}min)
                   </span>
                 </div>
                 <Progress value={creditsPercentage} />
@@ -158,19 +184,19 @@ const AvatarsManagement = () => {
                   <p className="text-xs text-muted-foreground">Tempo Restante</p>
                 </div>
                 <div className="text-center p-3 bg-muted/50 rounded-lg">
-                  <p className="text-2xl font-bold">{totalCredits - remainingCredits}</p>
+                  <p className="text-2xl font-bold">{usedCredits}</p>
                   <p className="text-xs text-muted-foreground">Créditos Usados</p>
                 </div>
                 <div className="text-center p-3 bg-muted/50 rounded-lg">
-                  <p className="text-2xl font-bold">{formatTime(240 - minutesRemaining)}</p>
-                  <p className="text-sm text-muted-foreground">({240 - minutesRemaining} min)</p>
+                  <p className="text-2xl font-bold">{formatTime(usedMinutes)}</p>
+                  <p className="text-sm text-muted-foreground">({usedMinutes} min)</p>
                   <p className="text-xs text-muted-foreground">Tempo Usado</p>
                 </div>
               </div>
               <p className="text-xs text-muted-foreground">
                 20 créditos = 5 minutos de uso. Plano inicial: 960 créditos (4 horas / 240 minutos).
               </p>
-              {needsCredentialUpdate && (
+              {needsCredentialUpdate && (heygenCredits?.avatarUsage?.length ?? 0) === 0 && (
                 <p className="text-xs text-orange-600 font-medium">
                   ⚠️ A API key do Euvatar está inválida ou expirada. Atualize na aba Credenciais do euvatar.
                 </p>
@@ -207,6 +233,9 @@ const AvatarsManagement = () => {
                   <p className="text-sm text-muted-foreground mb-6">
                     Primeiro configure as credenciais do euvatar
                   </p>
+                  <Button onClick={() => navigate('/create-avatar?next=configure')}>
+                    Criar avatar e configurar credenciais
+                  </Button>
                 </div>
               </CardContent>
             </Card>

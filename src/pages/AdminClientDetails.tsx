@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { 
   ArrowLeft, Save, Loader2, CreditCard, Key, Users, 
@@ -168,20 +169,28 @@ export const AdminClientDetails = () => {
   
   const { toast } = useToast();
   const navigate = useNavigate();
+  const { user, profile, loading: authLoading, signOut } = useAuth();
 
   useEffect(() => {
-    checkAdminAccess();
+    if (authLoading) return;
+    if (!user) {
+      navigate('/admin');
+      return;
+    }
+    if (!profile || profile.role !== 'admin') {
+      signOut();
+      toast({
+        title: "Acesso negado",
+        description: "Sua conta não possui permissão administrativa.",
+        variant: "destructive",
+      });
+      navigate('/admin');
+      return;
+    }
     if (clientId) {
       fetchClientData();
     }
-  }, [clientId]);
-
-  const checkAdminAccess = () => {
-    const isAdminLoggedIn = sessionStorage.getItem('adminLoggedIn') === 'true';
-    if (!isAdminLoggedIn) {
-      navigate('/admin');
-    }
-  };
+  }, [authLoading, clientId, navigate, profile, signOut, toast, user]);
 
   const fetchClientData = async () => {
     try {

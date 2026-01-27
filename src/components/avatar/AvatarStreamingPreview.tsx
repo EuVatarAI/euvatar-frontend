@@ -1,9 +1,10 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { Room, RoomEvent, Track } from 'livekit-client';
+import { Room, RoomEvent, createLocalAudioTrack, LocalAudioTrack } from 'livekit-client';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Play, Square, Send, Loader2, AlertCircle, Volume2 } from 'lucide-react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Play, Send, Loader2, AlertCircle, Volume2, Mic } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
 interface AvatarButton {
@@ -42,6 +43,14 @@ const BORDER_CONFIG = {
 
 const backendUrl = (import.meta.env.VITE_BACKEND_URL as string | undefined) || '';
 const apiToken = (import.meta.env.VITE_APP_API_TOKEN as string | undefined) || '';
+const avatarProvider = (import.meta.env.VITE_AVATAR_PROVIDER as string | undefined) || 'heygen';
+const isLiveAvatar = avatarProvider.toLowerCase() === 'liveavatar';
+const PREVIEW_SESSION_MIN = 2.5;
+const WARN_SECONDS = 10;
+const STATIC_ASSETS = {
+  end: '/estatic/encerrar.png',
+  continue: '/estatic/continuar.png',
+};
 
 function buildBackendUrl(path: string) {
   if (!backendUrl) return '';
@@ -61,6 +70,10 @@ export function AvatarStreamingPreview({
   const idleVideoRef = useRef<HTMLVideoElement>(null);
   const roomRef = useRef<Room | null>(null);
   const mediaStreamRef = useRef<MediaStream | null>(null);
+  const localAudioTrackRef = useRef<LocalAudioTrack | null>(null);
+  const recorderRef = useRef<MediaRecorder | null>(null);
+  const recordChunksRef = useRef<Blob[]>([]);
+  const sessionTimerRef = useRef<NodeJS.Timeout | null>(null);
   
   const [isConnecting, setIsConnecting] = useState(false);
   const [isConnected, setIsConnected] = useState(false);
@@ -68,12 +81,44 @@ export function AvatarStreamingPreview({
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [inputText, setInputText] = useState('');
   const [isSending, setIsSending] = useState(false);
+  const [isRecording, setIsRecording] = useState(false);
   const [buttons, setButtons] = useState<AvatarButton[]>([]);
   const [ads, setAds] = useState<Ad[]>([]);
   const [currentAdIndex, setCurrentAdIndex] = useState(0);
+  const [sessionSecondsLeft, setSessionSecondsLeft] = useState(0);
+  const [showSessionWarning, setShowSessionWarning] = useState(false);
+
+  const formatTimer = (sec: number) => {
+    const clamped = Math.max(0, sec);
+    const m = String(Math.floor(clamped / 60)).padStart(2, '0');
+    const s = String(clamped % 60).padStart(2, '0');
+    return `${m}:${s}`;
+  };
+
+  const clearSessionTimer = () => {
+    if (sessionTimerRef.current) {
+      clearInterval(sessionTimerRef.current);
+      sessionTimerRef.current = null;
+    }
+  };
 
   const isVertical = avatarOrientation !== 'horizontal';
-  const clientId = `avatar-preview:${avatarId}`;
+  const clientId = (() => {
+    const key = 'euvatar_client_id_preview';
+    let stored = '';
+    try {
+      stored = window.localStorage.getItem(key) || '';
+      if (!stored) {
+        stored = (typeof crypto !== 'undefined' && 'randomUUID' in crypto)
+          ? crypto.randomUUID()
+          : `c_${Math.random().toString(36).slice(2)}${Date.now().toString(36)}`;
+        window.localStorage.setItem(key, stored);
+      }
+    } catch {
+      stored = `c_${Math.random().toString(36).slice(2)}${Date.now().toString(36)}`;
+    }
+    return `avatar-preview:${avatarId}:${stored}`;
+  })();
 
   const attachStreamToVideo = useCallback(() => {
     if (!videoRef.current || !mediaStreamRef.current) return;
@@ -116,6 +161,135 @@ export function AvatarStreamingPreview({
     }
   }, [ads.length]);
 
+  const stopStreaming = async () => {
+    try {
+      if (sessionId) {
+        const interruptUrl = buildBackendUrl('/interrupt');
+        if (interruptUrl) {
+          await fetch(interruptUrl, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'X-Client-Id': clientId,
+              ...(apiToken ? { Authorization: `Bearer ${apiToken}` } : {}),
+            },
+            body: JSON.stringify({ session_id: sessionId }),
+          });
+        }
+      }
+      const endUrl = buildBackendUrl('/end');
+      if (endUrl) {
+        await fetch(endUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Client-Id': clientId,
+            ...(apiToken ? { Authorization: `Bearer ${apiToken}` } : {}),
+          },
+        });
+      }
+
+      if (roomRef.current) {
+        roomRef.current.disconnect();
+        roomRef.current = null;
+      }
+
+      if (videoRef.current) {
+        videoRef.current.srcObject = null;
+      }
+
+      if (recorderRef.current && recorderRef.current.state !== 'inactive') {
+        recorderRef.current.stop();
+      }
+      recorderRef.current = null;
+      recordChunksRef.current = [];
+
+      mediaStreamRef.current = null;
+      setSessionId(null);
+      setIsConnected(false);
+      setIsStreaming(false);
+      setIsRecording(false);
+      setShowSessionWarning(false);
+      setSessionSecondsLeft(0);
+      clearSessionTimer();
+
+      // pequena pausa antes de permitir nova sessão
+      await new Promise(res => setTimeout(res, 1000));
+
+      toast({
+        title: 'Desconectado',
+        description: 'Streaming encerrado.',
+      });
+
+    } catch (error) {
+      console.error('Error stopping streaming:', error);
+    }
+  };
+
+  const startSessionTimer = (minutes: number) => {
+    const totalSeconds = Math.max(1, Math.round(minutes * 60));
+    const endAt = Date.now() + totalSeconds * 1000;
+    setSessionSecondsLeft(totalSeconds);
+    setShowSessionWarning(false);
+    clearSessionTimer();
+    sessionTimerRef.current = setInterval(() => {
+      const left = Math.max(0, Math.ceil((endAt - Date.now()) / 1000));
+      setSessionSecondsLeft(left);
+      if (left <= WARN_SECONDS && left > 0) {
+        setShowSessionWarning(true);
+      } else if (left > WARN_SECONDS) {
+        setShowSessionWarning(false);
+      }
+      if (left <= 0) {
+        clearSessionTimer();
+        setShowSessionWarning(false);
+        stopStreaming();
+      }
+    }, 1000);
+  };
+
+  const extendSessionTimer = async () => {
+    if (!sessionId) return;
+    try {
+      const keepAliveUrl = buildBackendUrl('/keepalive');
+      if (!keepAliveUrl) return;
+      const resp = await fetch(keepAliveUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Client-Id': clientId,
+          ...(apiToken ? { Authorization: `Bearer ${apiToken}` } : {}),
+        },
+        body: JSON.stringify({ extend_minutes: PREVIEW_SESSION_MIN }),
+      });
+      const data = await resp.json();
+      if (data?.error_code === 'session_inactive') {
+        toast({
+          title: 'Sessão encerrada',
+          description: 'A sessão terminou. Inicie outra para continuar.',
+          variant: 'destructive',
+        });
+        stopStreaming();
+        return;
+      }
+      if (!data?.ok) {
+        throw new Error(data?.error || 'Erro ao estender sessão');
+      }
+      startSessionTimer(PREVIEW_SESSION_MIN);
+      toast({
+        title: 'Sessão estendida',
+        description: 'Mais tempo liberado.',
+      });
+    } catch (error: any) {
+      console.error('Error extending session:', error);
+      toast({
+        title: 'Erro',
+        description: error?.message || 'Erro ao estender sessão',
+        variant: 'destructive',
+      });
+    }
+  };
+
   // Create and start streaming session
   const startStreaming = async () => {
     if (isConnecting) return; // evita múltiplos cliques
@@ -144,6 +318,8 @@ export function AvatarStreamingPreview({
       params.set('avatar_id', avatarId);
       if (language) params.set('language', language);
       if (backstory) params.set('backstory', backstory);
+      params.set('minutes', String(PREVIEW_SESSION_MIN));
+      params.set('client_id', clientId);
       const createUrl = buildBackendUrl(`/new?${params.toString()}`);
       const createResp = await fetch(createUrl, {
         headers: {
@@ -200,6 +376,7 @@ export function AvatarStreamingPreview({
       console.log('Connected to LiveKit room');
 
       setIsConnected(true);
+      startSessionTimer(PREVIEW_SESSION_MIN);
       toast({
         title: 'Conectado!',
         description: 'Streaming do avatar iniciado.',
@@ -217,65 +394,25 @@ export function AvatarStreamingPreview({
     }
   };
 
-  // Stop streaming session
-  const stopStreaming = async () => {
-    try {
-      if (sessionId) {
-        const interruptUrl = buildBackendUrl('/interrupt');
-        if (interruptUrl) {
-          await fetch(interruptUrl, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'X-Client-Id': clientId,
-              ...(apiToken ? { Authorization: `Bearer ${apiToken}` } : {}),
-            },
-            body: JSON.stringify({ session_id: sessionId }),
-          });
-        }
-      }
-      const endUrl = buildBackendUrl('/end');
-      if (endUrl) {
-        await fetch(endUrl, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'X-Client-Id': clientId,
-            ...(apiToken ? { Authorization: `Bearer ${apiToken}` } : {}),
-          },
-        });
-      }
-
-      if (roomRef.current) {
-        roomRef.current.disconnect();
-        roomRef.current = null;
-      }
-
-      if (videoRef.current) {
-        videoRef.current.srcObject = null;
-      }
-
-      mediaStreamRef.current = null;
-      setSessionId(null);
-      setIsConnected(false);
-      setIsStreaming(false);
-
-      // pequena pausa antes de permitir nova sessão
-      await new Promise(res => setTimeout(res, 1000));
-
-      toast({
-        title: 'Desconectado',
-        description: 'Streaming encerrado.',
-      });
-
-    } catch (error) {
-      console.error('Error stopping streaming:', error);
-    }
-  };
-
   // Send text to avatar
-  const sendText = async () => {
-    if (!inputText.trim() || !sessionId) return;
+  const sendText = async (textOverride?: string) => {
+    if (isLiveAvatar) {
+      toast({
+        title: 'Modo voz',
+        description: 'LiveAvatar não suporta envio de texto. Use o microfone.',
+      });
+      return;
+    }
+    const text = (textOverride ?? inputText).trim();
+    if (!text) return;
+    if (!sessionId) {
+      toast({
+        title: 'Sessão não iniciada',
+        description: 'Inicie o preview para falar com o avatar.',
+        variant: 'destructive',
+      });
+      return;
+    }
 
     setIsSending(true);
     try {
@@ -292,8 +429,9 @@ export function AvatarStreamingPreview({
         },
         body: JSON.stringify({
           session_id: sessionId,
-          text: inputText,
+          text,
           avatar_id: avatarId,
+          client_id: clientId,
         }),
       });
       const sayData = await sayResp.json();
@@ -314,16 +452,129 @@ export function AvatarStreamingPreview({
     }
   };
 
+  const startRecording = async () => {
+    if (!sessionId) {
+      toast({
+        title: 'Sessão não iniciada',
+        description: 'Inicie o preview para gravar.',
+        variant: 'destructive',
+      });
+      return;
+    }
+    try {
+      if (isLiveAvatar) {
+        if (!roomRef.current) {
+          throw new Error('Sala LiveKit não conectada.');
+        }
+        if (localAudioTrackRef.current) {
+          return;
+        }
+        const track = await createLocalAudioTrack();
+        await roomRef.current.localParticipant.publishTrack(track);
+        localAudioTrackRef.current = track;
+        setIsRecording(true);
+        return;
+      }
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const recorder = new MediaRecorder(stream);
+      recorderRef.current = recorder;
+      recordChunksRef.current = [];
+
+      recorder.ondataavailable = (event) => {
+        if (event.data?.size) {
+          recordChunksRef.current.push(event.data);
+        }
+      };
+
+      recorder.onstop = async () => {
+        try {
+          const blob = new Blob(recordChunksRef.current, { type: 'audio/webm' });
+          const file = new File([blob], 'audio.webm', { type: 'audio/webm' });
+          const form = new FormData();
+          form.append('audio', file);
+          const sttUrl = buildBackendUrl('/stt');
+          const resp = await fetch(sttUrl, {
+            method: 'POST',
+            headers: {
+              'X-Client-Id': clientId,
+              ...(apiToken ? { Authorization: `Bearer ${apiToken}` } : {}),
+            },
+            body: form,
+          });
+          const data = await resp.json();
+          if (!resp.ok || !data?.ok) {
+            throw new Error(data?.error || 'Erro ao transcrever áudio');
+          }
+          if (data.text && sessionId) {
+            if (isLiveAvatar) {
+              toast({
+                title: 'Modo voz',
+                description: 'LiveAvatar não aceita texto. Fale direto no microfone.',
+              });
+            } else {
+              await sendText(data.text);
+            }
+          }
+        } catch (err) {
+          console.error('STT error:', err);
+          toast({
+            title: 'Erro',
+            description: 'Erro ao transcrever áudio.',
+            variant: 'destructive',
+          });
+        } finally {
+          stream.getTracks().forEach((t) => t.stop());
+        }
+      };
+
+      recorder.start();
+      setIsRecording(true);
+    } catch (err) {
+      console.error('Mic error:', err);
+      toast({
+        title: 'Microfone bloqueado',
+        description: 'Permita o acesso ao microfone para falar.',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const stopRecording = () => {
+    if (isLiveAvatar && localAudioTrackRef.current) {
+      const track = localAudioTrackRef.current;
+      try {
+        roomRef.current?.localParticipant.unpublishTrack(track);
+      } catch {
+        // ignore
+      }
+      track.stop();
+      localAudioTrackRef.current = null;
+      setIsRecording(false);
+      return;
+    }
+    if (recorderRef.current && isRecording) {
+      recorderRef.current.stop();
+      setIsRecording(false);
+    }
+  };
+
   // Cleanup on unmount
   useEffect(() => {
     return () => {
       if (roomRef.current) {
         roomRef.current.disconnect();
       }
+      if (recorderRef.current && recorderRef.current.state !== 'inactive') {
+        recorderRef.current.stop();
+      }
+      clearSessionTimer();
     };
   }, []);
 
   const renderButton = (button: AvatarButton) => {
+    if (isConnected) {
+      return null;
+    }
     const borderClass = BORDER_CONFIG[button.border_style] || 'rounded-lg';
     const paddingX = Math.max(12, Math.round(button.font_size * 0.8));
     const paddingY = Math.max(6, Math.round(button.font_size * 0.4));
@@ -351,6 +602,9 @@ export function AvatarStreamingPreview({
   };
 
   const currentAdUrl = ads.length > 0 ? ads[currentAdIndex]?.media_url : null;
+  const totalSessionSeconds = Math.round(PREVIEW_SESSION_MIN * 60);
+  const elapsedSeconds = Math.max(0, totalSessionSeconds - sessionSecondsLeft);
+  const timerLabel = `⏳ ${formatTimer(elapsedSeconds)} / ${formatTimer(totalSessionSeconds)}`;
 
     return (
     <div className="space-y-4">
@@ -410,6 +664,42 @@ export function AvatarStreamingPreview({
           {buttons.map(renderButton)}
         </div>
 
+        {isConnected && (
+          <>
+            <div className="absolute top-2 left-2 z-20 rounded-full bg-black/70 text-white text-xs px-3 py-1.5 shadow-lg">
+              {timerLabel}
+            </div>
+            <div className="absolute left-4 top-1/2 -translate-y-1/2 z-20 flex flex-col items-center gap-2 pointer-events-auto">
+              <button
+                onClick={isRecording ? stopRecording : startRecording}
+                className={`transition-transform hover:scale-105 ${isRecording ? 'animate-pulse' : ''}`}
+                aria-label={isRecording ? 'Parar gravação' : 'Gravar áudio'}
+              >
+                <span className="flex h-16 w-16 items-center justify-center rounded-full bg-black/70 text-white shadow-2xl ring-2 ring-white/20">
+                  <Mic className="h-7 w-7" />
+                </span>
+              </button>
+              <span className="rounded-full bg-black/70 px-3 py-1 text-xs text-white shadow">
+                {isRecording ? 'Gravando...' : 'Falar'}
+              </span>
+            </div>
+            <div className="absolute right-4 top-1/2 -translate-y-1/2 z-20 flex flex-col items-center gap-2 pointer-events-auto">
+              <button
+                onClick={stopStreaming}
+                className="transition-transform hover:scale-105"
+                aria-label="Encerrar conversa"
+              >
+                <span className="flex h-16 w-16 items-center justify-center rounded-full bg-red-700 text-white shadow-2xl ring-2 ring-white/30">
+                  <span className="text-xs font-bold uppercase tracking-wide">FIM</span>
+                </span>
+              </button>
+              <span className="rounded-full bg-red-600/95 px-3 py-1 text-xs text-white shadow">
+                Encerrar
+              </span>
+            </div>
+          </>
+        )}
+
         {/* Connection status indicator */}
         {isConnected && isStreaming && (
           <div className="absolute top-2 right-2 flex items-center gap-1 bg-green-500/80 text-white text-xs px-2 py-1 rounded">
@@ -440,9 +730,9 @@ export function AvatarStreamingPreview({
           </div>
         ) : (
           <>
-            {/* Start/Stop Button */}
+            {/* Start Button */}
             <div className="flex gap-2">
-              {!isConnected ? (
+              {!isConnected && (
                 <Button 
                   onClick={startStreaming} 
                   disabled={isConnecting}
@@ -455,20 +745,11 @@ export function AvatarStreamingPreview({
                   )}
                   {isConnecting ? 'Conectando...' : 'Iniciar Preview'}
                 </Button>
-              ) : (
-                <Button 
-                  onClick={stopStreaming} 
-                  variant="destructive"
-                  className="flex-1"
-                >
-                  <Square className="h-4 w-4 mr-2" />
-                  Parar Preview
-                </Button>
               )}
             </div>
 
             {/* Text input - only when connected */}
-            {isConnected && (
+            {isConnected && !isLiveAvatar && (
               <div className="flex gap-2">
                 <Input
                   value={inputText}
@@ -490,9 +771,39 @@ export function AvatarStreamingPreview({
                 </Button>
               </div>
             )}
+            {isConnected && isLiveAvatar && (
+              <div className="flex items-center gap-2 p-3 bg-emerald-500/10 border border-emerald-500/30 rounded-lg">
+                <AlertCircle className="h-5 w-5 text-emerald-500 flex-shrink-0" />
+                <p className="text-sm text-emerald-600 dark:text-emerald-400">
+                  LiveAvatar responde apenas por voz. Clique no microfone e fale.
+                </p>
+              </div>
+            )}
           </>
         )}
       </div>
+
+      <Dialog open={showSessionWarning} onOpenChange={() => {}}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-center">Sessão terminando</DialogTitle>
+          </DialogHeader>
+          <div className="text-center space-y-4">
+            <div className="text-5xl font-bold text-primary">{sessionSecondsLeft}s</div>
+            <p className="text-muted-foreground">
+              Sua sessão acaba em {sessionSecondsLeft} segundos. Deseja continuar?
+            </p>
+            <div className="flex items-center justify-center gap-4">
+              <button onClick={stopStreaming} aria-label="Encerrar">
+                <img src={STATIC_ASSETS.end} alt="Encerrar" className="w-28 drop-shadow-lg" />
+              </button>
+              <button onClick={extendSessionTimer} aria-label="Continuar">
+                <img src={STATIC_ASSETS.continue} alt="Continuar" className="w-28 drop-shadow-lg" />
+              </button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

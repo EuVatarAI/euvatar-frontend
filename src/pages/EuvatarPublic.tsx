@@ -7,7 +7,7 @@ import { ScaledIframe } from '@/components/ScaledIframe';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { X, AlertCircle, Maximize, Mic } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { Room, RoomEvent } from 'livekit-client';
+import { Room, RoomEvent, createLocalAudioTrack, LocalAudioTrack } from 'livekit-client';
 
 interface AvatarButton {
   id: string;
@@ -52,6 +52,8 @@ const BORDER_CONFIG = {
 
 const backendUrl = (import.meta.env.VITE_BACKEND_URL as string | undefined) || '';
 const apiToken = (import.meta.env.VITE_APP_API_TOKEN as string | undefined) || '';
+const avatarProvider = (import.meta.env.VITE_AVATAR_PROVIDER as string | undefined) || 'heygen';
+const isLiveAvatar = avatarProvider.toLowerCase() === 'liveavatar';
 const STATIC_ASSETS = {
   talk: '/estatic/fale%20comigo.png',
   micBase: '/estatic/bot%C3%A3o%20limpo.png',
@@ -110,11 +112,34 @@ export default function EuvatarPublic() {
   const audioElsRef = useRef<HTMLAudioElement[]>([]);
   const recorderRef = useRef<MediaRecorder | null>(null);
   const recordChunksRef = useRef<Blob[]>([]);
+  const localAudioTrackRef = useRef<LocalAudioTrack | null>(null);
 
   // Determine aspect ratio based on orientation
   const isVertical = avatar?.avatar_orientation === 'vertical';
   const aspectRatio = isVertical ? '9 / 16' : '16 / 9';
-  const clientId = `public:${id || 'unknown'}`;
+  const maxWidth = isVertical
+    ? 'min(100vw, calc(100vh * 9 / 16))'
+    : 'min(100vw, calc(100vh * 16 / 9))';
+  const maxHeight = isVertical
+    ? 'min(100vh, calc(100vw * 16 / 9))'
+    : 'min(100vh, calc(100vw * 9 / 16))';
+  const clientId = (() => {
+    if (!id) return 'public:unknown';
+    const key = 'euvatar_client_id_public';
+    let stored = '';
+    try {
+      stored = window.localStorage.getItem(key) || '';
+      if (!stored) {
+        stored = (typeof crypto !== 'undefined' && 'randomUUID' in crypto)
+          ? crypto.randomUUID()
+          : `c_${Math.random().toString(36).slice(2)}${Date.now().toString(36)}`;
+        window.localStorage.setItem(key, stored);
+      }
+    } catch {
+      stored = `c_${Math.random().toString(36).slice(2)}${Date.now().toString(36)}`;
+    }
+    return `public:${id}:${stored}`;
+  })();
   const isHolidayAvatar = /papai|noel|santa/i.test(avatar?.name || '');
   const useCornerChat = isHolidayAvatar && !isVertical;
 
@@ -373,6 +398,7 @@ export default function EuvatarPublic() {
         if (avatar?.language) params.set('language', avatar.language);
         if (avatar?.backstory) params.set('backstory', avatar.backstory);
         if (isHolidayAvatar) params.set('quality', 'high');
+        params.set('client_id', clientId);
         const createUrl = buildBackendUrl(`/new?${params.toString()}`);
         const resp = await fetch(createUrl, {
           headers: {
@@ -492,6 +518,13 @@ export default function EuvatarPublic() {
   };
 
   const sendText = async (textOverride?: string) => {
+    if (isLiveAvatar) {
+      toast({
+        title: 'Modo voz',
+        description: 'LiveAvatar não suporta envio de texto. Use o microfone.',
+      });
+      return;
+    }
     const text = (textOverride ?? inputText).trim();
     if (!text) return;
     if (!sessionId) {
@@ -517,6 +550,7 @@ export default function EuvatarPublic() {
           session_id: sessionId,
           text,
           avatar_id: id,
+          client_id: clientId,
         }),
       });
       const sayData = await sayResp.json();
@@ -546,6 +580,19 @@ export default function EuvatarPublic() {
       return;
     }
     try {
+      if (isLiveAvatar) {
+        if (!roomRef.current) {
+          throw new Error('Sala LiveKit não conectada.');
+        }
+        if (localAudioTrackRef.current) {
+          return;
+        }
+        const track = await createLocalAudioTrack();
+        await roomRef.current.localParticipant.publishTrack(track);
+        localAudioTrackRef.current = track;
+        setIsRecording(true);
+        return;
+      }
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       const recorder = new MediaRecorder(stream);
       recorderRef.current = recorder;
@@ -577,7 +624,14 @@ export default function EuvatarPublic() {
             throw new Error(data?.error || 'Erro ao transcrever áudio');
           }
           if (data.text) {
-            await sendText(data.text);
+            if (isLiveAvatar) {
+              toast({
+                title: 'Modo voz',
+                description: 'LiveAvatar não aceita texto. Fale direto no microfone.',
+              });
+            } else {
+              await sendText(data.text);
+            }
           }
         } catch (err) {
           console.error('STT error:', err);
@@ -604,6 +658,18 @@ export default function EuvatarPublic() {
   };
 
   const stopRecording = () => {
+    if (isLiveAvatar && localAudioTrackRef.current) {
+      const track = localAudioTrackRef.current;
+      try {
+        roomRef.current?.localParticipant.unpublishTrack(track);
+      } catch {
+        // ignore
+      }
+      track.stop();
+      localAudioTrackRef.current = null;
+      setIsRecording(false);
+      return;
+    }
     if (recorderRef.current && isRecording) {
       recorderRef.current.stop();
       setIsRecording(false);
@@ -615,6 +681,9 @@ export default function EuvatarPublic() {
   };
 
   const renderButton = (button: AvatarButton) => {
+    if (isConnected) {
+      return null;
+    }
     const borderConfig = BORDER_CONFIG[button.border_style];
     const { paddingX, paddingY } = getPadding(button.font_size);
 
@@ -667,9 +736,9 @@ export default function EuvatarPublic() {
   }
 
   return (
-    <div 
+    <div
       ref={containerRef}
-      className="min-h-screen bg-black flex items-center justify-center overflow-hidden"
+      className="min-h-screen bg-black flex flex-col items-center justify-center gap-6 overflow-hidden"
     >
       {/* Fullscreen button - only show when not in fullscreen */}
       {!isFullscreen && (
@@ -685,21 +754,16 @@ export default function EuvatarPublic() {
       )}
 
       {/* Main experience container - maintains aspect ratio */}
-      <div 
-        className="relative w-full h-full flex items-center justify-center"
-        style={{ 
-          maxWidth: isVertical ? 'calc(100vh * 9 / 16)' : '100%',
-          maxHeight: isVertical ? '100%' : 'calc(100vw * 9 / 16)',
-        }}
+      <div
+        className="relative flex items-center justify-center"
+        style={{ width: maxWidth, height: maxHeight, minWidth: 0, minHeight: 0 }}
       >
         <div
           className="relative bg-black"
           style={{
             aspectRatio,
-            width: isVertical ? 'auto' : '100%',
-            height: isVertical ? '100%' : 'auto',
-            maxWidth: '100%',
-            maxHeight: '100%',
+            width: '100%',
+            height: '100%',
           }}
         >
           {/* Live Video (always mounted) */}
@@ -719,7 +783,7 @@ export default function EuvatarPublic() {
                 ref={videoRef}
                 key={ads.length > 1 ? `ad-${currentAdIndex}` : currentMediaUrl}
                 src={currentMediaUrl}
-                className="absolute inset-0 w-full h-full object-contain"
+                className="absolute inset-0 w-full h-full object-contain object-center"
                 autoPlay
                 loop={ads.length <= 1}
                 muted
@@ -730,7 +794,7 @@ export default function EuvatarPublic() {
               <img
                 src={currentMediaUrl}
                 alt="Mídia de espera"
-                className="absolute inset-0 w-full h-full object-contain"
+                className="absolute inset-0 w-full h-full object-contain object-center"
               />
             )
           ) : (
@@ -744,7 +808,7 @@ export default function EuvatarPublic() {
             <div className="absolute inset-0 z-20 bg-black">
               <video
                 src={buttonVideoUrl}
-                className="w-full h-full object-contain"
+                className="w-full h-full object-contain object-center"
                 autoPlay
                 playsInline
                 onEnded={handleButtonVideoEnd}
@@ -827,41 +891,53 @@ export default function EuvatarPublic() {
       </div>
 
       {/* Text chat */}
-      <div
-        className={
-          useCornerChat
-            ? 'fixed bottom-24 right-5 z-40 w-[min(520px,92vw)] px-3 sm:bottom-28 sm:right-7'
-            : 'w-full max-w-2xl mx-auto px-4 mt-6'
-        }
-      >
+      {!isLiveAvatar && (
         <div
           className={
             useCornerChat
-              ? 'flex items-center gap-2 rounded-full border border-white/10 bg-black/60 px-3 py-2 shadow-2xl backdrop-blur'
-              : 'flex gap-2'
+              ? 'fixed bottom-24 right-5 z-40 w-[min(520px,92vw)] px-3 sm:bottom-28 sm:right-7'
+              : 'w-full max-w-2xl mx-auto px-4 mt-6'
           }
         >
-          <Input
-            value={inputText}
-            onChange={(e) => setInputText(e.target.value)}
-            placeholder="Digite para falar com o avatar..."
-            onKeyDown={(e) => e.key === 'Enter' && sendText()}
-            disabled={isSending || !isConnected}
+          <div
             className={
               useCornerChat
-                ? 'border-0 bg-transparent text-white placeholder:text-white/60 focus-visible:ring-0 focus-visible:ring-offset-0'
-                : undefined
+                ? 'flex items-center gap-2 rounded-full border border-white/10 bg-black/60 px-3 py-2 shadow-2xl backdrop-blur'
+                : 'flex gap-2'
             }
-          />
-          <Button
-            onClick={() => sendText()}
-            disabled={isSending || !inputText.trim() || !isConnected}
-            className={useCornerChat ? 'rounded-full bg-emerald-400/90 text-black hover:bg-emerald-300' : undefined}
           >
-            {isSending ? 'Enviando...' : 'Enviar'}
-          </Button>
+            <Input
+              value={inputText}
+              onChange={(e) => setInputText(e.target.value)}
+              placeholder="Digite para falar com o avatar..."
+              onKeyDown={(e) => e.key === 'Enter' && sendText()}
+              disabled={isSending || !isConnected}
+              className={
+                useCornerChat
+                  ? 'border-0 bg-transparent text-white placeholder:text-white/60 focus-visible:ring-0 focus-visible:ring-offset-0'
+                  : undefined
+              }
+            />
+            <Button
+              onClick={() => sendText()}
+              disabled={isSending || !inputText.trim() || !isConnected}
+              className={useCornerChat ? 'rounded-full bg-emerald-400/90 text-black hover:bg-emerald-300' : undefined}
+            >
+              {isSending ? 'Enviando...' : 'Enviar'}
+            </Button>
+          </div>
         </div>
-      </div>
+      )}
+      {isLiveAvatar && (
+        <div className="w-full max-w-2xl mx-auto px-4 mt-6">
+          <div className="flex items-center gap-2 p-3 bg-emerald-500/10 border border-emerald-500/30 rounded-lg">
+            <AlertCircle className="h-5 w-5 text-emerald-500 flex-shrink-0" />
+            <p className="text-sm text-emerald-600 dark:text-emerald-400">
+              LiveAvatar responde apenas por voz. Clique no microfone e fale.
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* Inactivity Warning Dialog */}
       <Dialog open={showInactivityWarning} onOpenChange={() => {}}>

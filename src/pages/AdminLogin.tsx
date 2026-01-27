@@ -1,49 +1,74 @@
-import { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/hooks/useAuth";
+import { supabase } from "@/integrations/supabase/client";
 import { Eye, EyeOff, Shield } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import euvatarLogo from "@/assets/euvatar-logo-white.png";
 
-const ADMIN_USERNAME = "euvatar";
-const ADMIN_PASSWORD = "B4b4d0@15";
-
 export const AdminLogin = () => {
-  const [username, setUsername] = useState("");
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const { toast } = useToast();
   const navigate = useNavigate();
+  const { user, profile, loading: authLoading, signOut } = useAuth();
 
   useEffect(() => {
-    // Check if already logged in as admin
-    const isAdminLoggedIn = sessionStorage.getItem('adminLoggedIn') === 'true';
-    if (isAdminLoggedIn) {
+    if (authLoading) return;
+    if (user && profile?.role === "admin") {
       navigate('/admin/dashboard');
     }
-  }, [navigate]);
+    if (user && profile && profile.role !== "admin") {
+      signOut();
+      toast({
+        title: "Acesso negado",
+        description: "Sua conta não possui permissão administrativa.",
+        variant: "destructive",
+      });
+    }
+  }, [authLoading, navigate, profile, signOut, toast, user]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
 
     try {
-      if (username === ADMIN_USERNAME && password === ADMIN_PASSWORD) {
-        sessionStorage.setItem('adminLoggedIn', 'true');
-        
-        toast({
-          title: "Login realizado com sucesso!",
-          description: "Bem-vindo ao painel administrativo.",
-        });
-        
-        navigate('/admin/dashboard');
-      } else {
-        throw new Error('Credenciais inválidas.');
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+
+      if (error) throw error;
+      if (!data.user) throw new Error("Usuário inválido.");
+
+      const { data: profileData, error: profileError } = await supabase
+        .from("profiles")
+        .select("role, is_active")
+        .eq("user_id", data.user.id)
+        .single();
+
+      if (profileError || !profileData) {
+        await supabase.auth.signOut();
+        throw new Error("Usuário sem permissão administrativa.");
       }
+
+      if (profileData.role !== "admin" || !profileData.is_active) {
+        await supabase.auth.signOut();
+        throw new Error("Usuário sem permissão administrativa.");
+      }
+
+      toast({
+        title: "Login realizado com sucesso!",
+        description: "Bem-vindo ao painel administrativo.",
+      });
+
+      navigate("/admin/dashboard");
     } catch (error: any) {
       toast({
         title: "Erro no login",
@@ -83,13 +108,13 @@ export const AdminLogin = () => {
 
           <form onSubmit={handleLogin} className="space-y-6">
             <div className="space-y-2">
-              <Label htmlFor="username">Usuário</Label>
+              <Label htmlFor="email">E-mail</Label>
               <Input
-                id="username"
-                type="text"
-                placeholder="Usuário"
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
+                id="email"
+                type="email"
+                placeholder="admin@euvatar.com"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
                 required
                 className="bg-muted border-border"
               />
@@ -105,6 +130,7 @@ export const AdminLogin = () => {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   required
+                  minLength={6}
                   className="bg-muted border-border pr-10"
                 />
                 <button

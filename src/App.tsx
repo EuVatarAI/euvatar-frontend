@@ -37,6 +37,7 @@ const App = () => (
             <Route path="/avatar/:id/sessions" element={<AvatarSessions />} />
             <Route path="/euvatar/:id" element={<EuvatarPublic />} />
             <Route path="/admin" element={<AdminLogin />} />
+            <Route path="/login" element={<AdminLogin />} />
             <Route path="/admin/dashboard" element={<AdminDashboard />} />
             <Route path="/admin/client/:clientId" element={<AdminClientDetails />} />
             {/* Public client routes - must be last to avoid conflicts */}

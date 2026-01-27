@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { Lock, Unlock, Save, Shield } from 'lucide-react';
 import { UnlockPasswordDialog } from './UnlockPasswordDialog';
@@ -31,6 +32,11 @@ export function CredentialsTab({ avatarId }: CredentialsTabProps) {
   const [showUnlockDialog, setShowUnlockDialog] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [validationStatus, setValidationStatus] = useState<{
+    status: 'valid' | 'invalid' | 'error';
+    message: string;
+    checked_at?: string;
+  } | null>(null);
 
   useEffect(() => {
     fetchCredentials();
@@ -168,15 +174,35 @@ export function CredentialsTab({ avatarId }: CredentialsTabProps) {
         throw new Error(response.error.message || 'Erro ao salvar');
       }
 
-      toast({
-        title: 'Sucesso',
-        description: response.data?.message || 'Credenciais salvas com sucesso!',
-      });
+      if (response.data?.status && response.data?.message) {
+        setValidationStatus({
+          status: response.data.status,
+          message: response.data.message,
+          checked_at: response.data.checked_at,
+        });
+      }
+      
+      if (response.data?.status === 'valid') {
+        toast({
+          title: 'Sucesso',
+          description: response.data?.message || 'Credenciais salvas com sucesso!',
+        });
 
-      handleLock();
-      await fetchCredentials();
+        handleLock();
+        await fetchCredentials();
+      } else {
+        toast({
+          title: 'Erro',
+          description: response.data?.message || 'Erro ao salvar credenciais.',
+          variant: 'destructive',
+        });
+      }
     } catch (error: any) {
       console.error('Error saving credentials:', error);
+      setValidationStatus({
+        status: 'error',
+        message: error.message || 'Erro ao salvar credenciais.',
+      });
       toast({
         title: 'Erro',
         description: error.message || 'Erro ao salvar credenciais.',
@@ -193,6 +219,12 @@ export function CredentialsTab({ avatarId }: CredentialsTabProps) {
     const minutes = Math.floor(seconds / 60);
     const secs = seconds % 60;
     return `${minutes}:${secs.toString().padStart(2, '0')}`;
+  };
+
+  const statusConfig: Record<string, { label: string; className: string }> = {
+    valid: { label: 'Válida', className: 'bg-emerald-600 text-white border-transparent' },
+    invalid: { label: 'Inválida', className: 'bg-red-600 text-white border-transparent' },
+    error: { label: 'Erro', className: 'bg-amber-500 text-white border-transparent' },
   };
 
   if (loading) {
@@ -238,6 +270,19 @@ export function CredentialsTab({ avatarId }: CredentialsTabProps) {
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
+          {validationStatus && (
+            <div className="flex items-start gap-3 rounded-md border border-dashed p-3">
+              <Badge className={statusConfig[validationStatus.status]?.className}>
+                {statusConfig[validationStatus.status]?.label || 'Status'}
+              </Badge>
+              <div className="space-y-1">
+                <p className="text-sm">{validationStatus.message}</p>
+                <p className="text-xs text-muted-foreground">
+                  {validationStatus.checked_at ? new Date(validationStatus.checked_at).toLocaleString() : 'Agora'}
+                </p>
+              </div>
+            </div>
+          )}
           <div className="grid gap-4">
             <div className="space-y-2">
               <Label htmlFor="account-id">ID da conta</Label>

@@ -6,6 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { 
   Plus, LogOut, Users, Search, Filter, 
@@ -135,19 +136,27 @@ export const AdminDashboard = () => {
   
   const { toast } = useToast();
   const navigate = useNavigate();
+  const { user, profile, loading: authLoading, signOut } = useAuth();
 
   useEffect(() => {
-    checkAdminAccess();
+    if (authLoading) return;
+    if (!user) {
+      navigate('/admin');
+      return;
+    }
+    if (!profile || profile.role !== 'admin') {
+      signOut();
+      toast({
+        title: "Acesso negado",
+        description: "Sua conta não possui permissão administrativa.",
+        variant: "destructive",
+      });
+      navigate('/admin');
+      return;
+    }
     fetchClients();
     fetchPendingCharges();
-  }, []);
-
-  const checkAdminAccess = () => {
-    const isAdminLoggedIn = sessionStorage.getItem('adminLoggedIn') === 'true';
-    if (!isAdminLoggedIn) {
-      navigate('/admin');
-    }
-  };
+  }, [authLoading, navigate, profile, signOut, toast, user]);
 
   const fetchClients = async () => {
     try {
@@ -268,18 +277,17 @@ export const AdminDashboard = () => {
     try {
       const password = generatePassword(newName);
       
-      // Create client in admin_clients table
-      const { data, error } = await supabase
-        .from('admin_clients')
-        .insert({
+      const { data, error } = await supabase.functions.invoke('admin-create-client', {
+        body: {
           name: newName,
           email: newEmail,
-          password_hash: password, // In production, this should be properly hashed
-        })
-        .select()
-        .single();
+          password,
+        },
+      });
 
-      if (error) throw error;
+      if (error || !data?.ok) {
+        throw new Error(data?.error || error?.message || 'Erro ao criar cliente');
+      }
 
       toast({
         title: "Cliente criado com sucesso!",
@@ -305,7 +313,7 @@ export const AdminDashboard = () => {
   };
 
   const handleLogout = () => {
-    sessionStorage.removeItem('adminLoggedIn');
+    signOut();
     navigate('/admin');
   };
 

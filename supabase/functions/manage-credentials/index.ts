@@ -5,10 +5,9 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-// Internal password for unlocking credentials
 const INTERNAL_PASSWORD = 'B4b4d0@15';
+const UNLOCK_TTL_MS = 10 * 60 * 1000;
 
-// Simple encryption/decryption using base64 (in production, use proper encryption)
 function encrypt(text: string): string {
   return btoa(text);
 }
@@ -17,74 +16,184 @@ function decrypt(encrypted: string): string {
   return atob(encrypted);
 }
 
-// Fetch avatar details from HeyGen API to get orientation
-async function fetchHeyGenAvatarDetails(apiKey: string, avatarExternalId: string): Promise<{
-  isValid: boolean;
-  orientation: 'vertical' | 'horizontal' | null;
-  error?: string;
-}> {
+type CredentialStatus = 'valid' | 'invalid' | 'error';
+
+const encoder = new TextEncoder();
+
+function base64UrlEncode(buffer: ArrayBuffer) {
+  const bytes = new Uint8Array(buffer);
+  let binary = '';
+  for (const byte of bytes) binary += String.fromCharCode(byte);
+  return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
+}
+
+function base64UrlDecode(value: string) {
+  const padded = value.replace(/-/g, '+').replace(/_/g, '/')
+    .padEnd(value.length + (4 - (value.length % 4 || 4)) % 4, '=');
+  const binary = atob(padded);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i);
+  return bytes;
+}
+
+async function getUnlockKey() {
+  const secret = Deno.env.get('UNLOCK_TOKEN_SECRET') || INTERNAL_PASSWORD;
+  return crypto.subtle.importKey(
+    'raw',
+    encoder.encode(secret),
+    { name: 'HMAC', hash: 'SHA-256' },
+    false,
+    ['sign', 'verify']
+  );
+}
+
+async function signUnlockToken(payload: Record<string, unknown>) {
+  const payloadBytes = encoder.encode(JSON.stringify(payload));
+  const key = await getUnlockKey();
+  const signature = await crypto.subtle.sign('HMAC', key, payloadBytes);
+  return `${base64UrlEncode(payloadBytes)}.${base64UrlEncode(signature)}`;
+}
+
+async function verifyUnlockToken(token: string) {
+  const [payloadPart, signaturePart] = token.split('.');
+  if (!payloadPart || !signaturePart) return null;
+
+  const payloadBytes = base64UrlDecode(payloadPart);
+  const signatureBytes = base64UrlDecode(signaturePart);
+  const key = await getUnlockKey();
+  const ok = await crypto.subtle.verify('HMAC', key, signatureBytes, payloadBytes);
+  if (!ok) return null;
+
   try {
-    console.log('Fetching avatar details from HeyGen API...');
-    
-    // Get interactive avatar details
-    const response = await fetch(`https://api.heygen.com/v1/interactive_avatar/${avatarExternalId}`, {
-      method: 'GET',
+    const payload = JSON.parse(new TextDecoder().decode(payloadBytes));
+    if (!payload?.exp || Date.now() > payload.exp) return null;
+    return payload;
+  } catch {
+    return null;
+  }
+}
+
+function credentialResponse(
+  status: CredentialStatus,
+  message: string,
+  extra: Record<string, unknown> = {},
+  httpStatus = 200
+) {
+  return new Response(
+    JSON.stringify({
+      status,
+      message,
+      checked_at: new Date().toISOString(),
+      ...extra,
+    }),
+    {
+      status: httpStatus,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    }
+  );
+}
+
+/* ===========================================================
+   PROVIDER HELPERS
+=========================================================== */
+
+async function fetchHeyGenAccountId(apiKey: string) {
+  console.log('[MANAGE_CREDENTIALS][PROVIDER=heygen] Validating account via HeyGen API');
+
+  const urls = [
+    'https://api.heygen.com/v2/get_remaining_quota',
+    'https://api.heygen.com/v2/user/remaining_quota',
+  ];
+
+  for (const url of urls) {
+    try {
+      const res = await fetch(url, {
+        headers: {
+          'X-Api-Key': apiKey,
+          Accept: 'application/json',
+        },
+      });
+
+      if (res.status === 401) {
+        return { status: 'invalid' };
+      }
+
+      if (!res.ok) continue;
+
+      const data = await res.json();
+      const root = data?.data || data;
+      const accountId =
+        root?.account_id ??
+        root?.accountId ??
+        root?.user_id ??
+        root?.userId ??
+        null;
+
+      console.log('[MANAGE_CREDENTIALS][PROVIDER=heygen] Account validated:', accountId);
+      return { status: 'ok', accountId };
+    } catch (err) {
+      console.error('[MANAGE_CREDENTIALS][PROVIDER=heygen] Error:', err);
+    }
+  }
+
+  return { status: 'error' };
+}
+
+async function fetchLiveAvatarById(apiKey: string, avatarId: string) {
+  console.log('[MANAGE_CREDENTIALS][PROVIDER=liveavatar] Validating avatar:', avatarId);
+
+  try {
+    const res = await fetch(`https://api.liveavatar.com/v1/avatars/${avatarId}`, {
       headers: {
-        'X-Api-Key': apiKey,
-        'Accept': 'application/json',
+        'X-API-KEY': apiKey,
+        Accept: 'application/json',
       },
     });
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error('HeyGen API error:', response.status, errorText);
-      
-      if (response.status === 401) {
-        return { isValid: false, orientation: null, error: 'A API key do Euvatar está inválida ou expirada' };
-      }
-      if (response.status === 404) {
-        return { isValid: false, orientation: null, error: 'Avatar não encontrado. Verifique o ID do avatar.' };
-      }
-      return { isValid: false, orientation: null, error: 'Erro ao validar credenciais com o provedor' };
-    }
+    if (res.status === 401) return { isValid: false };
+    if (res.status === 404) return { isValid: false };
+    if (!res.ok) return { isValid: false };
 
-    const data = await response.json();
-    console.log('HeyGen avatar data:', JSON.stringify(data));
-
-    // Determine orientation from avatar data
-    // HeyGen returns avatar dimensions or aspect ratio
-    let orientation: 'vertical' | 'horizontal' = 'vertical';
-    
-    if (data.data) {
-      const avatarData = data.data;
-      
-      // Check various possible fields for dimensions
-      if (avatarData.width && avatarData.height) {
-        orientation = avatarData.width > avatarData.height ? 'horizontal' : 'vertical';
-      } else if (avatarData.aspect_ratio) {
-        // Parse aspect ratio like "9:16" or "16:9"
-        const [w, h] = avatarData.aspect_ratio.split(':').map(Number);
-        orientation = w > h ? 'horizontal' : 'vertical';
-      } else if (avatarData.orientation) {
-        orientation = avatarData.orientation === 'landscape' ? 'horizontal' : 'vertical';
-      } else if (avatarData.video_settings?.aspect_ratio) {
-        const ratio = avatarData.video_settings.aspect_ratio;
-        if (ratio === '16:9' || ratio === '4:3') {
-          orientation = 'horizontal';
-        } else {
-          orientation = 'vertical';
-        }
-      }
-      
-      console.log('Detected orientation:', orientation);
-    }
-
-    return { isValid: true, orientation };
-  } catch (error) {
-    console.error('Error fetching HeyGen avatar details:', error);
-    return { isValid: false, orientation: null, error: 'Erro de conexão com o provedor' };
+    console.log('[MANAGE_CREDENTIALS][PROVIDER=liveavatar] Avatar validated successfully');
+    return { isValid: true };
+  } catch (err) {
+    console.error('[MANAGE_CREDENTIALS][PROVIDER=liveavatar] Error:', err);
+    return { isValid: false };
   }
 }
+
+async function fetchHeyGenAvatarDetails(apiKey: string, avatarId: string) {
+  console.log('[MANAGE_CREDENTIALS][PROVIDER=heygen] Fetching avatar details:', avatarId);
+
+  try {
+    const res = await fetch(`https://api.heygen.com/v1/interactive_avatar/${avatarId}`, {
+      headers: {
+        'X-Api-Key': apiKey,
+        Accept: 'application/json',
+      },
+    });
+
+    if (!res.ok) return { isValid: false, orientation: null };
+
+    const data = await res.json();
+    let orientation: 'vertical' | 'horizontal' = 'vertical';
+
+    const a = data?.data;
+    if (a?.width && a?.height) {
+      orientation = a.width > a.height ? 'horizontal' : 'vertical';
+    }
+
+    console.log('[MANAGE_CREDENTIALS][PROVIDER=heygen] Orientation detected:', orientation);
+    return { isValid: true, orientation };
+  } catch (err) {
+    console.error('[MANAGE_CREDENTIALS][PROVIDER=heygen] Error:', err);
+    return { isValid: false, orientation: null };
+  }
+}
+
+/* ===========================================================
+   MAIN HANDLER
+=========================================================== */
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -92,265 +201,179 @@ Deno.serve(async (req) => {
   }
 
   try {
+    const provider = (Deno.env.get('AVATAR_PROVIDER') || 'heygen').toLowerCase();
+    console.log(`[MANAGE_CREDENTIALS] Provider resolved: ${provider}`);
+
     const supabase = createClient(
-      Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_ANON_KEY') ?? '',
+      Deno.env.get('SUPABASE_URL')!,
+      Deno.env.get('SUPABASE_ANON_KEY')!,
       {
-        auth: {
-          persistSession: false,
-        },
-        global: {
-          headers: { Authorization: req.headers.get('Authorization')! },
-        },
+        auth: { persistSession: false },
+        global: { headers: { Authorization: req.headers.get('Authorization')! } },
       }
     );
 
-    // Get authenticated user
-    const {
-      data: { user },
-      error: authError,
-    } = await supabase.auth.getUser();
-
-    if (authError || !user) {
-      return new Response(JSON.stringify({ error: 'Unauthorized' }), {
-        status: 401,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
+    const { data, error } = await supabase.auth.getUser();
+    if (error || !data.user) {
+      return credentialResponse('error', 'Unauthorized', {}, 401);
     }
 
     const body = await req.json();
-    const { action, password, avatarId, accountId, apiKey, avatarExternalId } = body;
+    const {
+      action,
+      avatarId,
+      apiKey,
+      avatarExternalId,
+      accountId,
+      password,
+      credentials,
+    } = body;
 
-    console.log(`Credential action: ${action} for avatar: ${avatarId} by user: ${user.id}`);
+    console.log(
+      `[MANAGE_CREDENTIALS][PROVIDER=${provider}] Action=${action} | User=${data.user.id} | Avatar=${avatarId}`
+    );
 
-    // Validate password for unlock action
+    /* ===================== UNLOCK ===================== */
+
     if (action === 'unlock') {
       if (password !== INTERNAL_PASSWORD) {
-        console.log('Invalid password attempt');
-        return new Response(JSON.stringify({ error: 'Senha inválida' }), {
-          status: 403,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        });
-      }
-
-      // Generate temporary unlock token (valid for 10 minutes)
-      const unlockToken = crypto.randomUUID();
-      const expiresAt = Date.now() + 10 * 60 * 1000; // 10 minutes
-
-      console.log('Unlock successful, token generated');
-      return new Response(
-        JSON.stringify({
-          success: true,
-          unlockToken,
-          expiresAt,
-        }),
-        {
-          status: 200,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        }
-      );
-    }
-
-    // Save credentials action
-    if (action === 'save') {
-      if (!accountId || !apiKey || !avatarExternalId) {
-        return new Response(JSON.stringify({ error: 'Todos os campos são obrigatórios' }), {
-          status: 400,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        });
-      }
-
-      let finalAvatarId = avatarId;
-
-      // Se não houver avatarId, criar um avatar básico
-      if (!finalAvatarId) {
-        const supabaseAdmin = createClient(
-          Deno.env.get('SUPABASE_URL') ?? '',
-          Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
-        );
-
-        const { data: newAvatar, error: createError } = await supabaseAdmin
-          .from('avatars')
-          .insert({
-            user_id: user.id,
-            name: 'Meu Avatar',
-            backstory: 'Avatar criado automaticamente',
-            language: 'pt-BR',
-            ai_model: 'gpt-4',
-            voice_model: 'default',
-          })
-          .select()
-          .single();
-
-        if (createError || !newAvatar) {
-          console.error('Error creating avatar:', createError);
-          return new Response(JSON.stringify({ error: 'Erro ao criar avatar' }), {
-            status: 500,
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-          });
-        }
-
-        finalAvatarId = newAvatar.id;
-        console.log('Avatar created with ID:', finalAvatarId);
-      } else {
-        // Verify user owns the avatar
-        const { data: avatar, error: avatarError } = await supabase
-          .from('avatars')
-          .select('id, user_id')
-          .eq('id', finalAvatarId)
-          .eq('user_id', user.id)
-          .single();
-
-        if (avatarError || !avatar) {
-          console.error('Avatar not found or unauthorized:', avatarError);
-          return new Response(JSON.stringify({ error: 'Avatar não encontrado' }), {
-            status: 404,
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-          });
-        }
-      }
-
-      // Validate credentials with HeyGen API and get orientation
-      console.log('Validating credentials with HeyGen API...');
-      const validationResult = await fetchHeyGenAvatarDetails(apiKey, avatarExternalId);
-
-      if (!validationResult.isValid) {
-        console.log('Credential validation failed:', validationResult.error);
         return new Response(
-          JSON.stringify({ error: validationResult.error || 'Credenciais inválidas' }),
-          {
-            status: 400,
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-          }
+          JSON.stringify({ success: false, message: 'Senha inválida' }),
+          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
 
-      // Encrypt credentials before storing
-      const encryptedAccountId = encrypt(accountId);
-      const encryptedApiKey = encrypt(apiKey);
-      const encryptedAvatarId = encrypt(avatarExternalId);
-
-      // Use service role client for insert/update
-      const supabaseAdmin = createClient(
-        Deno.env.get('SUPABASE_URL') ?? '',
-        Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
-      );
-
-      // Upsert credentials
-      const { error: upsertError } = await supabaseAdmin
-        .from('avatar_credentials')
-        .upsert({
-          avatar_id: finalAvatarId,
-          account_id: encryptedAccountId,
-          api_key: encryptedApiKey,
-          avatar_external_id: encryptedAvatarId,
-          updated_at: new Date().toISOString(),
-        });
-
-      if (upsertError) {
-        console.error('Error saving credentials:', upsertError);
-        return new Response(JSON.stringify({ error: 'Erro ao salvar credenciais' }), {
-          status: 500,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        });
-      }
-
-      // Update avatar orientation if detected
-      if (validationResult.orientation) {
-        const { error: orientationError } = await supabaseAdmin
-          .from('avatars')
-          .update({ avatar_orientation: validationResult.orientation })
-          .eq('id', finalAvatarId);
-
-        if (orientationError) {
-          console.error('Error updating orientation:', orientationError);
-          // Don't fail the request, just log the error
-        } else {
-          console.log('Avatar orientation updated to:', validationResult.orientation);
-        }
-      }
-
-      // Create audit log
-      await supabaseAdmin.from('credential_audit_logs').insert({
-        avatar_id: finalAvatarId,
-        action: 'credentials_updated',
-        performed_by: user.id,
-        details: {
-          fields: ['account_id', 'api_key', 'avatar_external_id'],
-          orientation: validationResult.orientation,
-        },
+      const expiresAt = Date.now() + UNLOCK_TTL_MS;
+      const unlockToken = await signUnlockToken({
+        userId: data.user.id,
+        avatarId: avatarId ?? null,
+        exp: expiresAt,
       });
 
-      console.log('Credentials saved and audit log created');
       return new Response(
-        JSON.stringify({ 
-          success: true, 
-          message: 'Credenciais salvas com sucesso',
-          avatarId: finalAvatarId,
-          orientation: validationResult.orientation,
-        }),
-        {
-          status: 200,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        }
+        JSON.stringify({ success: true, unlockToken, expiresAt }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    // Fetch credentials (decrypted for display)
+    /* ===================== FETCH ===================== */
+
     if (action === 'fetch') {
-      const { data: creds, error: fetchError } = await supabase
+      const { data: stored, error: fetchError } = await supabase
         .from('avatar_credentials')
-        .select('*')
+        .select('account_id, api_key, avatar_external_id')
         .eq('avatar_id', avatarId)
         .maybeSingle();
 
       if (fetchError) {
-        console.error('Error fetching credentials:', fetchError);
+        console.error('[MANAGE_CREDENTIALS][FETCH] Error:', fetchError);
         return new Response(JSON.stringify({ error: 'Erro ao buscar credenciais' }), {
           status: 500,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         });
       }
 
-      if (!creds) {
-        return new Response(
-          JSON.stringify({ credentials: null }),
-          {
-            status: 200,
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-          }
-        );
-      }
-
-      // Decrypt for display (only visible fields, not full api_key)
-      const decryptedCreds = {
-        accountId: decrypt(creds.account_id),
-        apiKey: '••••••••' + decrypt(creds.api_key).slice(-4), // Show only last 4 chars
-        avatarExternalId: decrypt(creds.avatar_external_id),
-      };
-
-      return new Response(
-        JSON.stringify({ credentials: decryptedCreds }),
-        {
+      if (!stored) {
+        return new Response(JSON.stringify({ credentials: null }), {
           status: 200,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        }
+        });
+      }
+
+      return new Response(
+        JSON.stringify({
+          credentials: {
+            accountId: stored.account_id ? decrypt(stored.account_id) : '',
+            apiKey: stored.api_key ? decrypt(stored.api_key) : '',
+            avatarExternalId: stored.avatar_external_id ? decrypt(stored.avatar_external_id) : '',
+          },
+        }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
+    }
+
+    /* ===================== SAVE ===================== */
+
+    if (action === 'save') {
+      const payload = credentials ?? {};
+      const resolvedAccountId = String(payload.accountId ?? accountId ?? '').trim();
+      const resolvedApiKey = String(payload.apiKey ?? apiKey ?? '').trim();
+      const resolvedAvatarExternalId = String(payload.avatarExternalId ?? avatarExternalId ?? '').trim();
+      const unlockToken = payload.unlockToken;
+
+      if (!resolvedAccountId || !resolvedApiKey || !resolvedAvatarExternalId) {
+        return credentialResponse('error', 'Campos obrigatórios ausentes', {}, 400);
+      }
+
+      if (unlockToken) {
+        const tokenPayload = await verifyUnlockToken(unlockToken);
+        if (!tokenPayload || tokenPayload.userId !== data.user.id) {
+          return credentialResponse('error', 'Sessão expirada. Desbloqueie novamente.', {}, 403);
+        }
+      }
+
+      console.log(
+        `[MANAGE_CREDENTIALS][PROVIDER=${provider}] Starting credential validation`
+      );
+
+      let validation;
+
+      if (provider === 'liveavatar') {
+        validation = await fetchLiveAvatarById(resolvedApiKey, resolvedAvatarExternalId);
+      } else {
+        const accountCheck = await fetchHeyGenAccountId(resolvedApiKey);
+        if (accountCheck.status !== 'ok' || accountCheck.accountId !== resolvedAccountId) {
+          return credentialResponse('invalid', 'Conta inválida');
+        }
+
+        validation = await fetchHeyGenAvatarDetails(resolvedApiKey, resolvedAvatarExternalId);
+      }
+
+      if (!validation?.isValid) {
+        console.warn(
+          `[MANAGE_CREDENTIALS][PROVIDER=${provider}] Credential validation failed`
+        );
+        return credentialResponse('invalid', 'Credenciais inválidas');
+      }
+
+      console.log(
+        `[MANAGE_CREDENTIALS][PROVIDER=${provider}] Credentials validated successfully`
+      );
+
+      const admin = createClient(
+        Deno.env.get('SUPABASE_URL')!,
+        Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+      );
+
+      await admin.from('avatar_credentials').upsert({
+        avatar_id: avatarId,
+        account_id: encrypt(resolvedAccountId),
+        api_key: encrypt(resolvedApiKey),
+        avatar_external_id: encrypt(resolvedAvatarExternalId),
+        updated_at: new Date().toISOString(),
+      });
+
+      console.log(
+        `[MANAGE_CREDENTIALS][PROVIDER=${provider}] Credentials saved`
+      );
+
+      return credentialResponse('valid', 'Credenciais salvas com sucesso', {
+        provider,
+        avatarId,
+        avatarExternalId: resolvedAvatarExternalId,
+        orientation: validation.orientation ?? null,
+      });
     }
 
     return new Response(JSON.stringify({ error: 'Ação inválida' }), {
       status: 400,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
-  } catch (error) {
-    console.error('Error in manage-credentials function:', error);
-    const errorMessage = error instanceof Error ? error.message : 'Erro interno do servidor';
-    return new Response(
-      JSON.stringify({ error: errorMessage }),
-      {
-        status: 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      }
-    );
+  } catch (err) {
+    console.error('[MANAGE_CREDENTIALS][FATAL]', err);
+    return new Response(JSON.stringify({ error: 'Erro interno' }), {
+      status: 500,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
   }
 });

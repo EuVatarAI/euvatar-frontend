@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
@@ -21,6 +21,7 @@ interface MediaTrigger {
 
 const CreateAvatar = () => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { user } = useAuth();
   const { toast } = useToast();
   const [creating, setCreating] = useState(false);
@@ -165,7 +166,12 @@ const CreateAvatar = () => {
         description: 'Euvatar criado com sucesso!',
       });
 
-      navigate(`/avatar/${avatarData.id}`);
+      const next = searchParams.get('next');
+      if (next === 'configure') {
+        navigate(`/configure-credentials?avatarId=${avatarData.id}`);
+      } else {
+        navigate(`/avatar/${avatarData.id}`);
+      }
     } catch (error: any) {
       console.error('Error creating avatar:', error);
       toast({
