@@ -330,7 +330,11 @@ export function AvatarStreamingPreview({
       });
       const createData = await createResp.json();
       if (!createResp.ok || !createData?.ok) {
-        throw new Error(createData?.error || 'Erro ao criar sessão');
+        const errText = String(createData?.error || 'Erro ao criar sessão');
+        if (/missing_api_key_for_client/i.test(errText)) {
+          throw new Error('Nenhuma API key configurada para este cliente. Cadastre as credenciais do euvatar.');
+        }
+        throw new Error(errText);
       }
 
       const session = {

@@ -10,6 +10,7 @@ export type AvatarHeyGenUsage = {
 
 export type HeyGenCredits = {
   error?: string;
+  missingApiKey?: boolean;
   needsCredentialUpdate?: boolean;
   euvatarCredits: number;
   heygenCredits: number;
@@ -45,15 +46,20 @@ export async function fetchBackendCredits(): Promise<HeyGenCredits | null> {
     const data = await resp.json();
 
     if (data?.error && !data?.euvatarCredits) {
-      return data as HeyGenCredits;
+      const errorText = String(data?.error || '');
+      const missingApiKey = /missing_api_key/i.test(errorText);
+      return { ...data, missingApiKey } as HeyGenCredits;
     }
 
     const remaining = Number(data?.euvatarCredits ?? 0);
     const total = Number(data?.totalEuvatarCredits ?? remaining);
     const percentage = total > 0 ? Math.round((remaining / total) * 100) : 0;
 
+    const errorText = String(data?.error || '');
+    const missingApiKey = /missing_api_key/i.test(errorText);
     return {
       ...data,
+      missingApiKey,
       percentageRemaining: percentage,
     } as HeyGenCredits;
   } catch (err) {

@@ -214,7 +214,8 @@ const Dashboard = () => {
   const usedCredits = Math.max(0, totalCredits - remainingCredits);
   const usedMinutes = Math.max(0, totalMinutes - minutesRemaining);
   const hoursRemaining = minutesRemaining / 60;
-  const hasCredentialsConfigured = !heygenCredits?.error;
+  const missingApiKey = Boolean(heygenCredits?.missingApiKey);
+  const hasCredentialsConfigured = !heygenCredits?.error && !missingApiKey;
   const needsCredentialUpdate = heygenCredits?.needsCredentialUpdate;
 
   const formatTime = (minutes: number) => {
@@ -278,7 +279,12 @@ const Dashboard = () => {
                   ⚠️ A API key do Euvatar está inválida ou expirada. Atualize na aba Credenciais do euvatar.
                 </p>
               )}
-              {!hasCredentialsConfigured && !needsCredentialUpdate && (
+              {missingApiKey && (
+                <p className="text-xs text-red-600 font-medium">
+                  ❌ Nenhuma API key configurada para este cliente. Cadastre as credenciais do euvatar para liberar o uso.
+                </p>
+              )}
+              {!hasCredentialsConfigured && !needsCredentialUpdate && !missingApiKey && (
                 <p className="text-xs text-yellow-600">
                   Configure as credenciais do euvatar para ver os créditos em tempo real.
                 </p>

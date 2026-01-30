@@ -4,6 +4,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "@/hooks/useAuth";
+import { AdminAuthProvider } from "@/hooks/useAdminAuth";
 import Index from "./pages/Index";
 import AvatarsManagement from "./pages/AvatarsManagement";
 import AvatarDetails from "./pages/AvatarDetails";
@@ -36,10 +37,38 @@ const App = () => (
             <Route path="/avatar/:id/settings" element={<AvatarSettings />} />
             <Route path="/avatar/:id/sessions" element={<AvatarSessions />} />
             <Route path="/euvatar/:id" element={<EuvatarPublic />} />
-            <Route path="/admin" element={<AdminLogin />} />
-            <Route path="/login" element={<AdminLogin />} />
-            <Route path="/admin/dashboard" element={<AdminDashboard />} />
-            <Route path="/admin/client/:clientId" element={<AdminClientDetails />} />
+            <Route
+              path="/admin"
+              element={
+                <AdminAuthProvider>
+                  <AdminLogin />
+                </AdminAuthProvider>
+              }
+            />
+            <Route
+              path="/login"
+              element={
+                <AdminAuthProvider>
+                  <AdminLogin />
+                </AdminAuthProvider>
+              }
+            />
+            <Route
+              path="/admin/dashboard"
+              element={
+                <AdminAuthProvider>
+                  <AdminDashboard />
+                </AdminAuthProvider>
+              }
+            />
+            <Route
+              path="/admin/client/:clientId"
+              element={
+                <AdminAuthProvider>
+                  <AdminClientDetails />
+                </AdminAuthProvider>
+              }
+            />
             {/* Public client routes - must be last to avoid conflicts */}
             <Route path="/:orgSlug" element={<ClientPortal />} />
             <Route path="/:orgSlug/:avatarSlug" element={<ClientPortal />} />

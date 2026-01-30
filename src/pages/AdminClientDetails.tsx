@@ -7,8 +7,8 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
-import { useAuth } from "@/hooks/useAuth";
-import { supabase } from "@/integrations/supabase/client";
+import { useAdminAuth } from "@/hooks/useAdminAuth";
+import { supabaseAdmin } from "@/integrations/supabase/adminClient";
 import { 
   ArrowLeft, Save, Loader2, CreditCard, Key, Users, 
   Clock, CheckCircle2, AlertCircle, Plus, ExternalLink,
@@ -46,6 +46,7 @@ interface AdminClient {
   name: string;
   email: string;
   password_hash: string;
+  user_id?: string | null;
   client_url: string | null;
   modality: 'evento' | 'plano_trimestral' | null;
   current_plan: 'plano_4h' | 'plano_7h' | 'plano_20h' | null;
@@ -72,7 +73,6 @@ interface ClientAvatar {
   id: string;
   name: string;
   avatar_url: string | null;
-  heygen_avatar_id: string | null;
   credits_used: number;
   created_at: string;
   updated_at?: string;
@@ -147,29 +147,34 @@ export const AdminClientDetails = () => {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [showApiKey, setShowApiKey] = useState(false);
+  const [clientUserId, setClientUserId] = useState<string>("");
   
   // Editable fields
   const [clientUrl, setClientUrl] = useState("");
   const [modality, setModality] = useState<string>("");
   const [currentPlan, setCurrentPlan] = useState<string>("");
-  const [heygenApiKey, setHeygenApiKey] = useState("");
-  const [heygenAvatarId, setHeygenAvatarId] = useState("");
-  const [heygenInteractiveAvatarId, setHeygenInteractiveAvatarId] = useState("");
   const [planStartDate, setPlanStartDate] = useState("");
+
+  // Credentials (admin)
+  const [selectedAvatarId, setSelectedAvatarId] = useState("");
+  const [credLocked, setCredLocked] = useState(true);
+  const [credSaving, setCredSaving] = useState(false);
+  const [credStatus, setCredStatus] = useState<'idle' | 'valid' | 'invalid' | 'error'>('idle');
+  const [credMessage, setCredMessage] = useState("");
+  const [credentials, setCredentials] = useState({
+    accountId: "",
+    apiKey: "",
+    avatarExternalId: "",
+  });
   
   // Add avatar dialog
   const [isAddAvatarOpen, setIsAddAvatarOpen] = useState(false);
   const [newAvatarName, setNewAvatarName] = useState("");
   const [newAvatarUrl, setNewAvatarUrl] = useState("");
-  const [newAvatarHeygenId, setNewAvatarHeygenId] = useState("");
-  
-  // Edit avatar dialog
-  const [editingAvatar, setEditingAvatar] = useState<ClientAvatar | null>(null);
-  const [editAvatarHeygenId, setEditAvatarHeygenId] = useState("");
   
   const { toast } = useToast();
   const navigate = useNavigate();
-  const { user, profile, loading: authLoading, signOut } = useAuth();
+  const { user, profile, loading: authLoading, signOut } = useAdminAuth();
 
   useEffect(() => {
     if (authLoading) return;
@@ -192,10 +197,15 @@ export const AdminClientDetails = () => {
     }
   }, [authLoading, clientId, navigate, profile, signOut, toast, user]);
 
+  useEffect(() => {
+    if (!selectedAvatarId) return;
+    fetchCredentials(selectedAvatarId);
+  }, [selectedAvatarId]);
+
   const fetchClientData = async () => {
     try {
       // Fetch client
-      const { data: clientData, error: clientError } = await supabase
+      const { data: clientData, error: clientError } = await supabaseAdmin
         .from('admin_clients')
         .select('*')
         .eq('id', clientId)
@@ -207,22 +217,46 @@ export const AdminClientDetails = () => {
       setClientUrl(clientData.client_url || "");
       setModality(clientData.modality || "");
       setCurrentPlan(clientData.current_plan || "");
-      setHeygenApiKey(clientData.heygen_api_key || "");
-      setHeygenAvatarId(clientData.heygen_avatar_id || "");
-      setHeygenInteractiveAvatarId(clientData.heygen_interactive_avatar_id || "");
       setPlanStartDate(clientData.plan_start_date || "");
 
-      // Fetch avatars
-      const { data: avatarsData } = await supabase
-        .from('client_avatars')
-        .select('*')
-        .eq('client_id', clientId)
-        .order('created_at', { ascending: false });
-      
-      setAvatars(avatarsData || []);
+      // Resolve client user_id (auth user) to use avatars table
+      let resolvedUserId = clientData.user_id || "";
+      if (!resolvedUserId && clientData.email) {
+        const { data: profileData } = await supabaseAdmin
+          .from('profiles')
+          .select('user_id')
+          .eq('email', clientData.email)
+          .maybeSingle();
+        resolvedUserId = profileData?.user_id || "";
+      }
+      setClientUserId(resolvedUserId);
+
+      // Fetch avatars (source of truth)
+      if (resolvedUserId) {
+        const { data: avatarsData } = await supabaseAdmin
+          .from('avatars')
+          .select('id, name, cover_image_url, created_at, updated_at')
+          .eq('user_id', resolvedUserId)
+          .order('created_at', { ascending: false });
+
+        const mapped = (avatarsData || []).map(a => ({
+          id: a.id,
+          name: a.name,
+          avatar_url: a.cover_image_url,
+          credits_used: 0,
+          created_at: a.created_at,
+          updated_at: a.updated_at || undefined,
+        }));
+        setAvatars(mapped);
+        if (!selectedAvatarId && mapped.length > 0) {
+          setSelectedAvatarId(mapped[0].id);
+        }
+      } else {
+        setAvatars([]);
+      }
 
       // Fetch payments
-      const { data: paymentsData } = await supabase
+      const { data: paymentsData } = await supabaseAdmin
         .from('client_payments')
         .select('*')
         .eq('client_id', clientId)
@@ -231,7 +265,7 @@ export const AdminClientDetails = () => {
       setPayments(paymentsData || []);
 
       // Fetch event additions
-      const { data: additionsData } = await supabase
+      const { data: additionsData } = await supabaseAdmin
         .from('client_event_additions')
         .select('*')
         .eq('client_id', clientId)
@@ -252,6 +286,80 @@ export const AdminClientDetails = () => {
     }
   };
 
+  const fetchCredentials = async (avatarId: string) => {
+    if (!avatarId) return;
+    try {
+      const { data, error } = await supabaseAdmin.functions.invoke('manage-credentials', {
+        body: { action: 'fetch', avatarId },
+      });
+      if (error) throw error;
+      if (data?.credentials) {
+        setCredentials({
+          accountId: data.credentials.accountId || "",
+          apiKey: data.credentials.apiKey || "",
+          avatarExternalId: data.credentials.avatarExternalId || "",
+        });
+      } else {
+        setCredentials({ accountId: "", apiKey: "", avatarExternalId: "" });
+      }
+      setCredLocked(true);
+      setCredStatus('idle');
+      setCredMessage("");
+    } catch (error: any) {
+      console.error('Error fetching credentials:', error);
+      toast({
+        title: "Erro ao carregar credenciais",
+        description: error.message || "Tente novamente.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleSaveCredentials = async () => {
+    if (!selectedAvatarId) return;
+    setCredSaving(true);
+    setCredStatus('idle');
+    setCredMessage("");
+
+    try {
+      const { data, error } = await supabaseAdmin.functions.invoke('manage-credentials', {
+        body: {
+          action: 'save',
+          avatarId: selectedAvatarId,
+          credentials: {
+            accountId: credentials.accountId,
+            apiKey: credentials.apiKey,
+            avatarExternalId: credentials.avatarExternalId,
+          },
+        },
+      });
+      if (error) throw error;
+      if (data?.status !== 'valid') {
+        setCredStatus('invalid');
+        setCredMessage(data?.message || "Credenciais inválidas.");
+        throw new Error(data?.message || "Credenciais inválidas.");
+      }
+
+      setCredLocked(true);
+      setCredStatus('valid');
+      setCredMessage("Credenciais salvas com sucesso.");
+      toast({
+        title: "Credenciais salvas",
+        description: "As credenciais foram persistidas no sistema.",
+      });
+    } catch (error: any) {
+      setCredStatus('error');
+      setCredMessage(error.message || "Erro ao salvar credenciais.");
+      toast({
+        title: "Erro ao salvar credenciais",
+        description: error.message || "Tente novamente.",
+        variant: "destructive",
+      });
+    } finally {
+      setCredSaving(false);
+    }
+  };
+
   const handleSaveClient = async () => {
     if (!client) return;
     setSaving(true);
@@ -265,15 +373,12 @@ export const AdminClientDetails = () => {
         expirationDate = start.toISOString().split('T')[0];
       }
 
-      const { error } = await supabase
+      const { error } = await supabaseAdmin
         .from('admin_clients')
         .update({
           client_url: clientUrl || null,
           modality: (modality || null) as 'evento' | 'plano_trimestral' | null,
           current_plan: (currentPlan || null) as 'plano_4h' | 'plano_7h' | 'plano_20h' | null,
-          heygen_api_key: heygenApiKey || null,
-          heygen_avatar_id: heygenAvatarId || null,
-          heygen_interactive_avatar_id: heygenInteractiveAvatarId || null,
           plan_start_date: planStartDate || null,
           plan_expiration_date: expirationDate,
         })
@@ -283,7 +388,7 @@ export const AdminClientDetails = () => {
 
       // Log URL change if changed
       if (clientUrl !== client.client_url) {
-        await supabase.from('client_url_history').insert({
+        await supabaseAdmin.from('client_url_history').insert({
           client_id: client.id,
           old_url: client.client_url,
           new_url: clientUrl || null,
@@ -315,7 +420,7 @@ export const AdminClientDetails = () => {
       // Gerar link de pagamento placeholder (para integração futura com Stripe)
       const stripeLink = `https://pay.stripe.com/placeholder?amount=${SETUP_PRICE}&client=${client.id}&type=setup`;
 
-      const { error } = await supabase.from('client_payments').insert({
+      const { error } = await supabaseAdmin.from('client_payments').insert({
         client_id: client.id,
         payment_type: 'setup',
         amount_cents: SETUP_PRICE,
@@ -331,7 +436,7 @@ export const AdminClientDetails = () => {
       if (!planStartDate) {
         const today = new Date().toISOString().split('T')[0];
         setPlanStartDate(today);
-        await supabase
+        await supabaseAdmin
           .from('admin_clients')
           .update({ plan_start_date: today })
           .eq('id', client.id);
@@ -354,7 +459,7 @@ export const AdminClientDetails = () => {
 
   const handleCancelPayment = async (paymentId: string) => {
     try {
-      const { error } = await supabase
+      const { error } = await supabaseAdmin
         .from('client_payments')
         .delete()
         .eq('id', paymentId);
@@ -385,7 +490,7 @@ export const AdminClientDetails = () => {
     if (!plan) return;
 
     try {
-      const { error } = await supabase.from('client_payments').insert({
+      const { error } = await supabaseAdmin.from('client_payments').insert({
         client_id: client.id,
         payment_type: 'plano_trimestral',
         amount_cents: plan.quarterly,
@@ -418,7 +523,7 @@ export const AdminClientDetails = () => {
     try {
       // Primeiro, salvar a modalidade se ainda não estiver salva
       if (client.modality !== 'evento') {
-        await supabase
+        await supabaseAdmin
           .from('admin_clients')
           .update({ modality: 'evento' })
           .eq('id', client.id);
@@ -427,7 +532,7 @@ export const AdminClientDetails = () => {
       // Gerar link de pagamento placeholder (para integração futura com Stripe)
       const stripeLink = `https://pay.stripe.com/placeholder?amount=${amount}&client=${client.id}`;
 
-      const { error } = await supabase.from('client_event_additions').insert({
+      const { error } = await supabaseAdmin.from('client_event_additions').insert({
         client_id: client.id,
         hours: EVENT_BLOCK_HOURS,
         credits: EVENT_BLOCK_HOURS * CREDITS_PER_HOUR,
@@ -456,24 +561,34 @@ export const AdminClientDetails = () => {
   const handleAddAvatar = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!client) return;
+    if (!clientUserId) {
+      toast({
+        title: "Usuário não encontrado",
+        description: "Não foi possível localizar o usuário do cliente para criar o avatar.",
+        variant: "destructive",
+      });
+      return;
+    }
 
     try {
-      const { error } = await supabase.from('client_avatars').insert({
-        client_id: client.id,
-        name: newAvatarName,
-        avatar_url: newAvatarUrl || null,
-        heygen_avatar_id: newAvatarHeygenId || null,
+      const { data, error } = await supabaseAdmin.functions.invoke('admin-create-avatar', {
+        body: {
+          user_id: clientUserId,
+          name: newAvatarName,
+          cover_image_url: newAvatarUrl || null,
+        },
       });
 
       if (error) throw error;
+      const avatarData = data?.avatar;
 
       setAvatars(prev => [{
-        id: crypto.randomUUID(),
-        name: newAvatarName,
-        avatar_url: newAvatarUrl || null,
-        heygen_avatar_id: newAvatarHeygenId || null,
+        id: avatarData?.id || crypto.randomUUID(),
+        name: avatarData?.name || newAvatarName,
+        avatar_url: avatarData?.cover_image_url || newAvatarUrl || null,
         credits_used: 0,
-        created_at: new Date().toISOString(),
+        created_at: avatarData?.created_at || new Date().toISOString(),
+        updated_at: avatarData?.updated_at || undefined,
       }, ...prev]);
 
       toast({
@@ -482,44 +597,11 @@ export const AdminClientDetails = () => {
 
       setNewAvatarName("");
       setNewAvatarUrl("");
-      setNewAvatarHeygenId("");
       setIsAddAvatarOpen(false);
     } catch (error: any) {
       toast({
         title: "Erro",
-        description: error.message,
-        variant: "destructive",
-      });
-    }
-  };
-
-  const handleUpdateAvatarHeygenId = async () => {
-    if (!editingAvatar) return;
-
-    try {
-      const { error } = await supabase
-        .from('client_avatars')
-        .update({ heygen_avatar_id: editAvatarHeygenId || null })
-        .eq('id', editingAvatar.id);
-
-      if (error) throw error;
-
-      setAvatars(prev => prev.map(a => 
-        a.id === editingAvatar.id 
-          ? { ...a, heygen_avatar_id: editAvatarHeygenId || null }
-          : a
-      ));
-
-      toast({
-        title: "Avatar atualizado!",
-      });
-
-      setEditingAvatar(null);
-      setEditAvatarHeygenId("");
-    } catch (error: any) {
-      toast({
-        title: "Erro",
-        description: error.message,
+        description: error.message || "Erro ao criar avatar.",
         variant: "destructive",
       });
     }
@@ -529,7 +611,7 @@ export const AdminClientDetails = () => {
     if (!client) return;
 
     try {
-      const { error } = await supabase
+      const { error } = await supabaseAdmin
         .from('admin_clients')
         .update({ status: newStatus })
         .eq('id', client.id);
@@ -561,13 +643,13 @@ export const AdminClientDetails = () => {
 
     try {
       // Update payment status
-      await supabase
+      await supabaseAdmin
         .from('client_payments')
         .update({ status: 'pago', paid_at: new Date().toISOString() })
         .eq('id', paymentId);
 
       // Add credits to client
-      await supabase
+      await supabaseAdmin
         .from('admin_clients')
         .update({ 
           credits_balance: client.credits_balance + creditsToAdd,
@@ -579,7 +661,7 @@ export const AdminClientDetails = () => {
       // Check if it was setup payment
       const payment = payments.find(p => p.id === paymentId);
       if (payment?.payment_type === 'setup') {
-        await supabase
+        await supabaseAdmin
           .from('admin_clients')
           .update({ setup_paid: true, setup_paid_at: new Date().toISOString() })
           .eq('id', client.id);
@@ -607,7 +689,7 @@ export const AdminClientDetails = () => {
       // TODO: Quando Stripe estiver integrado, cancelar o payment link aqui
       // await stripe.paymentLinks.update(paymentLinkId, { active: false });
 
-      const { error } = await supabase
+      const { error } = await supabaseAdmin
         .from('client_event_additions')
         .delete()
         .eq('id', additionId);
@@ -843,7 +925,7 @@ export const AdminClientDetails = () => {
                       if (!client) return;
                       try {
                         if (clientUrl !== client.client_url) {
-                          await supabase.from('client_url_history').insert({
+                          await supabaseAdmin.from('client_url_history').insert({
                             client_id: client.id,
                             old_url: client.client_url,
                             new_url: clientUrl || null,
@@ -851,7 +933,7 @@ export const AdminClientDetails = () => {
                           });
                         }
 
-                        const { error } = await supabase
+                        const { error } = await supabaseAdmin
                           .from('admin_clients')
                           .update({ client_url: clientUrl || null })
                           .eq('id', client.id);
@@ -1043,87 +1125,113 @@ export const AdminClientDetails = () => {
                 </CardContent>
               </Card>
 
-              {/* HeyGen Integration */}
+              {/* Credenciais por Avatar */}
               <Card className="md:col-span-2">
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
                     <Key className="h-5 w-5" />
-                    Integração HeyGen
+                    Credenciais por Avatar
                   </CardTitle>
                   <CardDescription>
-                    1 crédito HeyGen (5 min) = 20 créditos Euvatar | 240 créditos = 1 hora
+                    Fonte única de verdade: avatar_credentials. Alterações aqui refletem no Cliente automaticamente.
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <div className="space-y-2">
-                      <Label>API Key da Conta</Label>
-                      <div className="relative">
-                        <Input
-                          type={showApiKey ? "text" : "password"}
-                          value={heygenApiKey}
-                          onChange={(e) => setHeygenApiKey(e.target.value)}
-                          placeholder="Cole a API Key aqui"
-                          className="pr-10"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => setShowApiKey(!showApiKey)}
-                          className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                        >
-                          {showApiKey ? <EyeOff size={20} /> : <Eye size={20} />}
-                        </button>
+                  {avatars.length === 0 ? (
+                    <div className="text-sm text-muted-foreground">
+                      Nenhum avatar cadastrado para este cliente.
+                    </div>
+                  ) : (
+                    <>
+                      <div className="space-y-2">
+                        <Label>Selecione o avatar</Label>
+                        <Select value={selectedAvatarId} onValueChange={setSelectedAvatarId}>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Selecione o avatar..." />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {avatars.map((avatar) => (
+                              <SelectItem key={avatar.id} value={avatar.id}>
+                                {avatar.name || avatar.id}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
                       </div>
-                      <Badge variant={client.heygen_api_key_valid ? "default" : "secondary"} className="mt-1">
-                        {client.heygen_api_key_valid ? "Válida" : "Não validada"}
-                      </Badge>
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Avatar ID</Label>
-                      <Input
-                        value={heygenAvatarId}
-                        onChange={(e) => setHeygenAvatarId(e.target.value)}
-                        placeholder="ID do avatar HeyGen"
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Interactive Avatar ID</Label>
-                      <Input
-                        value={heygenInteractiveAvatarId}
-                        onChange={(e) => setHeygenInteractiveAvatarId(e.target.value)}
-                        placeholder="ID do avatar interativo"
-                      />
-                    </div>
-                  </div>
-                  <Button 
-                    className="w-full"
-                    onClick={async () => {
-                      try {
-                        const { error } = await supabase
-                          .from('admin_clients')
-                          .update({
-                            heygen_api_key: heygenApiKey || null,
-                            heygen_avatar_id: heygenAvatarId || null,
-                            heygen_interactive_avatar_id: heygenInteractiveAvatarId || null,
-                          })
-                          .eq('id', client.id);
 
-                        if (error) throw error;
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div className="space-y-2">
+                          <Label>Account ID</Label>
+                          <Input
+                            value={credentials.accountId}
+                            disabled={credLocked}
+                            onChange={(e) => setCredentials({ ...credentials, accountId: e.target.value })}
+                            placeholder="default_account"
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label>API Key</Label>
+                          <div className="relative">
+                            <Input
+                              type={showApiKey ? "text" : "password"}
+                              value={credentials.apiKey}
+                              disabled={credLocked}
+                              onChange={(e) => setCredentials({ ...credentials, apiKey: e.target.value })}
+                              placeholder="Cole a API Key aqui"
+                              className="pr-10"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => setShowApiKey(!showApiKey)}
+                              className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                            >
+                              {showApiKey ? <EyeOff size={20} /> : <Eye size={20} />}
+                            </button>
+                          </div>
+                        </div>
+                        <div className="space-y-2">
+                          <Label>Avatar External ID</Label>
+                          <Input
+                            value={credentials.avatarExternalId}
+                            disabled={credLocked}
+                            onChange={(e) => setCredentials({ ...credentials, avatarExternalId: e.target.value })}
+                            placeholder="ID externo do avatar"
+                          />
+                        </div>
+                      </div>
 
-                        toast({ title: "Configurações HeyGen salvas!" });
-                        fetchClientData();
-                      } catch (error: any) {
-                        toast({
-                          title: "Erro ao salvar",
-                          description: error.message,
-                          variant: "destructive",
-                        });
-                      }
-                    }}
-                  >
-                    <Save className="h-4 w-4 mr-2" />
-                    Salvar Integração
-                  </Button>
+                      <div className="flex items-center gap-3">
+                        <Button
+                          className="w-full md:w-auto"
+                          onClick={() => {
+                            if (credLocked) {
+                              setCredLocked(false);
+                              setCredStatus('idle');
+                              setCredMessage("");
+                            } else {
+                              handleSaveCredentials();
+                            }
+                          }}
+                          disabled={credSaving}
+                        >
+                          {credSaving ? (
+                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                          ) : credLocked ? (
+                            <Edit className="h-4 w-4 mr-2" />
+                          ) : (
+                            <Save className="h-4 w-4 mr-2" />
+                          )}
+                          {credLocked ? "Editar" : "Salvar credenciais"}
+                        </Button>
+
+                        {credStatus !== 'idle' && (
+                          <Badge variant={credStatus === 'valid' ? "default" : "destructive"}>
+                            {credMessage || (credStatus === 'valid' ? "Salvo" : "Erro")}
+                          </Badge>
+                        )}
+                      </div>
+                    </>
+                  )}
                 </CardContent>
               </Card>
 
@@ -1422,43 +1530,10 @@ export const AdminClientDetails = () => {
                           placeholder="url-do-avatar"
                         />
                       </div>
-                      <div className="space-y-2">
-                        <Label>HeyGen Avatar ID</Label>
-                        <Input
-                          value={newAvatarHeygenId}
-                          onChange={(e) => setNewAvatarHeygenId(e.target.value)}
-                          placeholder="ID do avatar na HeyGen"
-                        />
-                      </div>
                       <Button type="submit" className="w-full">
                         Adicionar
                       </Button>
                     </form>
-                  </DialogContent>
-                </Dialog>
-
-                {/* Dialog para editar HeyGen ID */}
-                <Dialog open={!!editingAvatar} onOpenChange={(open) => !open && setEditingAvatar(null)}>
-                  <DialogContent>
-                    <DialogHeader>
-                      <DialogTitle>Editar HeyGen Avatar ID</DialogTitle>
-                      <DialogDescription>
-                        Configurar o ID do avatar na HeyGen para: {editingAvatar?.name}
-                      </DialogDescription>
-                    </DialogHeader>
-                    <div className="space-y-4 mt-4">
-                      <div className="space-y-2">
-                        <Label>HeyGen Avatar ID</Label>
-                        <Input
-                          value={editAvatarHeygenId}
-                          onChange={(e) => setEditAvatarHeygenId(e.target.value)}
-                          placeholder="ID do avatar na HeyGen"
-                        />
-                      </div>
-                      <Button onClick={handleUpdateAvatarHeygenId} className="w-full">
-                        Salvar
-                      </Button>
-                    </div>
                   </DialogContent>
                 </Dialog>
               </CardHeader>
@@ -1473,10 +1548,8 @@ export const AdminClientDetails = () => {
                       <TableRow>
                         <TableHead>Nome</TableHead>
                         <TableHead>URL</TableHead>
-                        <TableHead>HeyGen ID</TableHead>
                         <TableHead>Consumo</TableHead>
                         <TableHead>Criado em</TableHead>
-                        <TableHead>Ações</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -1493,32 +1566,10 @@ export const AdminClientDetails = () => {
                             )}
                           </TableCell>
                           <TableCell>
-                            {avatar.heygen_avatar_id ? (
-                              <code className="text-xs bg-muted px-2 py-1 rounded">
-                                {avatar.heygen_avatar_id}
-                              </code>
-                            ) : (
-                              <span className="text-muted-foreground">Não configurado</span>
-                            )}
-                          </TableCell>
-                          <TableCell>
                             {avatar.credits_used} créditos
                           </TableCell>
                           <TableCell>
                             {new Date(avatar.created_at).toLocaleDateString('pt-BR')}
-                          </TableCell>
-                          <TableCell>
-                            <Button 
-                              variant="outline" 
-                              size="sm"
-                              onClick={() => {
-                                setEditingAvatar(avatar);
-                                setEditAvatarHeygenId(avatar.heygen_avatar_id || '');
-                              }}
-                            >
-                              <Edit className="h-3 w-3 mr-1" />
-                              HeyGen ID
-                            </Button>
                           </TableCell>
                         </TableRow>
                       ))}

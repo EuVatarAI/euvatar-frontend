@@ -4,8 +4,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
-import { useAuth } from "@/hooks/useAuth";
-import { supabase } from "@/integrations/supabase/client";
+import { useAdminAuth } from "@/hooks/useAdminAuth";
+import { supabaseAdmin } from "@/integrations/supabase/adminClient";
 import { Eye, EyeOff, Shield } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import euvatarLogo from "@/assets/euvatar-logo-white.png";
@@ -17,7 +17,7 @@ export const AdminLogin = () => {
   const [loading, setLoading] = useState(false);
   const { toast } = useToast();
   const navigate = useNavigate();
-  const { user, profile, loading: authLoading, signOut } = useAuth();
+  const { user, profile, loading: authLoading, signOut } = useAdminAuth();
 
   useEffect(() => {
     if (authLoading) return;
@@ -39,7 +39,7 @@ export const AdminLogin = () => {
     setLoading(true);
 
     try {
-      const { data, error } = await supabase.auth.signInWithPassword({
+      const { data, error } = await supabaseAdmin.auth.signInWithPassword({
         email,
         password,
       });
@@ -47,19 +47,19 @@ export const AdminLogin = () => {
       if (error) throw error;
       if (!data.user) throw new Error("Usuário inválido.");
 
-      const { data: profileData, error: profileError } = await supabase
+      const { data: profileData, error: profileError } = await supabaseAdmin
         .from("profiles")
         .select("role, is_active")
         .eq("user_id", data.user.id)
         .single();
 
       if (profileError || !profileData) {
-        await supabase.auth.signOut();
+        await supabaseAdmin.auth.signOut();
         throw new Error("Usuário sem permissão administrativa.");
       }
 
       if (profileData.role !== "admin" || !profileData.is_active) {
-        await supabase.auth.signOut();
+        await supabaseAdmin.auth.signOut();
         throw new Error("Usuário sem permissão administrativa.");
       }
 

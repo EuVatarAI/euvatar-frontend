@@ -6,8 +6,8 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { useAuth } from "@/hooks/useAuth";
-import { supabase } from "@/integrations/supabase/client";
+import { useAdminAuth } from "@/hooks/useAdminAuth";
+import { supabaseAdmin } from "@/integrations/supabase/adminClient";
 import { 
   Plus, LogOut, Users, Search, Filter, 
   CreditCard, ExternalLink, Eye, EyeOff, 
@@ -49,6 +49,7 @@ interface AdminClient {
   id: string;
   name: string;
   email: string;
+  user_id?: string | null;
   client_url: string | null;
   modality: 'evento' | 'plano_trimestral' | null;
   current_plan: 'plano_4h' | 'plano_7h' | 'plano_20h' | null;
@@ -62,6 +63,7 @@ interface AdminClient {
   last_payment_at: string | null;
   created_at: string;
   avatar_count?: number;
+  has_credentials?: boolean;
 }
 
 type ClientStatus = 'ativo' | 'pendente_setup' | 'pendente_pagamento' | 'pendente_integracao' | 'sem_creditos' | 'pendente_avatar' | 'expirado' | 'suspenso';
@@ -70,7 +72,7 @@ const getClientStatus = (client: AdminClient): ClientStatus => {
   if (!client.setup_paid) return 'pendente_setup';
   if (!client.modality) return 'pendente_pagamento';
   if (client.plan_expiration_date && new Date(client.plan_expiration_date) < new Date()) return 'expirado';
-  if (!client.heygen_api_key || !client.heygen_api_key_valid) return 'pendente_integracao';
+  if (!client.has_credentials) return 'pendente_integracao';
   if ((client.avatar_count || 0) === 0) return 'pendente_avatar';
   if (client.credits_balance <= 0) return 'sem_creditos';
   return 'ativo';
@@ -136,7 +138,7 @@ export const AdminDashboard = () => {
   
   const { toast } = useToast();
   const navigate = useNavigate();
-  const { user, profile, loading: authLoading, signOut } = useAuth();
+  const { user, profile, loading: authLoading, signOut } = useAdminAuth();
 
   useEffect(() => {
     if (authLoading) return;
@@ -161,24 +163,40 @@ export const AdminDashboard = () => {
   const fetchClients = async () => {
     try {
       // Fetch clients from admin_clients table
-      const { data: clientsData, error } = await supabase
+      const { data: clientsData, error } = await supabaseAdmin
         .from('admin_clients')
         .select('*')
         .order('created_at', { ascending: false });
 
       if (error) throw error;
 
+      const { data: avatarsData } = await supabaseAdmin
+        .from('avatars')
+        .select('id, user_id');
+
+      const avatarIds = (avatarsData || []).map((row: any) => row.id).filter(Boolean);
+      const { data: credentialRows } = avatarIds.length
+        ? await supabaseAdmin
+            .from('avatar_credentials')
+            .select('avatar_id')
+            .in('avatar_id', avatarIds)
+        : { data: [] };
+
+      const credentialSet = new Set((credentialRows || []).map((row: any) => row.avatar_id));
+
       // Fetch avatar counts for each client
       const clientsWithAvatars = await Promise.all(
         (clientsData || []).map(async (client) => {
-          const { count } = await supabase
-            .from('client_avatars')
-            .select('*', { count: 'exact', head: true })
-            .eq('client_id', client.id);
-          
+          const userAvatarIds = (avatarsData || [])
+            .filter((row: any) => row.user_id === client.user_id)
+            .map((row: any) => row.id);
+
+          const hasCredentials = userAvatarIds.some((id: string) => credentialSet.has(id));
+
           return {
             ...client,
-            avatar_count: count || 0,
+            avatar_count: userAvatarIds.length,
+            has_credentials: hasCredentials,
           } as AdminClient;
         })
       );
@@ -199,14 +217,14 @@ export const AdminDashboard = () => {
   const fetchPendingCharges = async () => {
     try {
       // Fetch pending event additions
-      const { data: eventAdditions } = await supabase
+      const { data: eventAdditions } = await supabaseAdmin
         .from('client_event_additions')
         .select('*, admin_clients!inner(name)')
         .eq('status', 'pendente')
         .order('created_at', { ascending: false });
 
       // Fetch pending payments (setup, etc.)
-      const { data: payments } = await supabase
+      const { data: payments } = await supabaseAdmin
         .from('client_payments')
         .select('*, admin_clients!inner(name)')
         .eq('status', 'pendente')
@@ -277,7 +295,7 @@ export const AdminDashboard = () => {
     try {
       const password = generatePassword(newName);
       
-      const { data, error } = await supabase.functions.invoke('admin-create-client', {
+      const { data, error } = await supabaseAdmin.functions.invoke('admin-create-client', {
         body: {
           name: newName,
           email: newEmail,

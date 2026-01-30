@@ -111,6 +111,7 @@ Deno.serve(async (req) => {
         name,
         email,
         password_hash: password,
+        user_id: userId,
       }, { onConflict: 'email' })
       .select()
       .single();
