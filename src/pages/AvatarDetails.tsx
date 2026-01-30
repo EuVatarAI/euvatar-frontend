@@ -97,6 +97,8 @@ const AvatarDetails = () => {
     voice_model: 'alloy',
     slug: '',
   });
+  const [liveavatarVoices, setLiveavatarVoices] = useState<Array<{ id: string; name?: string; language?: string; gender?: string }>>([]);
+  const [voicesLoading, setVoicesLoading] = useState(false);
   const [originalFormData, setOriginalFormData] = useState({
     name: '',
     backstory: '',
@@ -109,12 +111,64 @@ const AvatarDetails = () => {
   const [copiedLink, setCopiedLink] = useState(false);
   const [showUnsavedDialog, setShowUnsavedDialog] = useState(false);
   const [pendingNavigation, setPendingNavigation] = useState<string | null>(null);
+  const [trainingNotes, setTrainingNotes] = useState<string>('');
+
+  const resolveVoiceLabel = useCallback(
+    (voiceId: string | null | undefined) => {
+      if (!voiceId) return 'Padrão do avatar';
+      const match = liveavatarVoices.find((v) => v.id === voiceId);
+      if (!match) return voiceId;
+      const base = match.name || match.id;
+      const extras = [
+        match.language ? match.language : null,
+        match.gender ? match.gender : null,
+      ].filter(Boolean);
+      return extras.length ? `${base} (${extras.join(' / ')})` : base;
+    },
+    [liveavatarVoices]
+  );
+
+  const fetchLiveavatarVoices = useCallback(async (avatarId: string) => {
+    if (!backendUrl || avatarProvider !== 'liveavatar') return;
+    try {
+      setVoicesLoading(true);
+      const url = buildBackendUrl(`/liveavatar/voices?avatar_id=${encodeURIComponent(avatarId)}`);
+      const resp = await fetch(url, {
+        headers: {
+          ...(apiToken ? { Authorization: `Bearer ${apiToken}` } : {}),
+        },
+      });
+      const data = await resp.json();
+      if (!resp.ok || !data?.ok) {
+        throw new Error(data?.error || 'Erro ao buscar vozes');
+      }
+      const voices = Array.isArray(data.voices) ? data.voices : [];
+      setLiveavatarVoices(voices);
+    } catch (error) {
+      console.error('Error fetching LiveAvatar voices:', error);
+      toast({
+        title: 'Erro',
+        description: 'Erro ao carregar vozes do LiveAvatar.',
+        variant: 'destructive',
+      });
+      setLiveavatarVoices([]);
+    } finally {
+      setVoicesLoading(false);
+    }
+  }, [toast, backendUrl, apiToken, avatarProvider]);
 
   const stripTrainingNotes = (text: string) => {
     // Remove legacy markers like: [Treinado com o documento: arquivo.pdf]
     return text
       .replace(/\n?\n?\[Treinado com o documento:[^\]]+\]/g, '')
       .trimEnd();
+  };
+
+  const extractTrainingNotes = (text: string) => {
+    if (!text) return '';
+    const matches = text.match(/\[Treinado com o documento:[^\]]+\][\s\S]*?(?=\n\[Treinado com o documento:|\s*$)/g);
+    if (!matches) return '';
+    return matches.map((m) => m.trim()).join('\n\n');
   };
 
   const inferMediaType = (url: string, file?: File | null) => {
@@ -212,24 +266,33 @@ const AvatarDetails = () => {
       setAvatar(avatarData);
       setCoverImageUrl(avatarData.cover_image_url || null);
       const formDataFromDb = {
-        name: avatarData.name,
+        name: avatarData.name || '',
         backstory: stripTrainingNotes(avatarData.backstory || ''),
-        language: avatarData.language,
-        ai_model: avatarData.ai_model,
-        voice_model: avatarData.voice_model,
+        language: avatarData.language || 'pt-BR',
+        ai_model: avatarData.ai_model || 'gpt-4',
+        voice_model: avatarData.voice_model || '',
         slug: avatarData.slug || '',
       };
+      setTrainingNotes(extractTrainingNotes(avatarData.backstory || ''));
       setFormData(formDataFromDb);
       setOriginalFormData(formDataFromDb);
 
-      // Fetch organization slug for building public URL
-      const { data: orgData } = await supabase
-        .from('organizations')
-        .select('slug')
+      // Fetch organization slug for building public URL (current user's org)
+      const { data: profileOrg } = await supabase
+        .from('profiles')
+        .select('organization_id')
+        .eq('user_id', user?.id)
         .single();
-      
-      if (orgData) {
-        setOrganizationSlug(orgData.slug);
+
+      if (profileOrg?.organization_id) {
+        const { data: orgData } = await supabase
+          .from('organizations')
+          .select('slug')
+          .eq('id', profileOrg.organization_id)
+          .single();
+        if (orgData?.slug) {
+          setOrganizationSlug(orgData.slug);
+        }
       }
 
       const { data: conversationsData, error: conversationsError } = await supabase
@@ -239,6 +302,10 @@ const AvatarDetails = () => {
 
       if (conversationsError) throw conversationsError;
       setConversations((conversationsData || []) as Conversation[]);
+
+      if (avatarProvider === 'liveavatar' && avatarData?.id) {
+        fetchLiveavatarVoices(avatarData.id);
+      }
 
       const { data: contextsData, error: contextsError } = await supabase
         .from('contexts')
@@ -393,7 +460,12 @@ const AvatarDetails = () => {
         .from('avatars')
         .update({
           name: formData.name,
-          backstory: stripTrainingNotes(formData.backstory),
+          backstory: [
+            stripTrainingNotes(formData.backstory),
+            trainingNotes,
+          ]
+            .filter((v) => v && v.trim())
+            .join('\n\n'),
           language: formData.language,
           ai_model: formData.ai_model,
           voice_model: formData.voice_model,
@@ -466,6 +538,7 @@ const AvatarDetails = () => {
           avatar_id: id,
           name: newTrigger.trigger_phrase,
           description: newTrigger.description,
+          keywords_text: `${newTrigger.trigger_phrase}; ${newTrigger.description}`.trim(),
           media_url: newTrigger.media_url,
           media_type: inferMediaType(newTrigger.media_url, triggerMediaFile),
         });
@@ -770,7 +843,11 @@ const AvatarDetails = () => {
                     </div>
                     <div>
                       <p className="text-muted-foreground">Modelo de Voz</p>
-                      <p className="font-medium">{avatar?.voice_model || 'default'}</p>
+                      {avatarProvider === 'liveavatar' ? (
+                        <p className="font-medium">{resolveVoiceLabel(avatar?.voice_model)}</p>
+                      ) : (
+                        <p className="font-medium">{avatar?.voice_model || 'default'}</p>
+                      )}
                     </div>
                   </div>
                 </CardContent>
@@ -1134,19 +1211,45 @@ const AvatarDetails = () => {
                 <div>
                   <Label htmlFor="voice_model">Modelo de Voz</Label>
                   <Select
-                    value={formData.voice_model}
-                    onValueChange={(value) => setFormData({ ...formData, voice_model: value })}
+                    value={formData.voice_model || '__default__'}
+                    onValueChange={(value) =>
+                      setFormData({ ...formData, voice_model: value === '__default__' ? '' : value })
+                    }
                   >
                     <SelectTrigger id="voice_model">
                       <SelectValue placeholder="Selecione a voz" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="alloy">Alloy</SelectItem>
-                      <SelectItem value="echo">Echo</SelectItem>
-                      <SelectItem value="fable">Fable</SelectItem>
-                      <SelectItem value="onyx">Onyx</SelectItem>
-                      <SelectItem value="nova">Nova</SelectItem>
-                      <SelectItem value="shimmer">Shimmer</SelectItem>
+                      {avatarProvider === 'liveavatar' ? (
+                        <>
+                          <SelectItem value="__default__">Voz padrão do avatar</SelectItem>
+                          {voicesLoading && (
+                            <SelectItem value="__loading__" disabled>
+                              Carregando vozes...
+                            </SelectItem>
+                          )}
+                          {!voicesLoading && liveavatarVoices.length === 0 && (
+                            <SelectItem value="__empty__" disabled>
+                              Sem vozes disponíveis
+                            </SelectItem>
+                          )}
+                          {liveavatarVoices.map((voice) => (
+                            <SelectItem key={voice.id} value={voice.id}>
+                              {voice.name || voice.id}
+                              {voice.language ? ` (${voice.language})` : ''}
+                            </SelectItem>
+                          ))}
+                        </>
+                      ) : (
+                        <>
+                          <SelectItem value="alloy">Alloy</SelectItem>
+                          <SelectItem value="echo">Echo</SelectItem>
+                          <SelectItem value="fable">Fable</SelectItem>
+                          <SelectItem value="onyx">Onyx</SelectItem>
+                          <SelectItem value="nova">Nova</SelectItem>
+                          <SelectItem value="shimmer">Shimmer</SelectItem>
+                        </>
+                      )}
                     </SelectContent>
                   </Select>
                 </div>

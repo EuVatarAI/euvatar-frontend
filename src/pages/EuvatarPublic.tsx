@@ -89,6 +89,7 @@ export default function EuvatarPublic() {
   const [externalPopupOpen, setExternalPopupOpen] = useState(false);
   const [externalUrl, setExternalUrl] = useState('');
   const [buttonVideoUrl, setButtonVideoUrl] = useState<string | null>(null);
+  const [contextMedia, setContextMedia] = useState<{ type: 'image' | 'video'; url: string; caption?: string } | null>(null);
 
   // Live session states
   const [isConnecting, setIsConnecting] = useState(false);
@@ -113,6 +114,9 @@ export default function EuvatarPublic() {
   const recorderRef = useRef<MediaRecorder | null>(null);
   const recordChunksRef = useRef<Blob[]>([]);
   const localAudioTrackRef = useRef<LocalAudioTrack | null>(null);
+  const liveRecorderRef = useRef<MediaRecorder | null>(null);
+  const liveRecordChunksRef = useRef<Blob[]>([]);
+  const contextMediaTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   // Determine aspect ratio based on orientation
   const isVertical = avatar?.avatar_orientation === 'vertical';
@@ -143,6 +147,41 @@ export default function EuvatarPublic() {
   const isHolidayAvatar = /papai|noel|santa/i.test(avatar?.name || '');
   const useCornerChat = isHolidayAvatar && !isVertical;
 
+  const showContextMedia = useCallback((media: { type: 'image' | 'video'; url: string; caption?: string }) => {
+    setContextMedia(media);
+    if (contextMediaTimerRef.current) {
+      clearTimeout(contextMediaTimerRef.current);
+      contextMediaTimerRef.current = null;
+    }
+    if (media.type === 'image') {
+      contextMediaTimerRef.current = setTimeout(() => {
+        setContextMedia(null);
+      }, 12000);
+    }
+  }, []);
+
+  const resolveContextMedia = useCallback(async (text: string) => {
+    if (!backendUrl || !id || !text.trim()) return;
+    try {
+      const resp = await fetch(buildBackendUrl('/context/resolve'), {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Client-Id': clientId,
+          ...(apiToken ? { Authorization: `Bearer ${apiToken}` } : {}),
+        },
+        body: JSON.stringify({ avatar_id: id, text }),
+      });
+      const data = await resp.json();
+      const media = data?.media;
+      if (resp.ok && data?.ok && media?.url) {
+        showContextMedia(media);
+      }
+    } catch (err) {
+      console.error('Context resolve error:', err);
+    }
+  }, [clientId, id, showContextMedia]);
+
   const attachTrackToVideo = useCallback((track: any) => {
     if (!liveVideoRef.current) return;
     track.attach(liveVideoRef.current);
@@ -166,6 +205,10 @@ export default function EuvatarPublic() {
     return () => {
       clearInactivityTimer();
       clearCountdownTimer();
+      if (contextMediaTimerRef.current) {
+        clearTimeout(contextMediaTimerRef.current);
+        contextMediaTimerRef.current = null;
+      }
       document.removeEventListener('fullscreenchange', handleFullscreenChange);
       if (roomRef.current) {
         roomRef.current.disconnect();
@@ -313,6 +356,7 @@ export default function EuvatarPublic() {
     setExternalPopupOpen(false);
     setExternalUrl('');
     setButtonVideoUrl(null);
+    setContextMedia(null);
     clearInactivityTimer();
     clearCountdownTimer();
     setShowInactivityWarning(false);
@@ -557,6 +601,9 @@ export default function EuvatarPublic() {
       if (!sayResp.ok || !sayData?.ok) {
         throw new Error(sayData?.error || 'Erro ao enviar texto');
       }
+      if (sayData?.media?.url) {
+        showContextMedia(sayData.media);
+      }
       setInputText('');
     } catch (error: any) {
       console.error('Error sending text:', error);
@@ -590,6 +637,43 @@ export default function EuvatarPublic() {
         const track = await createLocalAudioTrack();
         await roomRef.current.localParticipant.publishTrack(track);
         localAudioTrackRef.current = track;
+        try {
+          const stream = new MediaStream([track.mediaStreamTrack]);
+          const recorder = new MediaRecorder(stream);
+          liveRecorderRef.current = recorder;
+          liveRecordChunksRef.current = [];
+          recorder.ondataavailable = (event) => {
+            if (event.data?.size) {
+              liveRecordChunksRef.current.push(event.data);
+            }
+          };
+          recorder.onstop = async () => {
+            try {
+              const blob = new Blob(liveRecordChunksRef.current, { type: 'audio/webm' });
+              const file = new File([blob], 'audio.webm', { type: 'audio/webm' });
+              const form = new FormData();
+              form.append('audio', file);
+              const sttUrl = buildBackendUrl('/stt');
+              const resp = await fetch(sttUrl, {
+                method: 'POST',
+                headers: {
+                  'X-Client-Id': clientId,
+                  ...(apiToken ? { Authorization: `Bearer ${apiToken}` } : {}),
+                },
+                body: form,
+              });
+              const data = await resp.json();
+              if (resp.ok && data?.ok && data?.text) {
+                await resolveContextMedia(data.text);
+              }
+            } catch (err) {
+              console.error('STT (liveavatar) error:', err);
+            }
+          };
+          recorder.start();
+        } catch (err) {
+          console.error('Liveavatar recorder error:', err);
+        }
         setIsRecording(true);
         return;
       }
@@ -660,6 +744,9 @@ export default function EuvatarPublic() {
   const stopRecording = () => {
     if (isLiveAvatar && localAudioTrackRef.current) {
       const track = localAudioTrackRef.current;
+      if (liveRecorderRef.current && liveRecorderRef.current.state !== 'inactive') {
+        liveRecorderRef.current.stop();
+      }
       try {
         roomRef.current?.localParticipant.unpublishTrack(track);
       } catch {
@@ -833,6 +920,35 @@ export default function EuvatarPublic() {
                   <X className="h-4 w-4" />
                 </Button>
               </div>
+            </div>
+          )}
+
+          {/* Context Media Overlay */}
+          {contextMedia && !buttonVideoUrl && !externalPopupOpen && (
+            <div className="absolute inset-0 z-20 bg-black/70 flex items-center justify-center">
+              {contextMedia.type === 'video' ? (
+                <video
+                  src={contextMedia.url}
+                  className="w-full h-full object-contain object-center"
+                  autoPlay
+                  playsInline
+                  onEnded={() => setContextMedia(null)}
+                />
+              ) : (
+                <img
+                  src={contextMedia.url}
+                  alt={contextMedia.caption || 'Mídia do contexto'}
+                  className="w-full h-full object-contain object-center"
+                />
+              )}
+              <Button
+                variant="destructive"
+                size="sm"
+                className="absolute top-2 right-2 z-30"
+                onClick={() => setContextMedia(null)}
+              >
+                <X className="h-4 w-4" />
+              </Button>
             </div>
           )}
 

@@ -150,6 +150,7 @@ const CreateAvatar = () => {
           avatar_id: avatarData.id,
           name: trigger.trigger_phrase,
           description: trigger.description,
+          keywords_text: `${trigger.trigger_phrase}; ${trigger.description}`.trim(),
           media_url: trigger.media_url,
           media_type: inferMediaType(trigger.media_url),
         }));

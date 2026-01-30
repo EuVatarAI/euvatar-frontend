@@ -46,25 +46,33 @@ const ClientPortal = () => {
 
       setOrganization(orgData);
 
-      // Get user_id from profiles in this organization
-      const { data: profileData, error: profileError } = await supabase
+      // Get all users in this organization
+      const { data: profilesData, error: profilesError } = await supabase
         .from('profiles')
         .select('user_id')
-        .eq('organization_id', orgData.id)
-        .limit(1)
-        .single();
+        .eq('organization_id', orgData.id);
 
-      if (profileError || !profileData) {
+      if (profilesError) {
+        setError('Erro ao carregar perfis da organização.');
+        setLoading(false);
+        return;
+      }
+
+      const userIds = (profilesData || [])
+        .map((p: any) => p.user_id)
+        .filter(Boolean);
+
+      if (userIds.length === 0) {
         setError('Nenhum euvatar disponível.');
         setLoading(false);
         return;
       }
 
-      // Get avatars for this user
+      // Get avatars for all users in the organization
       const { data: avatarsData, error: avatarsError } = await supabase
         .from('avatars')
         .select('id, name, cover_image_url, slug')
-        .eq('user_id', profileData.user_id);
+        .in('user_id', userIds);
 
       if (avatarsError) throw avatarsError;
 
