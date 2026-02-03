@@ -19,7 +19,7 @@ type Avatar = Database['public']['Tables']['avatars']['Row'] & {
 
 const Dashboard = () => {
   const navigate = useNavigate();
-  const { user, signOut } = useAuth();
+  const { user, session, signOut } = useAuth();
   const { toast } = useToast();
   const [avatars, setAvatars] = useState<Avatar[]>([]);
   const [heygenCredits, setHeygenCredits] = useState<HeyGenCredits | null>(null);
@@ -32,13 +32,13 @@ const Dashboard = () => {
   const [copied, setCopied] = useState(false);
 
   const refreshCredits = useCallback(async () => {
-    const creditsData = await fetchBackendCredits();
+    const creditsData = await fetchBackendCredits(session?.access_token);
     if (!creditsData) {
       console.error('Erro ao buscar créditos via backend');
       return;
     }
     setHeygenCredits(creditsData);
-  }, []);
+  }, [session?.access_token]);
 
   const fetchData = async () => {
     try {

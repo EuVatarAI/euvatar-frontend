@@ -24,7 +24,7 @@ interface Avatar {
 
 const AvatarsManagement = () => {
   const navigate = useNavigate();
-  const { user, signOut } = useAuth();
+  const { user, session, signOut } = useAuth();
   const { toast } = useToast();
   const [avatars, setAvatars] = useState<Avatar[]>([]);
   const [heygenCredits, setHeygenCredits] = useState<HeyGenCredits | null>(null);
@@ -32,13 +32,13 @@ const AvatarsManagement = () => {
   const [showUnlockDialog, setShowUnlockDialog] = useState(false);
 
   const refreshCredits = useCallback(async () => {
-    const creditsData = await fetchBackendCredits();
+    const creditsData = await fetchBackendCredits(session?.access_token);
     if (!creditsData) {
       console.error('Erro ao buscar créditos HeyGen via backend');
       return;
     }
     setHeygenCredits(creditsData);
-  }, []);
+  }, [session?.access_token]);
 
   const fetchData = async () => {
     try {

@@ -51,7 +51,6 @@ const BORDER_CONFIG = {
 };
 
 const backendUrl = (import.meta.env.VITE_BACKEND_URL as string | undefined) || '';
-const apiToken = (import.meta.env.VITE_APP_API_TOKEN as string | undefined) || '';
 const avatarProvider = (import.meta.env.VITE_AVATAR_PROVIDER as string | undefined) || 'heygen';
 const isLiveAvatar = avatarProvider.toLowerCase() === 'liveavatar';
 const STATIC_ASSETS = {
@@ -77,6 +76,7 @@ const getPadding = (fontSize: number) => {
 export default function EuvatarPublic() {
   const { id } = useParams<{ id: string }>();
   const { toast } = useToast();
+  const [authToken, setAuthToken] = useState<string | null>(null);
   const [avatar, setAvatar] = useState<Avatar | null>(null);
   const [buttons, setButtons] = useState<AvatarButton[]>([]);
   const [ads, setAds] = useState<AvatarAd[]>([]);
@@ -167,8 +167,7 @@ export default function EuvatarPublic() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'X-Client-Id': clientId,
-          ...(apiToken ? { Authorization: `Bearer ${apiToken}` } : {}),
+          ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
         },
         body: JSON.stringify({ avatar_id: id, text }),
       });
@@ -185,6 +184,21 @@ export default function EuvatarPublic() {
   const attachTrackToVideo = useCallback((track: any) => {
     if (!liveVideoRef.current) return;
     track.attach(liveVideoRef.current);
+  }, []);
+
+  useEffect(() => {
+    let mounted = true;
+    supabase.auth.getSession().then(({ data }) => {
+      if (!mounted) return;
+      setAuthToken(data.session?.access_token ?? null);
+    });
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_evt, session) => {
+      setAuthToken(session?.access_token ?? null);
+    });
+    return () => {
+      mounted = false;
+      subscription.unsubscribe();
+    };
   }, []);
 
   useEffect(() => {
@@ -447,8 +461,7 @@ export default function EuvatarPublic() {
         const resp = await fetch(createUrl, {
           headers: {
             'Content-Type': 'application/json',
-            'X-Client-Id': clientId,
-            ...(apiToken ? { Authorization: `Bearer ${apiToken}` } : {}),
+            ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
           },
         });
         const data = await resp.json();
@@ -515,8 +528,7 @@ export default function EuvatarPublic() {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'X-Client-Id': clientId,
-            ...(apiToken ? { Authorization: `Bearer ${apiToken}` } : {}),
+            ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
           },
           body: JSON.stringify({ session_id: sessionId }),
         });
@@ -527,8 +539,7 @@ export default function EuvatarPublic() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'X-Client-Id': clientId,
-          ...(apiToken ? { Authorization: `Bearer ${apiToken}` } : {}),
+          ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
         },
         body: JSON.stringify({ session_id: sessionId }),
       });
@@ -587,8 +598,7 @@ export default function EuvatarPublic() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'X-Client-Id': clientId,
-          ...(apiToken ? { Authorization: `Bearer ${apiToken}` } : {}),
+          ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
         },
         body: JSON.stringify({
           session_id: sessionId,
@@ -657,8 +667,7 @@ export default function EuvatarPublic() {
               const resp = await fetch(sttUrl, {
                 method: 'POST',
                 headers: {
-                  'X-Client-Id': clientId,
-                  ...(apiToken ? { Authorization: `Bearer ${apiToken}` } : {}),
+                  ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
                 },
                 body: form,
               });
@@ -698,8 +707,7 @@ export default function EuvatarPublic() {
           const resp = await fetch(sttUrl, {
             method: 'POST',
             headers: {
-              'X-Client-Id': clientId,
-              ...(apiToken ? { Authorization: `Bearer ${apiToken}` } : {}),
+              ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
             },
             body: form,
           });

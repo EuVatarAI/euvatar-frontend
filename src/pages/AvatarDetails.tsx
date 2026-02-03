@@ -30,7 +30,6 @@ import {
 } from '@/components/ui/alert-dialog';
 
 const backendUrl = (import.meta.env.VITE_BACKEND_URL as string | undefined) || '';
-const apiToken = (import.meta.env.VITE_APP_API_TOKEN as string | undefined) || '';
 const avatarProvider = (import.meta.env.VITE_AVATAR_PROVIDER as string | undefined) || 'heygen';
 
 function buildBackendUrl(path: string) {
@@ -72,7 +71,7 @@ const AvatarDetails = () => {
   const { id } = useParams<{ id: string }>();
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, session } = useAuth();
   const { toast } = useToast();
   const [avatar, setAvatar] = useState<Avatar | null>(null);
   const [conversations, setConversations] = useState<Conversation[]>([]);
@@ -135,7 +134,7 @@ const AvatarDetails = () => {
       const url = buildBackendUrl(`/liveavatar/voices?avatar_id=${encodeURIComponent(avatarId)}`);
       const resp = await fetch(url, {
         headers: {
-          ...(apiToken ? { Authorization: `Bearer ${apiToken}` } : {}),
+          ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
         },
       });
       const data = await resp.json();
@@ -155,7 +154,7 @@ const AvatarDetails = () => {
     } finally {
       setVoicesLoading(false);
     }
-  }, [toast, backendUrl, apiToken, avatarProvider]);
+  }, [toast, backendUrl, avatarProvider, session?.access_token]);
 
   const stripTrainingNotes = (text: string) => {
     // Remove legacy markers like: [Treinado com o documento: arquivo.pdf]
@@ -230,7 +229,7 @@ const AvatarDetails = () => {
       const resp = await fetch(listUrl, {
         headers: {
           'Content-Type': 'application/json',
-          ...(apiToken ? { Authorization: `Bearer ${apiToken}` } : {}),
+          ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
         },
       });
       const data = await resp.json();
@@ -493,7 +492,7 @@ const AvatarDetails = () => {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            ...(apiToken ? { Authorization: `Bearer ${apiToken}` } : {}),
+            ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
           },
           body: JSON.stringify({
             avatar_id: id,
@@ -605,7 +604,7 @@ const AvatarDetails = () => {
       const resp = await fetch(uploadUrl, {
         method: 'POST',
         headers: {
-          ...(apiToken ? { Authorization: `Bearer ${apiToken}` } : {}),
+          ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
         },
         body: form,
       });
@@ -643,7 +642,7 @@ const AvatarDetails = () => {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          ...(apiToken ? { Authorization: `Bearer ${apiToken}` } : {}),
+          ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
         },
         body: JSON.stringify({ doc_id: docId, doc_url: docUrl }),
       });

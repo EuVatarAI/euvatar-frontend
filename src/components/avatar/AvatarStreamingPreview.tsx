@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Play, Send, Loader2, AlertCircle, Volume2, Mic } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { useAuth } from '@/hooks/useAuth';
 
 interface AvatarButton {
   id: string;
@@ -42,7 +43,6 @@ const BORDER_CONFIG = {
 };
 
 const backendUrl = (import.meta.env.VITE_BACKEND_URL as string | undefined) || '';
-const apiToken = (import.meta.env.VITE_APP_API_TOKEN as string | undefined) || '';
 const avatarProvider = (import.meta.env.VITE_AVATAR_PROVIDER as string | undefined) || 'heygen';
 const isLiveAvatar = avatarProvider.toLowerCase() === 'liveavatar';
 const PREVIEW_SESSION_MIN = 2.5;
@@ -66,6 +66,7 @@ export function AvatarStreamingPreview({
   language
 }: AvatarStreamingPreviewProps) {
   const { toast } = useToast();
+  const { session } = useAuth();
   const videoRef = useRef<HTMLVideoElement>(null);
   const idleVideoRef = useRef<HTMLVideoElement>(null);
   const roomRef = useRef<Room | null>(null);
@@ -170,8 +171,7 @@ export function AvatarStreamingPreview({
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
-              'X-Client-Id': clientId,
-              ...(apiToken ? { Authorization: `Bearer ${apiToken}` } : {}),
+              ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
             },
             body: JSON.stringify({ session_id: sessionId }),
           });
@@ -183,8 +183,7 @@ export function AvatarStreamingPreview({
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'X-Client-Id': clientId,
-            ...(apiToken ? { Authorization: `Bearer ${apiToken}` } : {}),
+            ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
           },
         });
       }
@@ -257,8 +256,7 @@ export function AvatarStreamingPreview({
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'X-Client-Id': clientId,
-          ...(apiToken ? { Authorization: `Bearer ${apiToken}` } : {}),
+          ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
         },
         body: JSON.stringify({ extend_minutes: PREVIEW_SESSION_MIN }),
       });
@@ -324,8 +322,7 @@ export function AvatarStreamingPreview({
       const createResp = await fetch(createUrl, {
         headers: {
           'Content-Type': 'application/json',
-          'X-Client-Id': clientId,
-          ...(apiToken ? { Authorization: `Bearer ${apiToken}` } : {}),
+          ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
         },
       });
       const createData = await createResp.json();
@@ -428,8 +425,7 @@ export function AvatarStreamingPreview({
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'X-Client-Id': clientId,
-          ...(apiToken ? { Authorization: `Bearer ${apiToken}` } : {}),
+          ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
         },
         body: JSON.stringify({
           session_id: sessionId,
@@ -500,8 +496,7 @@ export function AvatarStreamingPreview({
           const resp = await fetch(sttUrl, {
             method: 'POST',
             headers: {
-              'X-Client-Id': clientId,
-              ...(apiToken ? { Authorization: `Bearer ${apiToken}` } : {}),
+              ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
             },
             body: form,
           });

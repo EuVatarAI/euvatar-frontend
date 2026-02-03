@@ -146,10 +146,16 @@ export const AdminClientDetails = () => {
   const [eventAdditions, setEventAdditions] = useState<EventAddition[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [clientLocked, setClientLocked] = useState(true);
+  const [clientSaveStatus, setClientSaveStatus] = useState<'idle' | 'saved' | 'error'>('idle');
+  const [clientSaveMessage, setClientSaveMessage] = useState('');
   const [showApiKey, setShowApiKey] = useState(false);
   const [clientUserId, setClientUserId] = useState<string>("");
   
   // Editable fields
+  const [clientName, setClientName] = useState("");
+  const [clientEmail, setClientEmail] = useState("");
+  const [clientPassword, setClientPassword] = useState("");
   const [clientUrl, setClientUrl] = useState("");
   const [modality, setModality] = useState<string>("");
   const [currentPlan, setCurrentPlan] = useState<string>("");
@@ -214,10 +220,16 @@ export const AdminClientDetails = () => {
       if (clientError) throw clientError;
       
       setClient(clientData);
+      setClientName(clientData.name || "");
+      setClientEmail(clientData.email || "");
+      setClientPassword(clientData.password_hash || "");
       setClientUrl(clientData.client_url || "");
       setModality(clientData.modality || "");
       setCurrentPlan(clientData.current_plan || "");
       setPlanStartDate(clientData.plan_start_date || "");
+      setClientLocked(true);
+      setClientSaveStatus('idle');
+      setClientSaveMessage("");
 
       // Resolve client user_id (auth user) to use avatars table
       let resolvedUserId = clientData.user_id || "";
@@ -363,6 +375,8 @@ export const AdminClientDetails = () => {
   const handleSaveClient = async () => {
     if (!client) return;
     setSaving(true);
+    setClientSaveStatus('idle');
+    setClientSaveMessage('');
 
     try {
       // Calculate expiration date if plan start date is set
@@ -376,6 +390,9 @@ export const AdminClientDetails = () => {
       const { error } = await supabaseAdmin
         .from('admin_clients')
         .update({
+          name: clientName || null,
+          email: clientEmail || null,
+          password_hash: clientPassword || null,
           client_url: clientUrl || null,
           modality: (modality || null) as 'evento' | 'plano_trimestral' | null,
           current_plan: (currentPlan || null) as 'plano_4h' | 'plano_7h' | 'plano_20h' | null,
@@ -401,8 +418,13 @@ export const AdminClientDetails = () => {
         description: "As alterações foram salvas.",
       });
 
+      setClientLocked(true);
+      setClientSaveStatus('saved');
+      setClientSaveMessage('Dados salvos com sucesso.');
       fetchClientData();
     } catch (error: any) {
+      setClientSaveStatus('error');
+      setClientSaveMessage(error.message || 'Erro ao salvar.');
       toast({
         title: "Erro ao salvar",
         description: error.message,
@@ -898,20 +920,33 @@ export const AdminClientDetails = () => {
                 <CardContent className="space-y-4">
                   <div className="space-y-2">
                     <Label>Nome</Label>
-                    <Input value={client.name} disabled />
+                    <Input
+                      value={clientName}
+                      disabled={clientLocked}
+                      onChange={(e) => setClientName(e.target.value)}
+                    />
                   </div>
                   <div className="space-y-2">
                     <Label>E-mail</Label>
-                    <Input value={client.email} disabled />
+                    <Input
+                      value={clientEmail}
+                      disabled={clientLocked}
+                      onChange={(e) => setClientEmail(e.target.value)}
+                    />
                   </div>
                   <div className="space-y-2">
                     <Label>Senha</Label>
-                    <Input value={client.password_hash} disabled />
+                    <Input
+                      value={clientPassword}
+                      disabled={clientLocked}
+                      onChange={(e) => setClientPassword(e.target.value)}
+                    />
                   </div>
                   <div className="space-y-2">
                     <Label>URL da Conta</Label>
                     <Input
                       value={clientUrl}
+                      disabled={clientLocked}
                       onChange={(e) => setClientUrl(e.target.value)}
                       placeholder="minha-empresa"
                     />
@@ -919,41 +954,35 @@ export const AdminClientDetails = () => {
                       Acesso: {window.location.origin}/{clientUrl || 'sua-url'}
                     </p>
                   </div>
-                  <Button 
-                    className="w-full"
-                    onClick={async () => {
-                      if (!client) return;
-                      try {
-                        if (clientUrl !== client.client_url) {
-                          await supabaseAdmin.from('client_url_history').insert({
-                            client_id: client.id,
-                            old_url: client.client_url,
-                            new_url: clientUrl || null,
-                            changed_by: 'admin',
-                          });
+                  <div className="flex items-center gap-3">
+                    <Button
+                      className="w-full md:w-auto"
+                      onClick={() => {
+                        if (clientLocked) {
+                          setClientLocked(false);
+                          setClientSaveStatus('idle');
+                          setClientSaveMessage('');
+                        } else {
+                          handleSaveClient();
                         }
-
-                        const { error } = await supabaseAdmin
-                          .from('admin_clients')
-                          .update({ client_url: clientUrl || null })
-                          .eq('id', client.id);
-
-                        if (error) throw error;
-
-                        toast({ title: "URL salva!" });
-                        fetchClientData();
-                      } catch (error: any) {
-                        toast({
-                          title: "Erro ao salvar",
-                          description: error.message,
-                          variant: "destructive",
-                        });
-                      }
-                    }}
-                  >
-                    <Save className="h-4 w-4 mr-2" />
-                    Salvar Dados
-                  </Button>
+                      }}
+                      disabled={saving}
+                    >
+                      {saving ? (
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      ) : clientLocked ? (
+                        <Edit className="h-4 w-4 mr-2" />
+                      ) : (
+                        <Save className="h-4 w-4 mr-2" />
+                      )}
+                      {clientLocked ? "Editar Dados" : "Salvar Dados"}
+                    </Button>
+                    {clientSaveStatus !== 'idle' && (
+                      <Badge variant={clientSaveStatus === 'saved' ? "default" : "destructive"}>
+                        {clientSaveMessage || (clientSaveStatus === 'saved' ? "Salvo" : "Erro")}
+                      </Badge>
+                    )}
+                  </div>
                 </CardContent>
               </Card>
 

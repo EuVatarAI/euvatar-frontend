@@ -26,9 +26,7 @@ export type HeyGenCredits = {
 };
 
 const backendUrl = (import.meta.env.VITE_BACKEND_URL as string | undefined) || '';
-const apiToken = (import.meta.env.VITE_APP_API_TOKEN as string | undefined) || '';
-
-export async function fetchBackendCredits(): Promise<HeyGenCredits | null> {
+export async function fetchBackendCredits(authToken?: string): Promise<HeyGenCredits | null> {
   if (!backendUrl) {
     console.error('VITE_BACKEND_URL não configurada');
     return null;
@@ -39,7 +37,7 @@ export async function fetchBackendCredits(): Promise<HeyGenCredits | null> {
     const resp = await fetch(url, {
       headers: {
         'Content-Type': 'application/json',
-        ...(apiToken ? { Authorization: `Bearer ${apiToken}` } : {}),
+        ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
       },
     });
 
