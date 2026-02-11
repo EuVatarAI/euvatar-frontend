@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { useAdminAuth } from "@/hooks/useAdminAuth";
 import { supabaseAdmin } from "@/integrations/supabase/adminClient";
+import { isCredentialsConfigured } from "@/lib/credentials";
 import { 
   Plus, LogOut, Users, Search, Filter, 
   CreditCard, ExternalLink, Eye, EyeOff, 
@@ -174,16 +175,6 @@ export const AdminDashboard = () => {
         .from('avatars')
         .select('id, user_id');
 
-      const avatarIds = (avatarsData || []).map((row: any) => row.id).filter(Boolean);
-      const { data: credentialRows } = avatarIds.length
-        ? await supabaseAdmin
-            .from('avatar_credentials')
-            .select('avatar_id')
-            .in('avatar_id', avatarIds)
-        : { data: [] };
-
-      const credentialSet = new Set((credentialRows || []).map((row: any) => row.avatar_id));
-
       // Fetch avatar counts for each client
       const clientsWithAvatars = await Promise.all(
         (clientsData || []).map(async (client) => {
@@ -191,7 +182,7 @@ export const AdminDashboard = () => {
             .filter((row: any) => row.user_id === client.user_id)
             .map((row: any) => row.id);
 
-          const hasCredentials = userAvatarIds.some((id: string) => credentialSet.has(id));
+          const hasCredentials = isCredentialsConfigured(client);
 
           return {
             ...client,

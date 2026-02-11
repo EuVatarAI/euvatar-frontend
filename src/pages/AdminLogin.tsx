@@ -46,6 +46,13 @@ export const AdminLogin = () => {
 
       if (error) throw error;
       if (!data.user) throw new Error("Usuário inválido.");
+      if (!data.session) throw new Error("Sessão inválida.");
+
+      // Garante que o token do admin seja persistido antes de qualquer query protegida
+      await supabaseAdmin.auth.setSession({
+        access_token: data.session.access_token,
+        refresh_token: data.session.refresh_token,
+      });
 
       const { data: profileData, error: profileError } = await supabaseAdmin
         .from("profiles")

@@ -197,25 +197,26 @@ const Dashboard = () => {
     );
   }
 
-  const totalCredits = heygenCredits?.totalEuvatarCredits ?? 960;
-  const totalMinutes = heygenCredits?.totalMinutes ?? 240;
+  const missingApiKey = Boolean(heygenCredits?.missingApiKey);
+  const hasUsageData = (heygenCredits?.avatarUsage?.length ?? 0) > 0;
+  const hasCreditData = Boolean(heygenCredits) && !missingApiKey && (hasUsageData || !heygenCredits?.error);
+  const totalCredits = hasCreditData ? (heygenCredits?.totalEuvatarCredits ?? 0) : 0;
+  const totalMinutes = hasCreditData ? (heygenCredits?.totalMinutes ?? 0) : 0;
   const fallbackUsageMinutes = (heygenCredits?.avatarUsage || []).reduce((sum, u) => sum + (u.totalMinutes || 0), 0);
   const fallbackUsageCredits = (heygenCredits?.avatarUsage || []).reduce((sum, u) => sum + (u.euvatarCredits || 0), 0);
-  const shouldFallbackTotals = Boolean(heygenCredits?.needsCredentialUpdate || heygenCredits?.error);
-  const remainingCreditsRaw = shouldFallbackTotals
-    ? (totalCredits - fallbackUsageCredits)
-    : (heygenCredits?.euvatarCredits ?? (totalCredits - fallbackUsageCredits));
-  const remainingMinutesRaw = shouldFallbackTotals
-    ? (totalMinutes - fallbackUsageMinutes)
-    : (heygenCredits?.minutesRemaining ?? (totalMinutes - fallbackUsageMinutes));
+  const remainingCreditsRaw = hasCreditData
+    ? (heygenCredits?.euvatarCredits ?? Math.max(totalCredits - fallbackUsageCredits, 0))
+    : 0;
+  const remainingMinutesRaw = hasCreditData
+    ? (heygenCredits?.minutesRemaining ?? Math.max(totalMinutes - fallbackUsageMinutes, 0))
+    : 0;
   const remainingCredits = Math.min(Math.max(remainingCreditsRaw, 0), totalCredits);
   const minutesRemaining = Math.min(Math.max(remainingMinutesRaw, 0), totalMinutes);
   const creditsPercentage = totalCredits > 0 ? Math.round((remainingCredits / totalCredits) * 100) : 0;
   const usedCredits = Math.max(0, totalCredits - remainingCredits);
   const usedMinutes = Math.max(0, totalMinutes - minutesRemaining);
   const hoursRemaining = minutesRemaining / 60;
-  const missingApiKey = Boolean(heygenCredits?.missingApiKey);
-  const hasCredentialsConfigured = !heygenCredits?.error && !missingApiKey;
+  const hasCredentialsConfigured = Boolean(heygenCredits) && !missingApiKey;
   const needsCredentialUpdate = heygenCredits?.needsCredentialUpdate;
 
   const formatTime = (minutes: number) => {
@@ -246,7 +247,9 @@ const Dashboard = () => {
                     {remainingCredits} de {totalCredits} créditos restantes
                   </span>
                   <span className="text-sm text-muted-foreground">
-                    {formatTime(minutesRemaining)} ({minutesRemaining}min) de 4h ({totalMinutes}min)
+                    {totalMinutes > 0
+                      ? `${formatTime(minutesRemaining)} (${minutesRemaining}min) de ${formatTime(totalMinutes)} (${totalMinutes}min)`
+                      : 'Sem créditos configurados'}
                   </span>
                 </div>
                 <Progress value={creditsPercentage} />
@@ -271,9 +274,11 @@ const Dashboard = () => {
                   <p className="text-xs text-muted-foreground">Tempo Usado</p>
                 </div>
               </div>
-              <p className="text-xs text-muted-foreground">
-                20 créditos = 5 minutos de uso. Plano inicial: 960 créditos (4 horas / 240 minutos).
-              </p>
+              {totalCredits > 0 && totalMinutes > 0 && (
+                <p className="text-xs text-muted-foreground">
+                  20 créditos = 5 minutos de uso.
+                </p>
+              )}
               {needsCredentialUpdate && (heygenCredits?.avatarUsage?.length ?? 0) === 0 && (
                 <p className="text-xs text-orange-600 font-medium">
                   ⚠️ A API key do Euvatar está inválida ou expirada. Atualize na aba Credenciais do euvatar.
@@ -454,9 +459,6 @@ const Dashboard = () => {
                 <p className="text-muted-foreground mb-4">
                   Nenhum euvatar criado ainda.
                 </p>
-                <Button onClick={() => navigate('/avatars')}>
-                  Criar Primeiro Euvatar
-                </Button>
               </CardContent>
             </Card>
           )}

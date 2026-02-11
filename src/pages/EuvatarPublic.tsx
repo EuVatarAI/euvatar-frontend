@@ -43,6 +43,8 @@ interface Avatar {
 
 const INACTIVITY_TIMEOUT = 5 * 60 * 1000; // 5 minutes
 const COUNTDOWN_SECONDS = 10;
+const PUBLIC_SESSION_MIN = 2.5;
+const WARN_SECONDS = 10;
 
 const BORDER_CONFIG = {
   square: 'rounded-none',
@@ -99,17 +101,24 @@ export default function EuvatarPublic() {
   const [inputText, setInputText] = useState('');
   const [isSending, setIsSending] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
+  const [sessionSecondsLeft, setSessionSecondsLeft] = useState(0);
+  const [sessionTotalSeconds, setSessionTotalSeconds] = useState(0);
+  const [showSessionWarning, setShowSessionWarning] = useState(false);
+  const [showSessionExtendDialog, setShowSessionExtendDialog] = useState(false);
   
   // Inactivity states
   const [showInactivityWarning, setShowInactivityWarning] = useState(false);
   const [countdown, setCountdown] = useState(COUNTDOWN_SECONDS);
   const inactivityTimerRef = useRef<NodeJS.Timeout | null>(null);
   const countdownTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const sessionTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const sessionWarnShownRef = useRef(false);
   
   const containerRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const liveVideoRef = useRef<HTMLVideoElement>(null);
   const roomRef = useRef<Room | null>(null);
+  const agentRoomRef = useRef<Room | null>(null);
   const audioElsRef = useRef<HTMLAudioElement[]>([]);
   const recorderRef = useRef<MediaRecorder | null>(null);
   const recordChunksRef = useRef<Blob[]>([]);
@@ -117,6 +126,7 @@ export default function EuvatarPublic() {
   const liveRecorderRef = useRef<MediaRecorder | null>(null);
   const liveRecordChunksRef = useRef<Blob[]>([]);
   const contextMediaTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const lastAvatarTextRef = useRef<string>('');
 
   // Determine aspect ratio based on orientation
   const isVertical = avatar?.avatar_orientation === 'vertical';
@@ -160,6 +170,65 @@ export default function EuvatarPublic() {
     }
   }, []);
 
+  const formatTimer = (sec: number) => {
+    const clamped = Math.max(0, sec);
+    const m = String(Math.floor(clamped / 60)).padStart(2, '0');
+    const s = String(clamped % 60).padStart(2, '0');
+    return `${m}:${s}`;
+  };
+
+  const clearSessionTimer = () => {
+    if (sessionTimerRef.current) {
+      clearInterval(sessionTimerRef.current);
+      sessionTimerRef.current = null;
+    }
+  };
+
+  const startSessionTimer = (minutes: number) => {
+    const totalSeconds = Math.max(1, Math.round(minutes * 60));
+    const endAt = Date.now() + totalSeconds * 1000;
+    setSessionTotalSeconds(totalSeconds);
+    setSessionSecondsLeft(totalSeconds);
+    setShowSessionWarning(false);
+    setShowSessionExtendDialog(false);
+    sessionWarnShownRef.current = false;
+    clearSessionTimer();
+    sessionTimerRef.current = setInterval(() => {
+      const left = Math.max(0, Math.ceil((endAt - Date.now()) / 1000));
+      setSessionSecondsLeft(left);
+      if (left <= WARN_SECONDS && left > 0) {
+        setShowSessionWarning(true);
+        if (!sessionWarnShownRef.current) {
+          sessionWarnShownRef.current = true;
+          setShowSessionExtendDialog(true);
+        }
+      } else if (left > WARN_SECONDS) {
+        setShowSessionWarning(false);
+      }
+      if (left <= 0) {
+        clearSessionTimer();
+        setShowSessionWarning(false);
+        setShowSessionExtendDialog(false);
+        endSession();
+      }
+    }, 1000);
+  };
+
+  const handleSessionContinue = () => {
+    setShowSessionExtendDialog(false);
+    startSessionTimer(PUBLIC_SESSION_MIN);
+  };
+
+  const buildAuthHeaders = useCallback(() => {
+    if (authToken) {
+      return { Authorization: `Bearer ${authToken}` };
+    }
+    if (id) {
+      return { 'X-Public-Avatar-Id': id };
+    }
+    return {};
+  }, [authToken, id]);
+
   const resolveContextMedia = useCallback(async (text: string) => {
     if (!backendUrl || !id || !text.trim()) return;
     try {
@@ -167,19 +236,63 @@ export default function EuvatarPublic() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
+          ...buildAuthHeaders(),
         },
         body: JSON.stringify({ avatar_id: id, text }),
       });
       const data = await resp.json();
-      const media = data?.media;
-      if (resp.ok && data?.ok && media?.url) {
-        showContextMedia(media);
+      const mediaRaw = data?.media || (data?.media_url ? {
+        url: data.media_url,
+        type: data.media_type,
+        caption: data.caption || data.name,
+      } : null);
+      const mediaUrl = mediaRaw?.url;
+      if (resp.ok && data?.ok && mediaUrl) {
+        const mediaType = mediaRaw?.type || mediaRaw?.media_type || (isVideoUrl(mediaUrl) ? 'video' : 'image');
+        showContextMedia({
+          type: mediaType,
+          url: mediaUrl,
+          caption: mediaRaw?.caption,
+        });
       }
     } catch (err) {
       console.error('Context resolve error:', err);
     }
-  }, [clientId, id, showContextMedia]);
+  }, [buildAuthHeaders, id, showContextMedia]);
+
+  const resolveAvatarSpeech = useCallback(async (rawText: string) => {
+    const cleaned = (rawText || '').trim();
+    if (!cleaned) return;
+    if (lastAvatarTextRef.current === cleaned) return;
+    lastAvatarTextRef.current = cleaned;
+    await resolveContextMedia(cleaned);
+  }, [resolveContextMedia]);
+
+  const extractAvatarText = useCallback((payload: Uint8Array | string) => {
+    let text = '';
+    try {
+      text = typeof payload === 'string'
+        ? payload
+        : new TextDecoder().decode(payload);
+    } catch {
+      return '';
+    }
+    const trimmed = (text || '').trim();
+    if (!trimmed) return '';
+    try {
+      const parsed = JSON.parse(trimmed);
+      if (typeof parsed === 'string') return parsed;
+      if (parsed?.text) return String(parsed.text);
+      if (parsed?.transcript) return String(parsed.transcript);
+      if (parsed?.message) return String(parsed.message);
+      if (parsed?.content) return String(parsed.content);
+      if (parsed?.utterance) return String(parsed.utterance);
+      if (parsed?.data?.text) return String(parsed.data.text);
+    } catch {
+      // not JSON, keep raw
+    }
+    return trimmed;
+  }, []);
 
   const attachTrackToVideo = useCallback((track: any) => {
     if (!liveVideoRef.current) return;
@@ -223,10 +336,15 @@ export default function EuvatarPublic() {
         clearTimeout(contextMediaTimerRef.current);
         contextMediaTimerRef.current = null;
       }
+      clearSessionTimer();
       document.removeEventListener('fullscreenchange', handleFullscreenChange);
       if (roomRef.current) {
         roomRef.current.disconnect();
         roomRef.current = null;
+      }
+      if (agentRoomRef.current) {
+        agentRoomRef.current.disconnect();
+        agentRoomRef.current = null;
       }
       if (audioElsRef.current.length) {
         audioElsRef.current.forEach((el) => {
@@ -456,12 +574,13 @@ export default function EuvatarPublic() {
         if (avatar?.language) params.set('language', avatar.language);
         if (avatar?.backstory) params.set('backstory', avatar.backstory);
         if (isHolidayAvatar) params.set('quality', 'high');
+        params.set('minutes', String(PUBLIC_SESSION_MIN));
         params.set('client_id', clientId);
         const createUrl = buildBackendUrl(`/new?${params.toString()}`);
         const resp = await fetch(createUrl, {
           headers: {
             'Content-Type': 'application/json',
-            ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
+            ...buildAuthHeaders(),
           },
         });
         const data = await resp.json();
@@ -483,7 +602,14 @@ export default function EuvatarPublic() {
             const a = document.createElement('audio');
             a.autoplay = true;
             a.playsInline = true;
+            a.muted = false;
+            a.volume = 1;
             track.attach(a);
+            try {
+              a.play().catch(() => undefined);
+            } catch {
+              // ignore
+            }
             document.body.appendChild(a);
             audioElsRef.current.push(a);
           }
@@ -496,6 +622,14 @@ export default function EuvatarPublic() {
           }
         });
 
+        room.on(RoomEvent.DataReceived, (payload, participant) => {
+          if (participant?.isLocal) return;
+          const text = extractAvatarText(payload);
+          if (text) {
+            resolveAvatarSpeech(text);
+          }
+        });
+
         room.on(RoomEvent.Disconnected, () => {
           setIsConnected(false);
           setIsStreaming(false);
@@ -503,7 +637,36 @@ export default function EuvatarPublic() {
 
         setIsStreaming(false);
         await room.connect(data.livekit_url, data.access_token);
+
+        if (data.livekit_agent_token) {
+          const agentRoom = new Room();
+          agentRoomRef.current = agentRoom;
+          agentRoom.on(RoomEvent.TrackSubscribed, (track) => {
+            if (track.kind === 'audio') {
+              const a = document.createElement('audio');
+              a.autoplay = true;
+              a.playsInline = true;
+              a.muted = false;
+              a.volume = 1;
+              track.attach(a);
+              try {
+                a.play().catch(() => undefined);
+              } catch {
+                // ignore
+              }
+              document.body.appendChild(a);
+              audioElsRef.current.push(a);
+            }
+          });
+          agentRoom.on(RoomEvent.Disconnected, () => {
+            if (agentRoomRef.current) {
+              agentRoomRef.current = null;
+            }
+          });
+          await agentRoom.connect(data.livekit_url, data.livekit_agent_token);
+        }
         setIsConnected(true);
+        startSessionTimer(PUBLIC_SESSION_MIN);
       } catch (err: any) {
         console.error('Error starting session:', err);
         toast({
@@ -528,7 +691,7 @@ export default function EuvatarPublic() {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
+            ...buildAuthHeaders(),
           },
           body: JSON.stringify({ session_id: sessionId }),
         });
@@ -539,7 +702,7 @@ export default function EuvatarPublic() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
+          ...buildAuthHeaders(),
         },
         body: JSON.stringify({ session_id: sessionId }),
       });
@@ -550,10 +713,17 @@ export default function EuvatarPublic() {
         roomRef.current.disconnect();
         roomRef.current = null;
       }
+      if (agentRoomRef.current) {
+        agentRoomRef.current.disconnect();
+        agentRoomRef.current = null;
+      }
       setSessionId(null);
       setIsConnected(false);
       setIsStreaming(false);
       setIsRecording(false);
+      clearSessionTimer();
+      setSessionSecondsLeft(0);
+      setShowSessionWarning(false);
       if (liveVideoRef.current) {
         liveVideoRef.current.srcObject = null;
       }
@@ -576,7 +746,7 @@ export default function EuvatarPublic() {
     if (isLiveAvatar) {
       toast({
         title: 'Modo voz',
-        description: 'LiveAvatar não suporta envio de texto. Use o microfone.',
+        description: 'Envio de texto não disponível.',
       });
       return;
     }
@@ -598,7 +768,7 @@ export default function EuvatarPublic() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
+          ...buildAuthHeaders(),
         },
         body: JSON.stringify({
           session_id: sessionId,
@@ -611,8 +781,18 @@ export default function EuvatarPublic() {
       if (!sayResp.ok || !sayData?.ok) {
         throw new Error(sayData?.error || 'Erro ao enviar texto');
       }
-      if (sayData?.media?.url) {
-        showContextMedia(sayData.media);
+      const sayMedia = sayData?.media || (sayData?.media_url ? {
+        url: sayData.media_url,
+        type: sayData.media_type,
+        caption: sayData.caption || sayData.name,
+      } : null);
+      if (sayMedia?.url) {
+        const mediaType = sayMedia?.type || sayMedia?.media_type || (isVideoUrl(sayMedia.url) ? 'video' : 'image');
+        showContextMedia({
+          type: mediaType,
+          url: sayMedia.url,
+          caption: sayMedia.caption,
+        });
       }
       setInputText('');
     } catch (error: any) {
@@ -667,7 +847,7 @@ export default function EuvatarPublic() {
               const resp = await fetch(sttUrl, {
                 method: 'POST',
                 headers: {
-                  ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
+                  ...buildAuthHeaders(),
                 },
                 body: form,
               });
@@ -707,7 +887,7 @@ export default function EuvatarPublic() {
           const resp = await fetch(sttUrl, {
             method: 'POST',
             headers: {
-              ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
+              ...buildAuthHeaders(),
             },
             body: form,
           });
@@ -719,7 +899,7 @@ export default function EuvatarPublic() {
             if (isLiveAvatar) {
               toast({
                 title: 'Modo voz',
-                description: 'LiveAvatar não aceita texto. Fale direto no microfone.',
+                description: 'Envio de texto não disponível.',
               });
             } else {
               await sendText(data.text);
@@ -871,6 +1051,13 @@ export default function EuvatarPublic() {
             }`}
           />
 
+          {/* Session timer (top) */}
+          {isConnected && sessionTotalSeconds > 0 && (
+            <div className="absolute top-3 left-1/2 -translate-x-1/2 z-30 flex items-center gap-2 rounded-full bg-black/70 px-4 py-1.5 text-sm font-semibold text-white shadow ring-1 ring-white/10">
+              ⏳ {formatTimer(sessionSecondsLeft)} / {formatTimer(sessionTotalSeconds)}
+            </div>
+          )}
+
           {/* Idle/Ads Video */}
           {!isStreaming && (currentMediaUrl ? (
             isVideoUrl(currentMediaUrl) ? (
@@ -931,32 +1118,34 @@ export default function EuvatarPublic() {
             </div>
           )}
 
-          {/* Context Media Overlay */}
+          {/* Context Media Overlay (small, right side of avatar) */}
           {contextMedia && !buttonVideoUrl && !externalPopupOpen && (
-            <div className="absolute inset-0 z-20 bg-black/70 flex items-center justify-center">
-              {contextMedia.type === 'video' ? (
-                <video
-                  src={contextMedia.url}
-                  className="w-full h-full object-contain object-center"
-                  autoPlay
-                  playsInline
-                  onEnded={() => setContextMedia(null)}
-                />
-              ) : (
-                <img
-                  src={contextMedia.url}
-                  alt={contextMedia.caption || 'Mídia do contexto'}
-                  className="w-full h-full object-contain object-center"
-                />
-              )}
-              <Button
-                variant="destructive"
-                size="sm"
-                className="absolute top-2 right-2 z-30"
-                onClick={() => setContextMedia(null)}
-              >
-                <X className="h-4 w-4" />
-              </Button>
+            <div className="absolute right-6 top-[38%] -translate-y-1/2 z-30 pointer-events-auto">
+              <div className="relative bg-black/60 rounded-xl shadow-2xl p-2 max-w-[260px] max-h-[200px]">
+                {contextMedia.type === 'video' ? (
+                  <video
+                    src={contextMedia.url}
+                    className="w-full h-full max-w-[240px] max-h-[180px] object-contain object-center rounded-lg"
+                    autoPlay
+                    playsInline
+                    onEnded={() => setContextMedia(null)}
+                  />
+                ) : (
+                  <img
+                    src={contextMedia.url}
+                    alt={contextMedia.caption || 'Mídia do contexto'}
+                    className="w-full h-full max-w-[240px] max-h-[180px] object-contain object-center rounded-lg"
+                  />
+                )}
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  className="absolute top-1 right-1 z-40"
+                  onClick={() => setContextMedia(null)}
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
             </div>
           )}
 
@@ -1014,6 +1203,28 @@ export default function EuvatarPublic() {
         </div>
       </div>
 
+      {/* Session warning dialog */}
+      <Dialog open={showSessionExtendDialog} onOpenChange={setShowSessionExtendDialog}>
+        <DialogContent className="bg-black/90 text-white border-white/10">
+          <DialogHeader>
+            <DialogTitle>Sessão prestes a acabar</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <p className="text-sm text-white/80">
+              Faltam {sessionSecondsLeft}s. Deseja continuar a sessão?
+            </p>
+            <div className="flex items-center justify-end gap-3">
+              <Button variant="secondary" onClick={handleSessionContinue}>
+                Continuar
+              </Button>
+              <Button variant="destructive" onClick={endSession}>
+                Encerrar
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
       {/* Text chat */}
       {!isLiveAvatar && (
         <div
@@ -1057,7 +1268,7 @@ export default function EuvatarPublic() {
           <div className="flex items-center gap-2 p-3 bg-emerald-500/10 border border-emerald-500/30 rounded-lg">
             <AlertCircle className="h-5 w-5 text-emerald-500 flex-shrink-0" />
             <p className="text-sm text-emerald-600 dark:text-emerald-400">
-              LiveAvatar responde apenas por voz. Clique no microfone e fale.
+              
             </p>
           </div>
         </div>

@@ -9,6 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { useAdminAuth } from "@/hooks/useAdminAuth";
 import { supabaseAdmin } from "@/integrations/supabase/adminClient";
+import { buildManageCredentialsPayload } from "@/lib/credentials";
 import { 
   ArrowLeft, Save, Loader2, CreditCard, Key, Users, 
   Clock, CheckCircle2, AlertCircle, Plus, ExternalLink,
@@ -40,6 +41,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Separator } from "@/components/ui/separator";
+import { type AvatarHeyGenUsage } from "@/services/credits";
 
 interface AdminClient {
   id: string;
@@ -151,6 +153,15 @@ export const AdminClientDetails = () => {
   const [clientSaveMessage, setClientSaveMessage] = useState('');
   const [showApiKey, setShowApiKey] = useState(false);
   const [clientUserId, setClientUserId] = useState<string>("");
+  const [consumptionLoading, setConsumptionLoading] = useState(false);
+  const [consumptionError, setConsumptionError] = useState<string>("");
+  const [avatarUsageMap, setAvatarUsageMap] = useState<Record<string, AvatarHeyGenUsage>>({});
+  const [consumptionTotals, setConsumptionTotals] = useState({
+    sessionCount: 0,
+    totalSeconds: 0,
+    totalMinutes: 0,
+    euvatarCredits: 0,
+  });
   
   // Editable fields
   const [clientName, setClientName] = useState("");
@@ -177,6 +188,7 @@ export const AdminClientDetails = () => {
   const [isAddAvatarOpen, setIsAddAvatarOpen] = useState(false);
   const [newAvatarName, setNewAvatarName] = useState("");
   const [newAvatarUrl, setNewAvatarUrl] = useState("");
+  const [newAvatarExternalId, setNewAvatarExternalId] = useState("");
   
   const { toast } = useToast();
   const navigate = useNavigate();
@@ -263,8 +275,17 @@ export const AdminClientDetails = () => {
         if (!selectedAvatarId && mapped.length > 0) {
           setSelectedAvatarId(mapped[0].id);
         }
+
+        await fetchConsumptionData(mapped.map(a => a.id));
       } else {
         setAvatars([]);
+        setAvatarUsageMap({});
+        setConsumptionTotals({
+          sessionCount: 0,
+          totalSeconds: 0,
+          totalMinutes: 0,
+          euvatarCredits: 0,
+        });
       }
 
       // Fetch payments
@@ -298,11 +319,94 @@ export const AdminClientDetails = () => {
     }
   };
 
+  const fetchConsumptionData = async (avatarIds: string[]) => {
+    if (!avatarIds.length) {
+      setAvatarUsageMap({});
+      setConsumptionTotals({
+        sessionCount: 0,
+        totalSeconds: 0,
+        totalMinutes: 0,
+        euvatarCredits: 0,
+      });
+      return;
+    }
+
+    setConsumptionLoading(true);
+    setConsumptionError("");
+    try {
+      const { data: sessionsData, error } = await supabaseAdmin
+        .from('avatar_sessions')
+        .select('avatar_id, duration_seconds')
+        .in('avatar_id', avatarIds);
+
+      if (error) throw error;
+
+      const usageMap: Record<string, AvatarHeyGenUsage> = {};
+      let totalSeconds = 0;
+      let totalSessions = 0;
+
+      (sessionsData || []).forEach((session) => {
+        const avatarId = session.avatar_id;
+        const seconds = Number(session.duration_seconds || 0);
+        totalSeconds += seconds;
+        totalSessions += 1;
+        if (!usageMap[avatarId]) {
+          usageMap[avatarId] = {
+            avatarId,
+            heygenAvatarId: '',
+            totalSeconds: 0,
+            totalMinutes: 0,
+            heygenCredits: 0,
+            euvatarCredits: 0,
+            sessionCount: 0,
+          };
+        }
+        usageMap[avatarId].totalSeconds += seconds;
+        usageMap[avatarId].sessionCount += 1;
+      });
+
+      Object.values(usageMap).forEach((usage) => {
+        const minutes = usage.totalSeconds / 60;
+        usage.totalMinutes = Number(minutes.toFixed(2));
+        usage.euvatarCredits = secondsToCredits(usage.totalSeconds);
+        usage.heygenCredits = Number((usage.euvatarCredits / 20).toFixed(2)); // 20 créditos euvatar = 1 HeyGen
+      });
+
+      const totalMinutes = Number((totalSeconds / 60).toFixed(2));
+      const totalCredits = secondsToCredits(totalSeconds);
+
+      setAvatarUsageMap(usageMap);
+      setConsumptionTotals({
+        sessionCount: totalSessions,
+        totalSeconds,
+        totalMinutes,
+        euvatarCredits: totalCredits,
+      });
+    } catch (error: any) {
+      console.error('Erro ao carregar consumo:', error);
+      setConsumptionError(error.message || "Erro ao carregar consumo.");
+      setAvatarUsageMap({});
+      setConsumptionTotals({
+        sessionCount: 0,
+        totalSeconds: 0,
+        totalMinutes: 0,
+        euvatarCredits: 0,
+      });
+    } finally {
+      setConsumptionLoading(false);
+    }
+  };
+
   const fetchCredentials = async (avatarId: string) => {
     if (!avatarId) return;
     try {
       const { data, error } = await supabaseAdmin.functions.invoke('manage-credentials', {
-        body: { action: 'fetch', avatarId },
+        body: buildManageCredentialsPayload({
+          action: 'fetch',
+          avatarId,
+          clientId,
+          userId: client?.user_id ?? null,
+        }),
       });
       if (error) throw error;
       if (data?.credentials) {
@@ -328,22 +432,70 @@ export const AdminClientDetails = () => {
   };
 
   const handleSaveCredentials = async () => {
-    if (!selectedAvatarId) return;
+    let avatarId = selectedAvatarId;
+    if (!avatarId) {
+      if (!clientUserId) {
+        setCredStatus('error');
+        setCredMessage("Usuário do cliente não encontrado.");
+        toast({
+          title: "Sem usuário",
+          description: "Não foi possível localizar o usuário do cliente para criar o avatar.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      try {
+        const { data, error } = await supabaseAdmin.functions.invoke('admin-create-avatar', {
+          body: {
+            user_id: clientUserId,
+            name: clientName?.trim() ? `Avatar ${clientName}` : "Avatar do Cliente",
+            cover_image_url: null,
+          },
+        });
+
+        if (error) throw error;
+        const avatarData = data?.avatar;
+        avatarId = avatarData?.id || crypto.randomUUID();
+
+        setAvatars(prev => [{
+          id: avatarId,
+          name: avatarData?.name || (clientName?.trim() ? `Avatar ${clientName}` : "Avatar do Cliente"),
+          avatar_url: avatarData?.cover_image_url || null,
+          credits_used: 0,
+          created_at: avatarData?.created_at || new Date().toISOString(),
+          updated_at: avatarData?.updated_at || undefined,
+        }, ...prev]);
+
+        setSelectedAvatarId(avatarId);
+      } catch (error: any) {
+        setCredStatus('error');
+        setCredMessage(error.message || "Erro ao criar avatar.");
+        toast({
+          title: "Erro ao criar avatar",
+          description: error.message || "Tente novamente.",
+          variant: "destructive",
+        });
+        return;
+      }
+    }
     setCredSaving(true);
     setCredStatus('idle');
     setCredMessage("");
 
     try {
       const { data, error } = await supabaseAdmin.functions.invoke('manage-credentials', {
-        body: {
+        body: buildManageCredentialsPayload({
           action: 'save',
-          avatarId: selectedAvatarId,
+          avatarId,
+          clientId,
+          userId: client?.user_id ?? null,
           credentials: {
             accountId: credentials.accountId,
             apiKey: credentials.apiKey,
             avatarExternalId: credentials.avatarExternalId,
           },
-        },
+        }),
       });
       if (error) throw error;
       if (data?.status !== 'valid') {
@@ -387,31 +539,22 @@ export const AdminClientDetails = () => {
         expirationDate = start.toISOString().split('T')[0];
       }
 
-      const { error } = await supabaseAdmin
-        .from('admin_clients')
-        .update({
+      const { data, error } = await supabaseAdmin.functions.invoke('admin-update-client', {
+        body: {
+          client_id: client.id,
           name: clientName || null,
           email: clientEmail || null,
-          password_hash: clientPassword || null,
+          password: clientPassword || null,
           client_url: clientUrl || null,
           modality: (modality || null) as 'evento' | 'plano_trimestral' | null,
           current_plan: (currentPlan || null) as 'plano_4h' | 'plano_7h' | 'plano_20h' | null,
           plan_start_date: planStartDate || null,
           plan_expiration_date: expirationDate,
-        })
-        .eq('id', client.id);
+        },
+      });
 
       if (error) throw error;
-
-      // Log URL change if changed
-      if (clientUrl !== client.client_url) {
-        await supabaseAdmin.from('client_url_history').insert({
-          client_id: client.id,
-          old_url: client.client_url,
-          new_url: clientUrl || null,
-          changed_by: 'admin',
-        });
-      }
+      if (!data?.ok) throw new Error(data?.error || 'Erro ao salvar');
 
       toast({
         title: "Cliente atualizado!",
@@ -427,7 +570,7 @@ export const AdminClientDetails = () => {
       setClientSaveMessage(error.message || 'Erro ao salvar.');
       toast({
         title: "Erro ao salvar",
-        description: error.message,
+        description: error.message || 'Erro ao salvar',
         variant: "destructive",
       });
     } finally {
@@ -593,9 +736,53 @@ export const AdminClientDetails = () => {
     }
 
     try {
+      // Se ainda não há credenciais carregadas, tenta usar as do 1º avatar existente
+      let accountId = credentials.accountId.trim();
+      let apiKey = credentials.apiKey.trim();
+      if ((!accountId || !apiKey) && avatars.length > 0) {
+        const fallbackAvatarId = avatars[0]?.id;
+        if (fallbackAvatarId) {
+          const { data: credData } = await supabaseAdmin.functions.invoke('manage-credentials', {
+            body: buildManageCredentialsPayload({
+              action: 'fetch',
+              avatarId: fallbackAvatarId,
+              clientId,
+              userId: client?.user_id ?? null,
+            }),
+          });
+          if (credData?.credentials) {
+            accountId = credData.credentials.accountId?.toString()?.trim() || "";
+            apiKey = credData.credentials.apiKey?.toString()?.trim() || "";
+            setCredentials({
+              accountId,
+              apiKey,
+              avatarExternalId: credentials.avatarExternalId,
+            });
+          }
+        }
+      }
+
+      if (!accountId || !apiKey) {
+        toast({
+          title: "Credenciais obrigatórias",
+          description: "Configure a API da conta HeyGen antes de adicionar novos avatares.",
+          variant: "destructive",
+        });
+        return;
+      }
+      if (!newAvatarExternalId.trim()) {
+        toast({
+          title: "Avatar External ID obrigatório",
+          description: "Informe o ID externo do avatar para vincular a credencial.",
+          variant: "destructive",
+        });
+        return;
+      }
       const { data, error } = await supabaseAdmin.functions.invoke('admin-create-avatar', {
         body: {
           user_id: clientUserId,
+          client_id: client.id,
+          email: client.email,
           name: newAvatarName,
           cover_image_url: newAvatarUrl || null,
         },
@@ -603,9 +790,26 @@ export const AdminClientDetails = () => {
 
       if (error) throw error;
       const avatarData = data?.avatar;
+      const createdAvatarId = avatarData?.id || crypto.randomUUID();
+
+      const { error: credError } = await supabaseAdmin.functions.invoke('manage-credentials', {
+        body: buildManageCredentialsPayload({
+          action: 'save',
+          avatarId: createdAvatarId,
+          clientId,
+          userId: client?.user_id ?? null,
+          credentials: {
+            accountId,
+            apiKey,
+            avatarExternalId: newAvatarExternalId.trim(),
+          },
+        }),
+      });
+
+      if (credError) throw credError;
 
       setAvatars(prev => [{
-        id: avatarData?.id || crypto.randomUUID(),
+        id: createdAvatarId,
         name: avatarData?.name || newAvatarName,
         avatar_url: avatarData?.cover_image_url || newAvatarUrl || null,
         credits_used: 0,
@@ -619,6 +823,15 @@ export const AdminClientDetails = () => {
 
       setNewAvatarName("");
       setNewAvatarUrl("");
+      setNewAvatarExternalId("");
+      setSelectedAvatarId(createdAvatarId);
+      setCredentials({
+        accountId: credentials.accountId.trim(),
+        apiKey: credentials.apiKey.trim(),
+        avatarExternalId: newAvatarExternalId.trim(),
+      });
+      setCredStatus('valid');
+      setCredMessage("Credenciais salvas com sucesso.");
       setIsAddAvatarOpen(false);
     } catch (error: any) {
       toast({
@@ -862,6 +1075,46 @@ export const AdminClientDetails = () => {
           </Card>
         </div>
 
+        <Dialog open={isAddAvatarOpen} onOpenChange={setIsAddAvatarOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Adicionar Avatar</DialogTitle>
+            </DialogHeader>
+            <form onSubmit={handleAddAvatar} className="space-y-4 mt-4">
+              <div className="space-y-2">
+                <Label>Nome do Avatar</Label>
+                <Input
+                  value={newAvatarName}
+                  onChange={(e) => setNewAvatarName(e.target.value)}
+                  placeholder="Nome do avatar"
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>URL Pública</Label>
+                <Input
+                  value={newAvatarUrl}
+                  onChange={(e) => setNewAvatarUrl(e.target.value)}
+                  placeholder="url-do-avatar"
+                />
+              </div>
+              <Separator />
+              <div className="space-y-2">
+                <Label>Avatar External ID</Label>
+                <Input
+                  value={newAvatarExternalId}
+                  onChange={(e) => setNewAvatarExternalId(e.target.value)}
+                  placeholder="ID externo do avatar"
+                  required
+                />
+              </div>
+              <Button type="submit" className="w-full">
+                Adicionar
+              </Button>
+            </form>
+          </DialogContent>
+        </Dialog>
+
         <Tabs defaultValue="info" className="space-y-6">
           <TabsList className="h-12 p-1">
             <TabsTrigger value="info" className="text-base px-6 py-2">Informações</TabsTrigger>
@@ -899,10 +1152,7 @@ export const AdminClientDetails = () => {
                         Reativar Conta
                       </Button>
                     )}
-                    <Button 
-                      variant="secondary" 
-                      onClick={() => setIsAddAvatarOpen(true)}
-                    >
+                    <Button variant="secondary" onClick={() => setIsAddAvatarOpen(true)}>
                       <Plus className="h-4 w-4 mr-2" />
                       Adicionar Avatar
                     </Button>
@@ -1154,113 +1404,95 @@ export const AdminClientDetails = () => {
                 </CardContent>
               </Card>
 
-              {/* Credenciais por Avatar */}
+              {/* API da conta HeyGen */}
               <Card className="md:col-span-2">
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
                     <Key className="h-5 w-5" />
-                    Credenciais por Avatar
+                    API da conta HeyGen
                   </CardTitle>
                   <CardDescription>
-                    Fonte única de verdade: avatar_credentials. Alterações aqui refletem no Cliente automaticamente.
+                    API da conta HeyGen é única por cliente (admin_clients). Account ID e Avatar External ID continuam por avatar.
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  {avatars.length === 0 ? (
-                    <div className="text-sm text-muted-foreground">
-                      Nenhum avatar cadastrado para este cliente.
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="space-y-2">
+                      <Label>Account ID</Label>
+                      <Input
+                        value={credentials.accountId}
+                        disabled={credLocked}
+                        onChange={(e) => setCredentials({ ...credentials, accountId: e.target.value })}
+                        placeholder="default_account"
+                      />
                     </div>
-                  ) : (
-                    <>
-                      <div className="space-y-2">
-                        <Label>Selecione o avatar</Label>
-                        <Select value={selectedAvatarId} onValueChange={setSelectedAvatarId}>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Selecione o avatar..." />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {avatars.map((avatar) => (
-                              <SelectItem key={avatar.id} value={avatar.id}>
-                                {avatar.name || avatar.id}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        <div className="space-y-2">
-                          <Label>Account ID</Label>
-                          <Input
-                            value={credentials.accountId}
-                            disabled={credLocked}
-                            onChange={(e) => setCredentials({ ...credentials, accountId: e.target.value })}
-                            placeholder="default_account"
-                          />
-                        </div>
-                        <div className="space-y-2">
-                          <Label>API Key</Label>
-                          <div className="relative">
-                            <Input
-                              type={showApiKey ? "text" : "password"}
-                              value={credentials.apiKey}
-                              disabled={credLocked}
-                              onChange={(e) => setCredentials({ ...credentials, apiKey: e.target.value })}
-                              placeholder="Cole a API Key aqui"
-                              className="pr-10"
-                            />
-                            <button
-                              type="button"
-                              onClick={() => setShowApiKey(!showApiKey)}
-                              className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                            >
-                              {showApiKey ? <EyeOff size={20} /> : <Eye size={20} />}
-                            </button>
-                          </div>
-                        </div>
-                        <div className="space-y-2">
-                          <Label>Avatar External ID</Label>
-                          <Input
-                            value={credentials.avatarExternalId}
-                            disabled={credLocked}
-                            onChange={(e) => setCredentials({ ...credentials, avatarExternalId: e.target.value })}
-                            placeholder="ID externo do avatar"
-                          />
-                        </div>
-                      </div>
-
-                      <div className="flex items-center gap-3">
-                        <Button
-                          className="w-full md:w-auto"
-                          onClick={() => {
-                            if (credLocked) {
-                              setCredLocked(false);
-                              setCredStatus('idle');
-                              setCredMessage("");
-                            } else {
-                              handleSaveCredentials();
-                            }
-                          }}
-                          disabled={credSaving}
+                    <div className="space-y-2">
+                      <Label>API da conta HeyGen</Label>
+                      <div className="relative">
+                        <Input
+                          type={showApiKey ? "text" : "password"}
+                          value={credentials.apiKey}
+                          disabled={credLocked}
+                          onChange={(e) => setCredentials({ ...credentials, apiKey: e.target.value })}
+                          placeholder="Cole a API da conta HeyGen aqui"
+                          className="pr-10"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowApiKey(!showApiKey)}
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
                         >
-                          {credSaving ? (
-                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                          ) : credLocked ? (
-                            <Edit className="h-4 w-4 mr-2" />
-                          ) : (
-                            <Save className="h-4 w-4 mr-2" />
-                          )}
-                          {credLocked ? "Editar" : "Salvar credenciais"}
-                        </Button>
-
-                        {credStatus !== 'idle' && (
-                          <Badge variant={credStatus === 'valid' ? "default" : "destructive"}>
-                            {credMessage || (credStatus === 'valid' ? "Salvo" : "Erro")}
-                          </Badge>
-                        )}
+                          {showApiKey ? <EyeOff size={20} /> : <Eye size={20} />}
+                        </button>
                       </div>
-                    </>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Avatar External ID</Label>
+                      <Input
+                        value={credentials.avatarExternalId}
+                        disabled={credLocked}
+                        onChange={(e) => setCredentials({ ...credentials, avatarExternalId: e.target.value })}
+                        placeholder="ID externo do avatar"
+                      />
+                    </div>
+                  </div>
+
+                  {!selectedAvatarId && (
+                    <div className="text-sm text-muted-foreground">
+                      Cadastre um avatar para salvar credenciais.
+                    </div>
                   )}
+
+                  <div className="flex items-center gap-3">
+                    <Button
+                      className="w-full md:w-auto"
+                      onClick={() => {
+                        if (credLocked) {
+                          setCredLocked(false);
+                          setCredStatus('idle');
+                          setCredMessage("");
+                        } else {
+                          handleSaveCredentials();
+                        }
+                      }}
+                      disabled={credSaving}
+                    >
+                      {credSaving ? (
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      ) : credLocked ? (
+                        <Edit className="h-4 w-4 mr-2" />
+                      ) : (
+                        <Save className="h-4 w-4 mr-2" />
+                      )}
+                      {credLocked ? "Editar" : "Salvar credenciais"}
+                    </Button>
+
+                    {credStatus !== 'idle' && (
+                      <Badge variant={credStatus === 'valid' ? "default" : "destructive"}>
+                        {credMessage || (credStatus === 'valid' ? "Salvo" : "Erro")}
+                      </Badge>
+                    )}
+                  </div>
                 </CardContent>
               </Card>
 
@@ -1530,41 +1762,10 @@ export const AdminClientDetails = () => {
                   <CardTitle>Avatares do Cliente</CardTitle>
                   <CardDescription>Gerencie os avatares e suas URLs</CardDescription>
                 </div>
-                <Dialog open={isAddAvatarOpen} onOpenChange={setIsAddAvatarOpen}>
-                  <DialogTrigger asChild>
-                    <Button>
-                      <Plus className="h-4 w-4 mr-2" />
-                      Adicionar Avatar
-                    </Button>
-                  </DialogTrigger>
-                  <DialogContent>
-                    <DialogHeader>
-                      <DialogTitle>Adicionar Avatar</DialogTitle>
-                    </DialogHeader>
-                    <form onSubmit={handleAddAvatar} className="space-y-4 mt-4">
-                      <div className="space-y-2">
-                        <Label>Nome do Avatar</Label>
-                        <Input
-                          value={newAvatarName}
-                          onChange={(e) => setNewAvatarName(e.target.value)}
-                          placeholder="Nome do avatar"
-                          required
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label>URL Pública</Label>
-                        <Input
-                          value={newAvatarUrl}
-                          onChange={(e) => setNewAvatarUrl(e.target.value)}
-                          placeholder="url-do-avatar"
-                        />
-                      </div>
-                      <Button type="submit" className="w-full">
-                        Adicionar
-                      </Button>
-                    </form>
-                  </DialogContent>
-                </Dialog>
+                <Button onClick={() => setIsAddAvatarOpen(true)}>
+                  <Plus className="h-4 w-4 mr-2" />
+                  Adicionar Avatar
+                </Button>
               </CardHeader>
               <CardContent>
                 {avatars.length === 0 ? (
@@ -1610,16 +1811,93 @@ export const AdminClientDetails = () => {
           </TabsContent>
 
           {/* Consumption Tab */}
-          <TabsContent value="consumption">
+          <TabsContent value="consumption" className="space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <Card>
+                <CardContent className="pt-6">
+                  <div className="flex items-center gap-4">
+                    <div className="p-3 bg-blue-500/10 rounded-lg">
+                      <BarChart3 className="h-6 w-6 text-blue-500" />
+                    </div>
+                    <div>
+                      <p className="text-2xl font-bold">{consumptionTotals.sessionCount}</p>
+                      <p className="text-sm text-muted-foreground">Sessões registradas</p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="pt-6">
+                  <div className="flex items-center gap-4">
+                    <div className="p-3 bg-primary/10 rounded-lg">
+                      <Clock className="h-6 w-6 text-primary" />
+                    </div>
+                    <div>
+                      <p className="text-2xl font-bold">{consumptionTotals.totalMinutes}</p>
+                      <p className="text-sm text-muted-foreground">Minutos totais</p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="pt-6">
+                  <div className="flex items-center gap-4">
+                    <div className="p-3 bg-green-500/10 rounded-lg">
+                      <CreditCard className="h-6 w-6 text-green-500" />
+                    </div>
+                    <div>
+                      <p className="text-2xl font-bold">{formatCredits(consumptionTotals.euvatarCredits)}</p>
+                      <p className="text-sm text-muted-foreground">Créditos Euvatar</p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+
             <Card>
               <CardHeader>
-                <CardTitle>Histórico de Consumo</CardTitle>
-                <CardDescription>Sessões e créditos utilizados</CardDescription>
+                <CardTitle>Consumo por Avatar</CardTitle>
+                <CardDescription>Tempo, sessões e créditos utilizados</CardDescription>
               </CardHeader>
               <CardContent>
-                <p className="text-center text-muted-foreground py-8">
-                  Histórico de consumo será preenchido conforme as sessões forem registradas.
-                </p>
+                {consumptionLoading ? (
+                  <div className="flex items-center justify-center py-10">
+                    <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                  </div>
+                ) : consumptionError ? (
+                  <p className="text-center text-destructive py-8">{consumptionError}</p>
+                ) : avatars.length === 0 ? (
+                  <p className="text-center text-muted-foreground py-8">
+                    Nenhum avatar cadastrado para este cliente.
+                  </p>
+                ) : (
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Avatar</TableHead>
+                        <TableHead>Sessões</TableHead>
+                        <TableHead>Minutos</TableHead>
+                        <TableHead>Créditos</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {avatars.map((avatar) => {
+                        const usage = avatarUsageMap[avatar.id];
+                        const sessionCount = usage?.sessionCount ?? 0;
+                        const minutes = usage?.totalMinutes ?? 0;
+                        const credits = usage?.euvatarCredits ?? 0;
+                        return (
+                          <TableRow key={avatar.id}>
+                            <TableCell className="font-medium">{avatar.name}</TableCell>
+                            <TableCell>{sessionCount}</TableCell>
+                            <TableCell>{minutes}</TableCell>
+                            <TableCell>{formatCredits(credits)}</TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                )}
               </CardContent>
             </Card>
           </TabsContent>

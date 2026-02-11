@@ -38,7 +38,7 @@ Deno.serve(async (req) => {
 
     const { data: profile, error: profileError } = await supabase
       .from('profiles')
-      .select('role, is_active')
+      .select('role, is_active, organization_id')
       .eq('user_id', authData.user.id)
       .single();
 
@@ -47,9 +47,9 @@ Deno.serve(async (req) => {
     }
 
     const body = await req.json();
-    const { user_id, name, cover_image_url } = body || {};
+    const { user_id, client_id, email, name, cover_image_url } = body || {};
 
-    if (!user_id || !name) {
+    if (!name) {
       return jsonResponse({ error: 'Campos obrigatórios ausentes' }, 400);
     }
 
@@ -57,10 +57,77 @@ Deno.serve(async (req) => {
       auth: { persistSession: false },
     });
 
+    let resolvedUserId = user_id as string | undefined;
+    let resolvedEmail = email as string | undefined;
+
+    if (!resolvedUserId && client_id) {
+      const { data: clientRow } = await admin
+        .from('admin_clients')
+        .select('user_id, email')
+        .eq('id', client_id)
+        .maybeSingle();
+      resolvedUserId = clientRow?.user_id || resolvedUserId;
+      resolvedEmail = clientRow?.email || resolvedEmail;
+    }
+
+    if (!resolvedUserId && resolvedEmail) {
+      const { data: byEmail, error: byEmailError } = await admin.auth.admin.getUserByEmail(resolvedEmail);
+      if (!byEmailError && byEmail?.user) {
+        resolvedUserId = byEmail.user.id;
+      }
+    }
+
+    if (!resolvedUserId) {
+      return jsonResponse({ error: 'Usuário não encontrado para criar perfil' }, 400);
+    }
+
+    const { data: targetProfile } = await admin
+      .from('profiles')
+      .select('user_id')
+      .eq('user_id', resolvedUserId)
+      .maybeSingle();
+
+    if (!targetProfile?.user_id) {
+      let { data: authUser, error: authUserError } = await admin.auth.admin.getUserById(resolvedUserId);
+      if ((authUserError || !authUser?.user) && resolvedEmail) {
+        const { data: usersData, error: usersError } = await admin.auth.admin.listUsers({ page: 1, perPage: 200 });
+        if (!usersError && usersData?.users?.length) {
+          const found = usersData.users.find((u) => u.email === resolvedEmail);
+          if (found) {
+            authUser = { user: found };
+            resolvedUserId = found.id;
+            authUserError = null;
+          }
+        }
+      }
+      if (authUserError || !authUser?.user) {
+        return jsonResponse({ error: 'Usuário não encontrado para criar perfil' }, 400);
+      }
+
+      if (client_id && resolvedUserId !== user_id) {
+        await admin.from('admin_clients').update({ user_id: resolvedUserId }).eq('id', client_id);
+      }
+
+      const { error: profileUpsertError } = await admin
+        .from('profiles')
+        .upsert({
+          user_id: resolvedUserId,
+          email: authUser.user.email || resolvedEmail || null,
+          full_name: authUser.user.user_metadata?.full_name || null,
+          organization_id: profile.organization_id || null,
+          role: 'member',
+          is_active: true,
+        }, { onConflict: 'user_id' });
+
+      if (profileUpsertError) {
+        return jsonResponse({ error: profileUpsertError.message }, 500);
+      }
+    }
+
     const { data: avatar, error: avatarError } = await admin
       .from('avatars')
       .insert({
-        user_id,
+        user_id: resolvedUserId,
         name,
         backstory: '',
         language: 'pt-BR',

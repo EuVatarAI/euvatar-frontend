@@ -40,6 +40,7 @@ export const AdminAuthProvider = ({ children }: { children: React.ReactNode }) =
   const [profile, setProfile] = useState<Profile | null>(null);
   const [organization, setOrganization] = useState<Organization | null>(null);
   const [loading, setLoading] = useState(true);
+  const [profileAttempts, setProfileAttempts] = useState(0);
 
   const fetchProfile = async (userId: string) => {
     try {
@@ -61,13 +62,15 @@ export const AdminAuthProvider = ({ children }: { children: React.ReactNode }) =
 
       if (profileError) {
         console.error('Admin profile fetch error:', profileError);
-        return;
+        return null;
       }
 
       setProfile(profileData as Profile);
       setOrganization(profileData.organizations as Organization);
+      return profileData as Profile;
     } catch (error) {
       console.error('Admin fetchProfile error:', error);
+      return null;
     }
   };
 
@@ -82,6 +85,7 @@ export const AdminAuthProvider = ({ children }: { children: React.ReactNode }) =
       async (_event, session) => {
         setSession(session);
         setUser(session?.user ?? null);
+        setProfileAttempts(0);
 
         if (session?.user) {
           setTimeout(() => {
@@ -107,12 +111,25 @@ export const AdminAuthProvider = ({ children }: { children: React.ReactNode }) =
     return () => subscription.unsubscribe();
   }, []);
 
+  // Retry profile fetch a few times if we have a session but no profile yet.
+  useEffect(() => {
+    if (!user || profile || profileAttempts >= 3) return;
+
+    const timer = setTimeout(async () => {
+      setProfileAttempts((prev) => prev + 1);
+      await fetchProfile(user.id);
+    }, 400 + profileAttempts * 300);
+
+    return () => clearTimeout(timer);
+  }, [user, profile, profileAttempts]);
+
   const signOut = async () => {
     await supabaseAdmin.auth.signOut();
     setUser(null);
     setSession(null);
     setProfile(null);
     setOrganization(null);
+    setProfileAttempts(0);
   };
 
   return (

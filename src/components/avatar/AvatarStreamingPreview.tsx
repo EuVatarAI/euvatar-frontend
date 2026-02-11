@@ -66,7 +66,7 @@ export function AvatarStreamingPreview({
   language
 }: AvatarStreamingPreviewProps) {
   const { toast } = useToast();
-  const { session } = useAuth();
+  const { session: authSession } = useAuth();
   const videoRef = useRef<HTMLVideoElement>(null);
   const idleVideoRef = useRef<HTMLVideoElement>(null);
   const roomRef = useRef<Room | null>(null);
@@ -171,7 +171,7 @@ export function AvatarStreamingPreview({
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
-              ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
+              ...(authSession?.access_token ? { Authorization: `Bearer ${authSession.access_token}` } : {}),
             },
             body: JSON.stringify({ session_id: sessionId }),
           });
@@ -183,7 +183,7 @@ export function AvatarStreamingPreview({
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
+            ...(authSession?.access_token ? { Authorization: `Bearer ${authSession.access_token}` } : {}),
           },
         });
       }
@@ -256,7 +256,7 @@ export function AvatarStreamingPreview({
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
+          ...(authSession?.access_token ? { Authorization: `Bearer ${authSession.access_token}` } : {}),
         },
         body: JSON.stringify({ extend_minutes: PREVIEW_SESSION_MIN }),
       });
@@ -322,7 +322,7 @@ export function AvatarStreamingPreview({
       const createResp = await fetch(createUrl, {
         headers: {
           'Content-Type': 'application/json',
-          ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
+          ...(authSession?.access_token ? { Authorization: `Bearer ${authSession.access_token}` } : {}),
         },
       });
       const createData = await createResp.json();
@@ -334,14 +334,14 @@ export function AvatarStreamingPreview({
         throw new Error(errText);
       }
 
-      const session = {
+      const createdSession = {
         session_id: createData.session_id,
         url: createData.livekit_url,
         access_token: createData.access_token,
       };
-      setSessionId(session.session_id);
+      setSessionId(createdSession.session_id);
 
-      console.log('Session created:', session.session_id, session.url);
+      console.log('Session created:', createdSession.session_id, createdSession.url);
 
       // Connect to LiveKit room
       const room = new Room();
@@ -373,7 +373,7 @@ export function AvatarStreamingPreview({
       });
 
       setIsStreaming(false);
-      await room.connect(session.url, session.access_token);
+      await room.connect(createdSession.url, createdSession.access_token);
       console.log('Connected to LiveKit room');
 
       setIsConnected(true);
@@ -400,7 +400,7 @@ export function AvatarStreamingPreview({
     if (isLiveAvatar) {
       toast({
         title: 'Modo voz',
-        description: 'LiveAvatar não suporta envio de texto. Use o microfone.',
+        description: 'Envio de texto não disponível.',
       });
       return;
     }
@@ -425,7 +425,7 @@ export function AvatarStreamingPreview({
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
+          ...(authSession?.access_token ? { Authorization: `Bearer ${authSession.access_token}` } : {}),
         },
         body: JSON.stringify({
           session_id: sessionId,
@@ -496,7 +496,7 @@ export function AvatarStreamingPreview({
           const resp = await fetch(sttUrl, {
             method: 'POST',
             headers: {
-              ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
+              ...(authSession?.access_token ? { Authorization: `Bearer ${authSession.access_token}` } : {}),
             },
             body: form,
           });
@@ -508,7 +508,7 @@ export function AvatarStreamingPreview({
             if (isLiveAvatar) {
               toast({
                 title: 'Modo voz',
-                description: 'LiveAvatar não aceita texto. Fale direto no microfone.',
+                description: 'Envio de texto não disponível.',
               });
             } else {
               await sendText(data.text);
@@ -774,7 +774,7 @@ export function AvatarStreamingPreview({
               <div className="flex items-center gap-2 p-3 bg-emerald-500/10 border border-emerald-500/30 rounded-lg">
                 <AlertCircle className="h-5 w-5 text-emerald-500 flex-shrink-0" />
                 <p className="text-sm text-emerald-600 dark:text-emerald-400">
-                  LiveAvatar responde apenas por voz. Clique no microfone e fale.
+                  
                 </p>
               </div>
             )}

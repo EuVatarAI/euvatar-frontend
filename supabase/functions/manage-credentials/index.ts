@@ -227,6 +227,8 @@ Deno.serve(async (req) => {
       accountId,
       password,
       credentials,
+      clientId,
+      userId,
     } = body;
 
     console.log(
@@ -259,10 +261,34 @@ Deno.serve(async (req) => {
     /* ===================== FETCH ===================== */
 
     if (action === 'fetch') {
+      const targetUserId = (typeof userId === 'string' && userId.trim())
+        ? userId.trim()
+        : data.user.id;
+      const targetClientId = typeof clientId === 'string' && clientId.trim() ? clientId.trim() : null;
+
+      let apiKeyValue = '';
+      try {
+        const admin = createClient(
+          Deno.env.get('SUPABASE_URL')!,
+          Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+        );
+
+        const clientQuery = targetClientId
+          ? admin.from('admin_clients').select('heygen_api_key').eq('id', targetClientId).maybeSingle()
+          : admin.from('admin_clients').select('heygen_api_key').eq('user_id', targetUserId).maybeSingle();
+
+        const { data: clientRow } = await clientQuery;
+        apiKeyValue = clientRow?.heygen_api_key ?? '';
+      } catch (err) {
+        console.error('[MANAGE_CREDENTIALS][FETCH] Error fetching client api key:', err);
+      }
+
       const { data: stored, error: fetchError } = await supabase
         .from('avatar_credentials')
-        .select('account_id, api_key, avatar_external_id, voice_id, context_id')
+        .select('account_id, avatar_external_id, voice_id, context_id')
         .eq('avatar_id', avatarId)
+        .order('updated_at', { ascending: false })
+        .limit(1)
         .maybeSingle();
 
       if (fetchError) {
@@ -284,7 +310,7 @@ Deno.serve(async (req) => {
         JSON.stringify({
           credentials: {
             accountId: stored.account_id ? decrypt(stored.account_id) : '',
-            apiKey: stored.api_key ? decrypt(stored.api_key) : '',
+            apiKey: apiKeyValue || '',
             avatarExternalId: stored.avatar_external_id ? decrypt(stored.avatar_external_id) : '',
             voiceId: stored.voice_id ? decrypt(stored.voice_id) : '',
             contextId: stored.context_id ? decrypt(stored.context_id) : '',
@@ -304,6 +330,10 @@ Deno.serve(async (req) => {
       const resolvedVoiceId = String(payload.voiceId ?? body.voiceId ?? '').trim();
       const resolvedContextId = String(payload.contextId ?? body.contextId ?? '').trim();
       const unlockToken = payload.unlockToken;
+      const targetUserId = (typeof userId === 'string' && userId.trim())
+        ? userId.trim()
+        : data.user.id;
+      const targetClientId = typeof clientId === 'string' && clientId.trim() ? clientId.trim() : null;
 
       if (!resolvedAccountId || !resolvedApiKey || !resolvedAvatarExternalId) {
         return credentialResponse('error', 'Campos obrigatórios ausentes', {}, 400);
@@ -349,15 +379,74 @@ Deno.serve(async (req) => {
         Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
       );
 
-      await admin.from('avatar_credentials').upsert({
+      // Update API key on admin_clients (single source of truth)
+      try {
+        const updateQuery = targetClientId
+          ? admin.from('admin_clients').update({ heygen_api_key: resolvedApiKey, heygen_api_key_valid: true }).eq('id', targetClientId)
+          : admin.from('admin_clients').update({ heygen_api_key: resolvedApiKey, heygen_api_key_valid: true }).eq('user_id', targetUserId);
+        await updateQuery;
+      } catch (err) {
+        console.error('[MANAGE_CREDENTIALS][SAVE] Error updating admin_clients api key:', err);
+      }
+
+      // Prefer update of the latest row to avoid duplicate avatar_id entries.
+      const { data: existingRow } = await admin
+        .from('avatar_credentials')
+        .select('id')
+        .eq('avatar_id', avatarId)
+        .order('updated_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      const credPayload = {
         avatar_id: avatarId,
         account_id: encrypt(resolvedAccountId),
-        api_key: encrypt(resolvedApiKey),
         avatar_external_id: encrypt(resolvedAvatarExternalId),
         voice_id: resolvedVoiceId ? encrypt(resolvedVoiceId) : null,
         context_id: resolvedContextId ? encrypt(resolvedContextId) : null,
         updated_at: new Date().toISOString(),
-      });
+      };
+
+      if (existingRow?.id) {
+        const { error: updateError } = await admin
+          .from('avatar_credentials')
+          .update(credPayload)
+          .eq('id', existingRow.id);
+        if (updateError) {
+          console.error('[MANAGE_CREDENTIALS][SAVE] Error updating avatar_credentials:', updateError);
+          return credentialResponse('error', 'Erro ao atualizar credenciais', {}, 500);
+        }
+      } else {
+        const { error: insertError } = await admin
+          .from('avatar_credentials')
+          .insert(credPayload);
+        if (insertError) {
+          console.error('[MANAGE_CREDENTIALS][SAVE] Error inserting avatar_credentials:', insertError);
+          return credentialResponse('error', 'Erro ao inserir credenciais', {}, 500);
+        }
+      }
+
+      // Keep avatars table in sync for easier UI/debugging (if column exists).
+      try {
+        const { error: avatarUpdateError } = await admin
+          .from('avatars')
+          .update({ heygen_avatar_id: resolvedAvatarExternalId })
+          .eq('id', avatarId);
+        if (avatarUpdateError) {
+          console.warn('[MANAGE_CREDENTIALS][SAVE] Could not update avatars.heygen_avatar_id:', avatarUpdateError);
+        }
+      } catch (err) {
+        console.warn('[MANAGE_CREDENTIALS][SAVE] Could not update avatars.heygen_avatar_id:', err);
+      }
+
+      // Re-fetch persisted credentials to ensure UI sees the actual stored value.
+      const { data: persisted } = await admin
+        .from('avatar_credentials')
+        .select('account_id, avatar_external_id, voice_id, context_id')
+        .eq('avatar_id', avatarId)
+        .order('updated_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
 
       console.log(
         `[MANAGE_CREDENTIALS][PROVIDER=${provider}] Credentials saved`
@@ -366,9 +455,9 @@ Deno.serve(async (req) => {
       return credentialResponse('valid', 'Credenciais salvas com sucesso', {
         provider,
         avatarId,
-        avatarExternalId: resolvedAvatarExternalId,
-        voiceId: resolvedVoiceId || null,
-        contextId: resolvedContextId || null,
+        avatarExternalId: persisted?.avatar_external_id ? decrypt(persisted.avatar_external_id) : resolvedAvatarExternalId,
+        voiceId: persisted?.voice_id ? decrypt(persisted.voice_id) : (resolvedVoiceId || null),
+        contextId: persisted?.context_id ? decrypt(persisted.context_id) : (resolvedContextId || null),
         orientation: validation.orientation ?? null,
       });
     }
