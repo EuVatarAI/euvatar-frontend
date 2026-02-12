@@ -276,11 +276,11 @@ const AvatarDetails = () => {
       setFormData(formDataFromDb);
       setOriginalFormData(formDataFromDb);
 
-      // Fetch organization slug for building public URL (current user's org)
+      // Fetch organization slug for building public URL (avatar owner's org)
       const { data: profileOrg } = await supabase
         .from('profiles')
         .select('organization_id')
-        .eq('user_id', user?.id)
+        .eq('user_id', avatarData.user_id)
         .single();
 
       if (profileOrg?.organization_id) {
@@ -292,6 +292,8 @@ const AvatarDetails = () => {
         if (orgData?.slug) {
           setOrganizationSlug(orgData.slug);
         }
+      } else {
+        setOrganizationSlug('');
       }
 
       const { data: conversationsData, error: conversationsError } = await supabase
@@ -468,7 +470,7 @@ const AvatarDetails = () => {
           language: formData.language,
           ai_model: formData.ai_model,
           voice_model: formData.voice_model,
-          slug: formData.slug || null,
+          slug: sanitizeSlug(formData.slug || '') || null,
         })
         .eq('id', id);
 
@@ -512,7 +514,7 @@ const AvatarDetails = () => {
       console.error('Error updating avatar:', error);
       toast({
         title: 'Erro',
-        description: 'Erro ao atualizar euvatar. Tente novamente.',
+        description: error?.message || 'Erro ao atualizar euvatar. Tente novamente.',
         variant: 'destructive',
       });
     } finally {

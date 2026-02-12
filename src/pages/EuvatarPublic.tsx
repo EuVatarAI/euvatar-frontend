@@ -126,7 +126,6 @@ export default function EuvatarPublic() {
   const liveRecorderRef = useRef<MediaRecorder | null>(null);
   const liveRecordChunksRef = useRef<Blob[]>([]);
   const contextMediaTimerRef = useRef<NodeJS.Timeout | null>(null);
-  const lastAvatarTextRef = useRef<string>('');
 
   // Determine aspect ratio based on orientation
   const isVertical = avatar?.avatar_orientation === 'vertical';
@@ -228,71 +227,6 @@ export default function EuvatarPublic() {
     }
     return {};
   }, [authToken, id]);
-
-  const resolveContextMedia = useCallback(async (text: string) => {
-    if (!backendUrl || !id || !text.trim()) return;
-    try {
-      const resp = await fetch(buildBackendUrl('/context/resolve'), {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...buildAuthHeaders(),
-        },
-        body: JSON.stringify({ avatar_id: id, text }),
-      });
-      const data = await resp.json();
-      const mediaRaw = data?.media || (data?.media_url ? {
-        url: data.media_url,
-        type: data.media_type,
-        caption: data.caption || data.name,
-      } : null);
-      const mediaUrl = mediaRaw?.url;
-      if (resp.ok && data?.ok && mediaUrl) {
-        const mediaType = mediaRaw?.type || mediaRaw?.media_type || (isVideoUrl(mediaUrl) ? 'video' : 'image');
-        showContextMedia({
-          type: mediaType,
-          url: mediaUrl,
-          caption: mediaRaw?.caption,
-        });
-      }
-    } catch (err) {
-      console.error('Context resolve error:', err);
-    }
-  }, [buildAuthHeaders, id, showContextMedia]);
-
-  const resolveAvatarSpeech = useCallback(async (rawText: string) => {
-    const cleaned = (rawText || '').trim();
-    if (!cleaned) return;
-    if (lastAvatarTextRef.current === cleaned) return;
-    lastAvatarTextRef.current = cleaned;
-    await resolveContextMedia(cleaned);
-  }, [resolveContextMedia]);
-
-  const extractAvatarText = useCallback((payload: Uint8Array | string) => {
-    let text = '';
-    try {
-      text = typeof payload === 'string'
-        ? payload
-        : new TextDecoder().decode(payload);
-    } catch {
-      return '';
-    }
-    const trimmed = (text || '').trim();
-    if (!trimmed) return '';
-    try {
-      const parsed = JSON.parse(trimmed);
-      if (typeof parsed === 'string') return parsed;
-      if (parsed?.text) return String(parsed.text);
-      if (parsed?.transcript) return String(parsed.transcript);
-      if (parsed?.message) return String(parsed.message);
-      if (parsed?.content) return String(parsed.content);
-      if (parsed?.utterance) return String(parsed.utterance);
-      if (parsed?.data?.text) return String(parsed.data.text);
-    } catch {
-      // not JSON, keep raw
-    }
-    return trimmed;
-  }, []);
 
   const attachTrackToVideo = useCallback((track: any) => {
     if (!liveVideoRef.current) return;
@@ -622,14 +556,6 @@ export default function EuvatarPublic() {
           }
         });
 
-        room.on(RoomEvent.DataReceived, (payload, participant) => {
-          if (participant?.isLocal) return;
-          const text = extractAvatarText(payload);
-          if (text) {
-            resolveAvatarSpeech(text);
-          }
-        });
-
         room.on(RoomEvent.Disconnected, () => {
           setIsConnected(false);
           setIsStreaming(false);
@@ -843,6 +769,8 @@ export default function EuvatarPublic() {
               const file = new File([blob], 'audio.webm', { type: 'audio/webm' });
               const form = new FormData();
               form.append('audio', file);
+              form.append('avatar_id', id);
+              form.append('backstory', (avatar?.backstory || '').toString());
               const sttUrl = buildBackendUrl('/stt');
               const resp = await fetch(sttUrl, {
                 method: 'POST',
@@ -852,8 +780,22 @@ export default function EuvatarPublic() {
                 body: form,
               });
               const data = await resp.json();
-              if (resp.ok && data?.ok && data?.text) {
-                await resolveContextMedia(data.text);
+              if (!resp.ok || !data?.ok) {
+                console.error('STT (liveavatar) error:', data?.error || 'unknown');
+                return;
+              }
+              const sttMedia = data?.media || (data?.media_url ? {
+                url: data.media_url,
+                type: data.media_type,
+                caption: data.caption || data.name,
+              } : null);
+              if (sttMedia?.url) {
+                const mediaType = sttMedia?.type || sttMedia?.media_type || (isVideoUrl(sttMedia.url) ? 'video' : 'image');
+                showContextMedia({
+                  type: mediaType,
+                  url: sttMedia.url,
+                  caption: sttMedia.caption,
+                });
               }
             } catch (err) {
               console.error('STT (liveavatar) error:', err);
@@ -883,6 +825,8 @@ export default function EuvatarPublic() {
           const file = new File([blob], 'audio.webm', { type: 'audio/webm' });
           const form = new FormData();
           form.append('audio', file);
+          form.append('avatar_id', id);
+          form.append('backstory', (avatar?.backstory || '').toString());
           const sttUrl = buildBackendUrl('/stt');
           const resp = await fetch(sttUrl, {
             method: 'POST',
@@ -895,14 +839,15 @@ export default function EuvatarPublic() {
           if (!resp.ok || !data?.ok) {
             throw new Error(data?.error || 'Erro ao transcrever áudio');
           }
-          if (data.text) {
+          const textForSay = (data?.response_text || data?.text || '').trim();
+          if (textForSay) {
             if (isLiveAvatar) {
               toast({
                 title: 'Modo voz',
                 description: 'Envio de texto não disponível.',
               });
             } else {
-              await sendText(data.text);
+              await sendText(textForSay);
             }
           }
         } catch (err) {

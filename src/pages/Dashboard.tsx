@@ -19,7 +19,7 @@ type Avatar = Database['public']['Tables']['avatars']['Row'] & {
 
 const Dashboard = () => {
   const navigate = useNavigate();
-  const { user, session, signOut } = useAuth();
+  const { user, session, signOut, profile, organization, refreshProfile } = useAuth();
   const { toast } = useToast();
   const [avatars, setAvatars] = useState<Avatar[]>([]);
   const [heygenCredits, setHeygenCredits] = useState<HeyGenCredits | null>(null);
@@ -30,6 +30,7 @@ const Dashboard = () => {
   const [newSlug, setNewSlug] = useState('');
   const [savingSlug, setSavingSlug] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [organizationId, setOrganizationId] = useState<string>('');
 
   const refreshCredits = useCallback(async () => {
     const creditsData = await fetchBackendCredits(session?.access_token);
@@ -51,15 +52,32 @@ const Dashboard = () => {
       if (avatarsError) throw avatarsError;
       setAvatars(avatarsData || []);
 
-      // Fetch organization slug
-      const { data: orgData, error: orgError } = await supabase
-        .from('organizations')
-        .select('slug')
-        .single();
-      
-      if (!orgError && orgData) {
-        setOrganizationSlug(orgData.slug);
-        setNewSlug(orgData.slug);
+      // Resolve current user's organization explicitly (never global .single()).
+      let orgId = profile?.organization_id || organization?.id || '';
+
+      if (!orgId && user?.id) {
+        const { data: profileData, error: profileError } = await supabase
+          .from('profiles')
+          .select('organization_id')
+          .eq('user_id', user.id)
+          .single();
+        if (!profileError && profileData?.organization_id) {
+          orgId = profileData.organization_id;
+        }
+      }
+
+      if (orgId) {
+        const { data: orgData, error: orgError } = await supabase
+          .from('organizations')
+          .select('id, slug')
+          .eq('id', orgId)
+          .single();
+
+        if (!orgError && orgData) {
+          setOrganizationId(orgData.id);
+          setOrganizationSlug(orgData.slug || '');
+          setNewSlug(orgData.slug || '');
+        }
       }
 
       await refreshCredits();
@@ -82,7 +100,26 @@ const Dashboard = () => {
       return;
     }
     fetchData();
-  }, [user, navigate]);
+  }, [user, navigate, profile?.organization_id, organization?.id]);
+
+  useEffect(() => {
+    // Avoid stale context writes overriding a freshly saved slug in this page.
+    if (editingSlug || savingSlug) return;
+
+    if (organization?.id && organization.id !== organizationId) {
+      setOrganizationId(organization.id);
+      if (organization?.slug) {
+        setOrganizationSlug(organization.slug);
+        setNewSlug(organization.slug);
+      }
+      return;
+    }
+
+    if (!organizationId && organization?.slug) {
+      setOrganizationSlug(organization.slug);
+      setNewSlug(organization.slug);
+    }
+  }, [organization?.id, organization?.slug, organizationId, editingSlug, savingSlug]);
 
   useEffect(() => {
     if (!user) return;
@@ -110,28 +147,77 @@ const Dashboard = () => {
   };
 
   const handleSaveSlug = async () => {
-    if (!newSlug.trim() || newSlug === organizationSlug) {
+    const sanitized = sanitizeSlug(newSlug);
+
+    if (!sanitized) {
+      toast({
+        title: 'Link inválido',
+        description: 'Use apenas letras, números e hífen.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    if (sanitized === organizationSlug) {
       setEditingSlug(false);
+      return;
+    }
+
+    if (!organizationId) {
+      toast({
+        title: 'Erro ao atualizar link',
+        description: 'Organização não identificada para este usuário.',
+        variant: 'destructive',
+      });
       return;
     }
 
     setSavingSlug(true);
     try {
-      const { error } = await supabase
+      const { data: updatedRows, error } = await supabase
         .from('organizations')
-        .update({ slug: newSlug })
-        .eq('slug', organizationSlug);
+        .update({ slug: sanitized })
+        .eq('id', organizationId)
+        .select('id, slug');
 
       if (error) throw error;
+      if (!updatedRows || updatedRows.length === 0) {
+        throw new Error('Update bloqueado por permissão (RLS) ou organização não encontrada.');
+      }
 
-      setOrganizationSlug(newSlug);
+      // Read-after-write to guarantee UI reflects what is persisted in DB.
+      const { data: verifiedOrg, error: verifyError } = await supabase
+        .from('organizations')
+        .select('id, slug')
+        .eq('id', organizationId)
+        .single();
+
+      if (verifyError) throw verifyError;
+      if (!verifiedOrg?.slug) {
+        throw new Error('Não foi possível confirmar a atualização do link.');
+      }
+      if (verifiedOrg.slug !== sanitized) {
+        throw new Error('O link não foi persistido no banco (valor retornou diferente do salvo).');
+      }
+
+      setOrganizationSlug(verifiedOrg.slug);
+      setNewSlug(verifiedOrg.slug);
       setEditingSlug(false);
-      toast({ title: 'Link atualizado com sucesso!' });
+      await refreshProfile();
+      toast({
+        title: 'Link atualizado com sucesso!',
+        description: `Novo link: ${(import.meta.env.VITE_PUBLIC_BASE_URL || window.location.origin).replace(/\/$/, '')}/${verifiedOrg.slug}`,
+      });
     } catch (error: any) {
       console.error('Error updating slug:', error);
+      const message = (error?.message || '').toLowerCase();
       toast({
         title: 'Erro ao atualizar link',
-        description: error.message?.includes('unique') ? 'Este link já está em uso.' : 'Tente novamente.',
+        description: message.includes('unique')
+          ? 'Este link já está em uso.'
+          : message.includes('permission') || message.includes('rls') || message.includes('forbidden')
+          ? 'Sem permissão para atualizar o link público desta organização.'
+          : (error?.message || 'Tente novamente.'),
         variant: 'destructive',
       });
     } finally {
