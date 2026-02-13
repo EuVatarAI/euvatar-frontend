@@ -91,7 +91,7 @@ export default function EuvatarPublic() {
   const [externalPopupOpen, setExternalPopupOpen] = useState(false);
   const [externalUrl, setExternalUrl] = useState('');
   const [buttonVideoUrl, setButtonVideoUrl] = useState<string | null>(null);
-  const [contextMedia, setContextMedia] = useState<{ type: 'image' | 'video'; url: string; caption?: string } | null>(null);
+  const [contextMedia, setContextMedia] = useState<{ type: 'image' | 'video'; url: string; caption?: string; renderId: number } | null>(null);
 
   // Live session states
   const [isConnecting, setIsConnecting] = useState(false);
@@ -157,7 +157,10 @@ export default function EuvatarPublic() {
   const useCornerChat = isHolidayAvatar && !isVertical;
 
   const showContextMedia = useCallback((media: { type: 'image' | 'video'; url: string; caption?: string }) => {
-    setContextMedia(media);
+    // Force re-render even if the same media repeats.
+    const next = { ...media, renderId: Date.now() };
+    setContextMedia((prev) => (prev?.url === media.url ? null : prev));
+    setTimeout(() => setContextMedia(next), 0);
     if (contextMediaTimerRef.current) {
       clearTimeout(contextMediaTimerRef.current);
       contextMediaTimerRef.current = null;
@@ -168,6 +171,11 @@ export default function EuvatarPublic() {
       }, 12000);
     }
   }, []);
+
+  useEffect(() => {
+    if (!contextMedia?.url) return;
+    console.log(`MEDIA RENDERED [${new Date().toISOString()}]:`, contextMedia);
+  }, [contextMedia]);
 
   const formatTimer = (sec: number) => {
     const clamped = Math.max(0, sec);
@@ -665,6 +673,17 @@ export default function EuvatarPublic() {
       }
       recorderRef.current = null;
       recordChunksRef.current = [];
+      if (localAudioTrackRef.current) {
+        try {
+          roomRef.current?.localParticipant.unpublishTrack(localAudioTrackRef.current);
+        } catch {
+          // ignore
+        }
+        localAudioTrackRef.current.stop();
+        localAudioTrackRef.current = null;
+      }
+      liveRecorderRef.current = null;
+      liveRecordChunksRef.current = [];
     }
   };
 
@@ -750,10 +769,10 @@ export default function EuvatarPublic() {
         if (localAudioTrackRef.current) {
           return;
         }
-        const track = await createLocalAudioTrack();
-        await roomRef.current.localParticipant.publishTrack(track);
-        localAudioTrackRef.current = track;
         try {
+          const track = await createLocalAudioTrack();
+          await roomRef.current.localParticipant.publishTrack(track);
+          localAudioTrackRef.current = track;
           const stream = new MediaStream([track.mediaStreamTrack]);
           const recorder = new MediaRecorder(stream);
           liveRecorderRef.current = recorder;
@@ -789,6 +808,7 @@ export default function EuvatarPublic() {
                 type: data.media_type,
                 caption: data.caption || data.name,
               } : null);
+              console.log(`MEDIA RECEBIDA [${new Date().toISOString()}]:`, sttMedia || null);
               if (sttMedia?.url) {
                 const mediaType = sttMedia?.type || sttMedia?.media_type || (isVideoUrl(sttMedia.url) ? 'video' : 'image');
                 showContextMedia({
@@ -799,6 +819,9 @@ export default function EuvatarPublic() {
               }
             } catch (err) {
               console.error('STT (liveavatar) error:', err);
+            } finally {
+              liveRecorderRef.current = null;
+              liveRecordChunksRef.current = [];
             }
           };
           recorder.start();
@@ -838,6 +861,20 @@ export default function EuvatarPublic() {
           const data = await resp.json();
           if (!resp.ok || !data?.ok) {
             throw new Error(data?.error || 'Erro ao transcrever áudio');
+          }
+          const sttMedia = data?.media || (data?.media_url ? {
+            url: data.media_url,
+            type: data.media_type,
+            caption: data.caption || data.name,
+          } : null);
+          console.log(`MEDIA RECEBIDA [${new Date().toISOString()}]:`, sttMedia || null);
+          if (sttMedia?.url) {
+            const mediaType = sttMedia?.type || sttMedia?.media_type || (isVideoUrl(sttMedia.url) ? 'video' : 'image');
+            showContextMedia({
+              type: mediaType,
+              url: sttMedia.url,
+              caption: sttMedia.caption,
+            });
           }
           const textForSay = (data?.response_text || data?.text || '').trim();
           if (textForSay) {
@@ -1069,6 +1106,7 @@ export default function EuvatarPublic() {
               <div className="relative bg-black/60 rounded-xl shadow-2xl p-2 max-w-[260px] max-h-[200px]">
                 {contextMedia.type === 'video' ? (
                   <video
+                    key={`ctx-video-${contextMedia.renderId}`}
                     src={contextMedia.url}
                     className="w-full h-full max-w-[240px] max-h-[180px] object-contain object-center rounded-lg"
                     autoPlay
@@ -1077,6 +1115,7 @@ export default function EuvatarPublic() {
                   />
                 ) : (
                   <img
+                    key={`ctx-image-${contextMedia.renderId}`}
                     src={contextMedia.url}
                     alt={contextMedia.caption || 'Mídia do contexto'}
                     className="w-full h-full max-w-[240px] max-h-[180px] object-contain object-center rounded-lg"
